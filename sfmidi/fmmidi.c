@@ -673,22 +673,33 @@ void sbStartPlayback(int rate) {
 
 // Initialize Sound Blaster
 int initSoundBlaster() {
-    printf("Initializing Sound Blaster at port 0x%x, IRQ %d, DMA %d, HDMA %d\n", 
-           sb_port, sb_irq, sb_dma, sb_hdma);
-    
-    // Reset DSP
+    // Print detailed detection information
+    printf("Detecting Sound Blaster...\n");
+    printf("Default Settings:\n");
+    printf("  Port: 0x%x\n", sb_port);
+    printf("  IRQ:  %d\n", sb_irq);
+    printf("  DMA:  %d\n", sb_dma);
+    printf("  HDMA: %d\n", sb_hdma);
+
+    // Try resetting DSP
     if (!sbResetDSP()) {
-        printf("Error: Failed to reset Sound Blaster DSP\n");
+        printf("ERROR: Sound Blaster DSP reset failed\n");
+        printf("Possible issues:\n");
+        printf("1. No Sound Blaster detected\n");
+        printf("2. Incorrect base port\n");
+        printf("3. Hardware not responding\n");
         return 0;
     }
-    
+
     // Get DSP version
     sb_version = sbGetDSPVersion();
-    printf("Sound Blaster DSP version %d.%d\n", sb_version >> 8, sb_version & 0xFF);
-    
-    // Check if we have at least Sound Blaster 16
+    printf("DSP Version: %d.%d\n", sb_version >> 8, sb_version & 0xFF);
+
+    // More verbose fallback
     if (sb_version < 0x0400) {
-        printf("Error: Sound Blaster 16 or better required\n");
+        printf("WARNING: Sound Blaster 16 or newer required\n");
+        printf("Falling back to FM synthesis\n");
+        enableSamplePlayback = 0;
         return 0;
     }
     
@@ -1339,11 +1350,30 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
 }
 
 int main(int argc, char* argv[]) {
-    // Simple command-line argument handling
+    // Verbose startup
+    printf("DJGPP MIDI Player with SoundFont Support\n");
+    printf("Compiled on: %s %s\n", __DATE__, __TIME__);
+
     if (argc < 3) {
         printf("Usage: %s <midi_file> <soundfont_file>\n", argv[0]);
         return 1;
     }
+
+    // Verify files exist before processing
+    FILE* midiTest = fopen(argv[1], "rb");
+    FILE* sf2Test = fopen(argv[2], "rb");
+
+    if (!midiTest) {
+        printf("ERROR: Cannot open MIDI file: %s\n", argv[1]);
+        return 1;
+    }
+    fclose(midiTest);
+
+    if (!sf2Test) {
+        printf("ERROR: Cannot open SoundFont file: %s\n", argv[2]);
+        return 1;
+    }
+    fclose(sf2Test);
 
     // Play the MIDI file using the specified SoundFont
     playMidiFile(argv[1], argv[2]);
