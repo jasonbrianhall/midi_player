@@ -24,7 +24,7 @@
 #define SB_WRITE_STATUS 0x22C
 #define SB_READ_STATUS  0x22E
 #define SB_ACK_8BIT     0x22E
-#define SB_IRQ          5
+#define SB_IRQ          7
 #define SB_DMA          1
 #define SB_CMD_SPKR_ON  0xD1
 #define SB_CMD_SPKR_OFF 0xD3
@@ -1359,6 +1359,48 @@ void freeMIDIFile(MIDIFile *midi) {
     memset(midi, 0, sizeof(MIDIFile));
 }
 
+/* Parse BLASTER environment variable */
+int parseBLASTERenv(int *basePort, int *irq, int *dma) {
+    char *blasterEnv = getenv("BLASTER");
+    char blasterCopy[256];  /* Copy of environment variable to avoid modifying original */
+    
+    if (!blasterEnv) {
+        printf("BLASTER environment variable not set\n");
+        return 0;
+    }
+    
+    /* Create a copy of the environment variable */
+    strncpy(blasterCopy, blasterEnv, sizeof(blasterCopy) - 1);
+    blasterCopy[sizeof(blasterCopy) - 1] = '\0';
+    
+    char *token = strtok(blasterCopy, " ");
+    while (token) {
+        switch (token[0]) {
+            case 'A': /* Base address */
+                if (sscanf(token + 1, "%x", basePort) != 1) {
+                    printf("Invalid base port in BLASTER: %s\n", token);
+                    return 0;
+                }
+                break;
+            case 'I': /* IRQ */
+                if (sscanf(token + 1, "%d", irq) != 1) {
+                    printf("Invalid IRQ in BLASTER: %s\n", token);
+                    return 0;
+                }
+                break;
+            case 'D': /* DMA channel */
+                if (sscanf(token + 1, "%d", dma) != 1) {
+                    printf("Invalid DMA channel in BLASTER: %s\n", token);
+                    return 0;
+                }
+                break;
+        }
+        token = strtok(NULL, " ");
+    }
+
+    return 1;
+}
+
 /* Main function */
 int main(int argc, char *argv[]) {
     MIDIFile midi;
@@ -1377,10 +1419,24 @@ int main(int argc, char *argv[]) {
     char *sf2File = argv[1];
     char *midiFileName = argv[2];
     
-    /* Parse optional Sound Blaster parameters */
-    int sbPort = (argc > 3) ? strtol(argv[3], NULL, 16) : SB_BASE;
-    int sbIrq = (argc > 4) ? atoi(argv[4]) : SB_IRQ;
-    int sbDma = (argc > 5) ? atoi(argv[5]) : SB_DMA;
+    /* Parse Sound Blaster settings from environment variable */
+    int sbPort = SB_BASE;
+    int sbIrq = SB_IRQ;
+    int sbDma = SB_DMA;
+    
+    if (!parseBLASTERenv(&sbPort, &sbIrq, &sbDma)) {
+        printf("Using default Sound Blaster settings\n");
+    }
+    
+    /* Override with command-line arguments if provided */
+    if (argc > 3) sbPort = strtol(argv[3], NULL, 16);
+    if (argc > 4) sbIrq = atoi(argv[4]);
+    if (argc > 5) sbDma = atoi(argv[5]);
+    
+    printf("Sound Blaster Configuration:\n");
+    printf("Base Port: 0x%03X\n", sbPort);
+    printf("IRQ: %d\n", sbIrq);
+    printf("DMA Channel: %d\n\n", sbDma);
     
     /* Zero out MIDI structure */
     memset(&midi, 0, sizeof(MIDIFile));
