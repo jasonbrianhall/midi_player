@@ -674,4 +674,812 @@ void initFMInstruments() {
     adl[83].modChar4 = 18;  adl[83].carChar4 = 10;
     adl[83].modChar5 = 0;   adl[83].carChar5 = 0;
     adl[83].fbConn = 48;    adl[83].percNote = 0;
+
+    // GM85: Lead 5 charang
+    adl[84].modChar1 = 33;  adl[84].carChar1 = 34;
+    adl[84].modChar2 = 139; adl[84].carChar2 = 0;
+    adl[84].modChar3 = 146; adl[84].carChar3 = 145;
+    adl[84].modChar4 = 42;  adl[84].carChar4 = 42;
+    adl[84].modChar5 = 1;   adl[84].carChar5 = 0;
+    adl[84].fbConn = 48;    adl[84].percNote = 0;
+    
+    // GM86: Lead 6 voice
+    adl[85].modChar1 = 162; adl[85].carChar1 = 97;
+    adl[85].modChar2 = 158; adl[85].carChar2 = 64;
+    adl[85].modChar3 = 223; adl[85].carChar3 = 111;
+    adl[85].modChar4 = 5;   adl[85].carChar4 = 7;
+    adl[85].modChar5 = 0;   adl[85].carChar5 = 0;
+    adl[85].fbConn = 50;    adl[85].percNote = 0;
+    
+    // GM87: Lead 7 fifths
+    adl[86].modChar1 = 32;  adl[86].carChar1 = 96;
+    adl[86].modChar2 = 26;  adl[86].carChar2 = 0;
+    adl[86].modChar3 = 239; adl[86].carChar3 = 143;
+    adl[86].modChar4 = 1;   adl[86].carChar4 = 6;
+    adl[86].modChar5 = 0;   adl[86].carChar5 = 2;
+    adl[86].fbConn = 48;    adl[86].percNote = 0;
+    
+    // GM88: Lead 8 brass
+    adl[87].modChar1 = 33;  adl[87].carChar1 = 33;
+    adl[87].modChar2 = 143; adl[87].carChar2 = 128;
+    adl[87].modChar3 = 241; adl[87].carChar3 = 244;
+    adl[87].modChar4 = 41;  adl[87].carChar4 = 9;
+    adl[87].modChar5 = 0;   adl[87].carChar5 = 0;
+    adl[87].fbConn = 58;    adl[87].percNote = 0;
+    
+    // GM89: Pad 1 new age
+    adl[88].modChar1 = 119; adl[88].carChar1 = 161;
+    adl[88].modChar2 = 165; adl[88].carChar2 = 0;
+    adl[88].modChar3 = 83;  adl[88].carChar3 = 160;
+    adl[88].modChar4 = 148; adl[88].carChar4 = 5;
+    adl[88].modChar5 = 0;   adl[88].carChar5 = 0;
+    adl[88].fbConn = 50;    adl[88].percNote = 0;
+    
+    // GM90: Pad 2 warm
+    adl[89].modChar1 = 97;  adl[89].carChar1 = 177;
+    adl[89].modChar2 = 31;  adl[89].carChar2 = 128;
+    adl[89].modChar3 = 168; adl[89].carChar3 = 37;
+    adl[89].modChar4 = 17;  adl[89].carChar4 = 3;
+    adl[89].modChar5 = 0;   adl[89].carChar5 = 0;
+    adl[89].fbConn = 58;    adl[89].percNote = 0;
+    
+    // GM91: Pad 3 polysynth
+    adl[90].modChar1 = 97;  adl[90].carChar1 = 97;
+    adl[90].modChar2 = 23;  adl[90].carChar2 = 0;
+    adl[90].modChar3 = 145; adl[90].carChar3 = 85;
+    adl[90].modChar4 = 52;  adl[90].carChar4 = 22;
+    adl[90].modChar5 = 0;   adl[90].carChar5 = 0;
+    adl[90].fbConn = 60;    adl[90].percNote = 0;
+    
+    // GM92: Pad 4 choir
+    adl[91].modChar1 = 113; adl[91].carChar1 = 114;
+    adl[91].modChar2 = 93;  adl[91].carChar2 = 0;
+    adl[91].modChar3 = 84;  adl[91].carChar3 = 106;
+    adl[91].modChar4 = 1;   adl[91].carChar4 = 3;
+    adl[91].modChar5 = 0;   adl[91].carChar5 = 0;
+    adl[91].fbConn = 48;    adl[91].percNote = 0;
+    
+    // GM93: Pad 5 bowedpad
+    adl[92].modChar1 = 33;  adl[92].carChar1 = 162;
+    adl[92].modChar2 = 151; adl[92].carChar2 = 0;
+    adl[92].modChar3 = 33;  adl[92].carChar3 = 66;
+    adl[92].modChar4 = 67;  adl[92].carChar4 = 53;
+    adl[92].modChar5 = 0;   adl[92].carChar5 = 0;
+    adl[92].fbConn = 56;    adl[92].percNote = 0;
+    
+    // GM94: Pad 6 metallic
+    adl[93].modChar1 = 161; adl[93].carChar1 = 33;
+    adl[93].modChar2 = 28;  adl[93].carChar2 = 0;
+    adl[93].modChar3 = 161; adl[93].carChar3 = 49;
+    adl[93].modChar4 = 119; adl[93].carChar4 = 71;
+    adl[93].modChar5 = 1;   adl[93].carChar5 = 1;
+    adl[93].fbConn = 48;    adl[93].percNote = 0;
+    
+    // GM95: Pad 7 halo
+    adl[94].modChar1 = 33;  adl[94].carChar1 = 97;
+    adl[94].modChar2 = 137; adl[94].carChar2 = 3;
+    adl[94].modChar3 = 17;  adl[94].carChar3 = 66;
+    adl[94].modChar4 = 51;  adl[94].carChar4 = 37;
+    adl[94].modChar5 = 0;   adl[94].carChar5 = 0;
+    adl[94].fbConn = 58;    adl[94].percNote = 0;
+    
+    // GM96: Pad 8 sweep
+    adl[95].modChar1 = 161; adl[95].carChar1 = 33;
+    adl[95].modChar2 = 21;  adl[95].carChar2 = 0;
+    adl[95].modChar3 = 17;  adl[95].carChar3 = 207;
+    adl[95].modChar4 = 71;  adl[95].carChar4 = 7;
+    adl[95].modChar5 = 1;   adl[95].carChar5 = 0;
+    adl[95].fbConn = 48;    adl[95].percNote = 0;
+    
+    // GM97: FX 1 rain
+    adl[96].modChar1 = 58;  adl[96].carChar1 = 81;
+    adl[96].modChar2 = 206; adl[96].carChar2 = 0;
+    adl[96].modChar3 = 248; adl[96].carChar3 = 134;
+    adl[96].modChar4 = 246; adl[96].carChar4 = 2;
+    adl[96].modChar5 = 0;   adl[96].carChar5 = 0;
+    adl[96].fbConn = 50;    adl[96].percNote = 0;
+    
+    // GM98: FX 2 soundtrack
+    adl[97].modChar1 = 33;  adl[97].carChar1 = 33;
+    adl[97].modChar2 = 21;  adl[97].carChar2 = 0;
+    adl[97].modChar3 = 33;  adl[97].carChar3 = 65;
+    adl[97].modChar4 = 35;  adl[97].carChar4 = 19;
+    adl[97].modChar5 = 1;   adl[97].carChar5 = 0;
+    adl[97].fbConn = 48;    adl[97].percNote = 0;
+    
+    // GM99: FX 3 crystal
+    adl[98].modChar1 = 6;   adl[98].carChar1 = 1;
+    adl[98].modChar2 = 91;  adl[98].carChar2 = 0;
+    adl[98].modChar3 = 116; adl[98].carChar3 = 165;
+    adl[98].modChar4 = 149; adl[98].carChar4 = 114;
+    adl[98].modChar5 = 0;   adl[98].carChar5 = 0;
+    adl[98].fbConn = 48;    adl[98].percNote = 0;
+    
+    // GM100: FX 4 atmosphere
+    adl[99].modChar1 = 34;  adl[99].carChar1 = 97;
+    adl[99].modChar2 = 146; adl[99].carChar2 = 131;
+    adl[99].modChar3 = 177; adl[99].carChar3 = 242;
+    adl[99].modChar4 = 129; adl[99].carChar4 = 38;
+    adl[99].modChar5 = 0;   adl[99].carChar5 = 0;
+    adl[99].fbConn = 60;    adl[99].percNote = 0;
+    
+    // GM101: FX 5 brightness
+    adl[100].modChar1 = 65;  adl[100].carChar1 = 66;
+    adl[100].modChar2 = 77;  adl[100].carChar2 = 0;
+    adl[100].modChar3 = 241; adl[100].carChar3 = 242;
+    adl[100].modChar4 = 81;  adl[100].carChar4 = 245;
+    adl[100].modChar5 = 1;   adl[100].carChar5 = 0;
+    adl[100].fbConn = 48;    adl[100].percNote = 0;
+    
+    // GM102: FX 6 goblins
+    adl[101].modChar1 = 97;  adl[101].carChar1 = 163;
+    adl[101].modChar2 = 148; adl[101].carChar2 = 128;
+    adl[101].modChar3 = 17;  adl[101].carChar3 = 17;
+    adl[101].modChar4 = 81;  adl[101].carChar4 = 19;
+    adl[101].modChar5 = 1;   adl[101].carChar5 = 0;
+    adl[101].fbConn = 54;    adl[101].percNote = 0;
+    
+    // GM103: FX 7 echoes
+    adl[102].modChar1 = 97;  adl[102].carChar1 = 161;
+    adl[102].modChar2 = 140; adl[102].carChar2 = 128;
+    adl[102].modChar3 = 17;  adl[102].carChar3 = 29;
+    adl[102].modChar4 = 49;  adl[102].carChar4 = 3;
+    adl[102].modChar5 = 0;   adl[102].carChar5 = 0;
+    adl[102].fbConn = 54;    adl[102].percNote = 0;
+    
+    // GM104: FX 8 sci-fi
+    adl[103].modChar1 = 164; adl[103].carChar1 = 97;
+    adl[103].modChar2 = 76;  adl[103].carChar2 = 0;
+    adl[103].modChar3 = 243; adl[103].carChar3 = 129;
+    adl[103].modChar4 = 115; adl[103].carChar4 = 35;
+    adl[103].modChar5 = 1;   adl[103].carChar5 = 0;
+    adl[103].fbConn = 52;    adl[103].percNote = 0;
+    
+    // GM105: Sitar
+    adl[104].modChar1 = 2;   adl[104].carChar1 = 7;
+    adl[104].modChar2 = 133; adl[104].carChar2 = 3;
+    adl[104].modChar3 = 210; adl[104].carChar3 = 242;
+    adl[104].modChar4 = 83;  adl[104].carChar4 = 246;
+    adl[104].modChar5 = 0;   adl[104].carChar5 = 1;
+    adl[104].fbConn = 48;    adl[104].percNote = 0;
+    
+    // GM106: Banjo
+    adl[105].modChar1 = 17;  adl[105].carChar1 = 19;
+    adl[105].modChar2 = 12;  adl[105].carChar2 = 128;
+    adl[105].modChar3 = 163; adl[105].carChar3 = 162;
+    adl[105].modChar4 = 17;  adl[105].carChar4 = 229;
+    adl[105].modChar5 = 1;   adl[105].carChar5 = 0;
+    adl[105].fbConn = 48;    adl[105].percNote = 0;
+    
+    // GM107: Shamisen
+    adl[106].modChar1 = 17;  adl[106].carChar1 = 17;
+    adl[106].modChar2 = 6;   adl[106].carChar2 = 0;
+    adl[106].modChar3 = 246; adl[106].carChar3 = 242;
+    adl[106].modChar4 = 65;  adl[106].carChar4 = 230;
+    adl[106].modChar5 = 1;   adl[106].carChar5 = 2;
+    adl[106].fbConn = 52;    adl[106].percNote = 0;
+    
+    // GM108: Koto
+    adl[107].modChar1 = 147; adl[107].carChar1 = 145;
+    adl[107].modChar2 = 145; adl[107].carChar2 = 0;
+    adl[107].modChar3 = 212; adl[107].carChar3 = 235;
+    adl[107].modChar4 = 50;  adl[107].carChar4 = 17;
+    adl[107].modChar5 = 0;   adl[107].carChar5 = 1;
+    adl[107].fbConn = 56;    adl[107].percNote = 0;
+    
+    // GM109: Kalimba
+    adl[108].modChar1 = 4;   adl[108].carChar1 = 1;
+    adl[108].modChar2 = 79;  adl[108].carChar2 = 0;
+    adl[108].modChar3 = 250; adl[108].carChar3 = 194;
+    adl[108].modChar4 = 86;  adl[108].carChar4 = 5;
+    adl[108].modChar5 = 0;   adl[108].carChar5 = 0;
+    adl[108].fbConn = 60;    adl[108].percNote = 0;
+    
+    // GM110: Bagpipe
+    adl[109].modChar1 = 33;  adl[109].carChar1 = 34;
+    adl[109].modChar2 = 73;  adl[109].carChar2 = 0;
+    adl[109].modChar3 = 124; adl[109].carChar3 = 111;
+    adl[109].modChar4 = 32;  adl[109].carChar4 = 12;
+    adl[109].modChar5 = 0;   adl[109].carChar5 = 1;
+    adl[109].fbConn = 54;    adl[109].percNote = 0;
+    
+    // GM111: Fiddle
+    adl[110].modChar1 = 49;  adl[110].carChar1 = 33;
+    adl[110].modChar2 = 133; adl[110].carChar2 = 0;
+    adl[110].modChar3 = 221; adl[110].carChar3 = 86;
+    adl[110].modChar4 = 51;  adl[110].carChar4 = 22;
+    adl[110].modChar5 = 1;   adl[110].carChar5 = 0;
+    adl[110].fbConn = 58;    adl[110].percNote = 0;
+    
+    // GM112: Shanai
+    adl[111].modChar1 = 32;  adl[111].carChar1 = 33;
+    adl[111].modChar2 = 4;   adl[111].carChar2 = 129;
+    adl[111].modChar3 = 218; adl[111].carChar3 = 143;
+    adl[111].modChar4 = 5;   adl[111].carChar4 = 11;
+    adl[111].modChar5 = 2;   adl[111].carChar5 = 0;
+    adl[111].fbConn = 54;    adl[111].percNote = 0;
+    
+    // GM113: Tinkle Bell
+    adl[112].modChar1 = 5;   adl[112].carChar1 = 3;
+    adl[112].modChar2 = 106; adl[112].carChar2 = 128;
+    adl[112].modChar3 = 241; adl[112].carChar3 = 195;
+    adl[112].modChar4 = 229; adl[112].carChar4 = 229;
+    adl[112].modChar5 = 0;   adl[112].carChar5 = 0;
+    adl[112].fbConn = 54;    adl[112].percNote = 0;
+    
+    // GM114: Agogo Bells
+    adl[113].modChar1 = 7;   adl[113].carChar1 = 2;
+    adl[113].modChar2 = 21;  adl[113].carChar2 = 0;
+    adl[113].modChar3 = 236; adl[113].carChar3 = 248;
+    adl[113].modChar4 = 38;  adl[113].carChar4 = 22;
+    adl[113].modChar5 = 0;   adl[113].carChar5 = 0;
+    adl[113].fbConn = 58;    adl[113].percNote = 0;
+    
+    // GM115: Steel Drums
+    adl[114].modChar1 = 5;   adl[114].carChar1 = 1;
+    adl[114].modChar2 = 157; adl[114].carChar2 = 0;
+    adl[114].modChar3 = 103; adl[114].carChar3 = 223;
+    adl[114].modChar4 = 53;  adl[114].carChar4 = 5;
+    adl[114].modChar5 = 0;   adl[114].carChar5 = 0;
+    adl[114].fbConn = 56;    adl[114].percNote = 0;
+    
+    // GM116: Woodblock
+    adl[115].modChar1 = 24;  adl[115].carChar1 = 18;
+    adl[115].modChar2 = 150; adl[115].carChar2 = 0;
+    adl[115].modChar3 = 250; adl[115].carChar3 = 248;
+    adl[115].modChar4 = 40;  adl[115].carChar4 = 229;
+    adl[115].modChar5 = 0;   adl[115].carChar5 = 0;
+    adl[115].fbConn = 58;    adl[115].percNote = 0;
+    
+    // GM117: Taiko Drum
+    adl[116].modChar1 = 16;  adl[116].carChar1 = 0;
+    adl[116].modChar2 = 134; adl[116].carChar2 = 3;
+    adl[116].modChar3 = 168; adl[116].carChar3 = 250;
+    adl[116].modChar4 = 7;   adl[116].carChar4 = 3;
+    adl[116].modChar5 = 0;   adl[116].carChar5 = 0;
+    adl[116].fbConn = 54;    adl[116].percNote = 0;
+    
+    // GM118: Melodic Tom
+    adl[117].modChar1 = 17;  adl[117].carChar1 = 16;
+    adl[117].modChar2 = 65;  adl[117].carChar2 = 3;
+    adl[117].modChar3 = 248; adl[117].carChar3 = 243;
+    adl[117].modChar4 = 71;  adl[117].carChar4 = 3;
+    adl[117].modChar5 = 2;   adl[117].carChar5 = 0;
+    adl[117].fbConn = 52;    adl[117].percNote = 0;
+    
+    // GM119: Synth Drum
+    adl[118].modChar1 = 1;   adl[118].carChar1 = 16;
+    adl[118].modChar2 = 142; adl[118].carChar2 = 0;
+    adl[118].modChar3 = 241; adl[118].carChar3 = 243;
+    adl[118].modChar4 = 6;   adl[118].carChar4 = 2;
+    adl[118].modChar5 = 2;   adl[118].carChar5 = 0;
+    adl[118].fbConn = 62;    adl[118].percNote = 0;
+    
+    // GM120: Reverse Cymbal
+    adl[119].modChar1 = 14;  adl[119].carChar1 = 192;
+    adl[119].modChar2 = 0;   adl[119].carChar2 = 0;
+    adl[119].modChar3 = 31;  adl[119].carChar3 = 31;
+    adl[119].modChar4 = 0;   adl[119].carChar4 = 255;
+    adl[119].modChar5 = 0;   adl[119].carChar5 = 3;
+    adl[119].fbConn = 62;    adl[119].percNote = 0;
+    
+    // GM121: Guitar FretNoise
+    adl[120].modChar1 = 6;   adl[120].carChar1 = 3;
+    adl[120].modChar2 = 128; adl[120].carChar2 = 136;
+    adl[120].modChar3 = 248; adl[120].carChar3 = 86;
+    adl[120].modChar4 = 36;  adl[120].carChar4 = 132;
+    adl[120].modChar5 = 0;   adl[120].carChar5 = 2;
+    adl[120].fbConn = 62;    adl[120].percNote = 0;
+    
+    // GM122: Breath Noise
+    adl[121].modChar1 = 14;  adl[121].carChar1 = 208;
+    adl[121].modChar2 = 0;   adl[121].carChar2 = 5;
+    adl[121].modChar3 = 248; adl[121].carChar3 = 52;
+    adl[121].modChar4 = 0;   adl[121].carChar4 = 4;
+    adl[121].modChar5 = 0;   adl[121].carChar5 = 3;
+    adl[121].fbConn = 62;    adl[121].percNote = 0;
+    
+    // GM123: Seashore
+    adl[122].modChar1 = 14;  adl[122].carChar1 = 192;
+    adl[122].modChar2 = 0;   adl[122].carChar2 = 0;
+    adl[122].modChar3 = 246; adl[122].carChar3 = 31;
+    adl[122].modChar4 = 0;   adl[122].carChar4 = 2;
+    adl[122].modChar5 = 0;   adl[122].carChar5 = 3;
+    adl[122].fbConn = 62;    adl[122].percNote = 0;
+    
+    // GM124: Bird Tweet
+    adl[123].modChar1 = 213; adl[123].carChar1 = 218;
+    adl[123].modChar2 = 149; adl[123].carChar2 = 64;
+    adl[123].modChar3 = 55;  adl[123].carChar3 = 86;
+    adl[123].modChar4 = 163; adl[123].carChar4 = 55;
+    adl[123].modChar5 = 0;   adl[123].carChar5 = 0;
+    adl[123].fbConn = 48;    adl[123].percNote = 0;
+    
+    // GM125: Telephone
+    adl[124].modChar1 = 53;  adl[124].carChar1 = 20;
+    adl[124].modChar2 = 92;  adl[124].carChar2 = 8;
+    adl[124].modChar3 = 178; adl[124].carChar3 = 244;
+    adl[124].modChar4 = 97;  adl[124].carChar4 = 21;
+    adl[124].modChar5 = 2;   adl[124].carChar5 = 0;
+    adl[124].fbConn = 58;    adl[124].percNote = 0;
+    
+    // GM126: Helicopter
+    adl[125].modChar1 = 14;  adl[125].carChar1 = 208;
+    adl[125].modChar2 = 0;   adl[125].carChar2 = 0;
+    adl[125].modChar3 = 246; adl[125].carChar3 = 79;
+    adl[125].modChar4 = 0;   adl[125].carChar4 = 245;
+    adl[125].modChar5 = 0;   adl[125].carChar5 = 3;
+    adl[125].fbConn = 62;    adl[125].percNote = 0;
+    
+    // GM127: Applause/Noise
+    adl[126].modChar1 = 38;  adl[126].carChar1 = 228;
+    adl[126].modChar2 = 0;   adl[126].carChar2 = 0;
+    adl[126].modChar3 = 255; adl[126].carChar3 = 18;
+    adl[126].modChar4 = 1;   adl[126].carChar4 = 22;
+    adl[126].modChar5 = 0;   adl[126].carChar5 = 1;
+    adl[126].fbConn = 62;    adl[126].percNote = 0;
+    
+    // GM128: Gunshot
+    adl[127].modChar1 = 0;   adl[127].carChar1 = 0;
+    adl[127].modChar2 = 0;   adl[127].carChar2 = 0;
+    adl[127].modChar3 = 243; adl[127].carChar3 = 246;
+    adl[127].modChar4 = 240; adl[127].carChar4 = 201;
+    adl[127].modChar5 = 0;   adl[127].carChar5 = 2;
+    adl[127].fbConn = 62;    adl[127].percNote = 0;
+    
+    // GP35: Ac Bass Drum
+    adl[128].modChar1 = 16;  adl[128].carChar1 = 17;
+    adl[128].modChar2 = 68;  adl[128].carChar2 = 0;
+    adl[128].modChar3 = 248; adl[128].carChar3 = 243;
+    adl[128].modChar4 = 119; adl[128].carChar4 = 6;
+    adl[128].modChar5 = 2;   adl[128].carChar5 = 0;
+    adl[128].fbConn = 56;    adl[128].percNote = 35;
+    
+    // GP36: Bass Drum 1
+    adl[129].modChar1 = 16;  adl[129].carChar1 = 17;
+    adl[129].modChar2 = 68;  adl[129].carChar2 = 0;
+    adl[129].modChar3 = 248; adl[129].carChar3 = 243;
+    adl[129].modChar4 = 119; adl[129].carChar4 = 6;
+    adl[129].modChar5 = 2;   adl[129].carChar5 = 0;
+    adl[129].fbConn = 56;    adl[129].percNote = 35;
+    
+    // GP37: Side Stick
+    adl[130].modChar1 = 2;   adl[130].carChar1 = 17;
+    adl[130].modChar2 = 7;   adl[130].carChar2 = 0;
+    adl[130].modChar3 = 249; adl[130].carChar3 = 248;
+    adl[130].modChar4 = 255; adl[130].carChar4 = 255;
+    adl[130].modChar5 = 0;   adl[130].carChar5 = 0;
+    adl[130].fbConn = 56;    adl[130].percNote = 52;
+    
+    // GP38: Acoustic Snare
+    adl[131].modChar1 = 0;   adl[131].carChar1 = 0;
+    adl[131].modChar2 = 0;   adl[131].carChar2 = 0;
+    adl[131].modChar3 = 252; adl[131].carChar3 = 250;
+    adl[131].modChar4 = 5;   adl[131].carChar4 = 23;
+    adl[131].modChar5 = 2;   adl[131].carChar5 = 0;
+    adl[131].fbConn = 62;    adl[131].percNote = 48;
+    
+    // GP39: Hand Clap
+    adl[132].modChar1 = 0;   adl[132].carChar1 = 1;
+    adl[132].modChar2 = 2;   adl[132].carChar2 = 0;
+    adl[132].modChar3 = 255; adl[132].carChar3 = 255;
+    adl[132].modChar4 = 7;   adl[132].carChar4 = 8;
+    adl[132].modChar5 = 0;   adl[132].carChar5 = 0;
+    adl[132].fbConn = 48;    adl[132].percNote = 58;
+    
+    // GP40: Electric Snare
+    adl[133].modChar1 = 0;   adl[133].carChar1 = 0;
+    adl[133].modChar2 = 0;   adl[133].carChar2 = 0;
+    adl[133].modChar3 = 252; adl[133].carChar3 = 250;
+    adl[133].modChar4 = 5;   adl[133].carChar4 = 23;
+    adl[133].modChar5 = 2;   adl[133].carChar5 = 0;
+    adl[133].fbConn = 62;    adl[133].percNote = 60;
+    
+    // GP41: Low Floor Tom
+    adl[134].modChar1 = 0;   adl[134].carChar1 = 0;
+    adl[134].modChar2 = 0;   adl[134].carChar2 = 0;
+    adl[134].modChar3 = 246; adl[134].carChar3 = 246;
+    adl[134].modChar4 = 12;  adl[134].carChar4 = 6;
+    adl[134].modChar5 = 0;   adl[134].carChar5 = 0;
+    adl[134].fbConn = 52;    adl[134].percNote = 47;
+    
+    // GP42: Closed High Hat
+    adl[135].modChar1 = 12;  adl[135].carChar1 = 18;
+    adl[135].modChar2 = 0;   adl[135].carChar2 = 0;
+    adl[135].modChar3 = 246; adl[135].carChar3 = 251;
+    adl[135].modChar4 = 8;   adl[135].carChar4 = 71;
+    adl[135].modChar5 = 0;   adl[135].carChar5 = 2;
+    adl[135].fbConn = 58;    adl[135].percNote = 43;
+    
+    // GP43: High Floor Tom
+    adl[136].modChar1 = 0;   adl[136].carChar1 = 0;
+    adl[136].modChar2 = 0;   adl[136].carChar2 = 0;
+    adl[136].modChar3 = 246; adl[136].carChar3 = 246;
+    adl[136].modChar4 = 12;  adl[136].carChar4 = 6;
+    adl[136].modChar5 = 0;   adl[136].carChar5 = 0;
+    adl[136].fbConn = 52;    adl[136].percNote = 49;
+    
+    // GP44: Pedal High Hat
+    adl[137].modChar1 = 12;  adl[137].carChar1 = 18;
+    adl[137].modChar2 = 0;   adl[137].carChar2 = 5;
+    adl[137].modChar3 = 246; adl[137].carChar3 = 123;
+    adl[137].modChar4 = 8;   adl[137].carChar4 = 71;
+    adl[137].modChar5 = 0;   adl[137].carChar5 = 2;
+    adl[137].fbConn = 58;    adl[137].percNote = 43;
+    
+    // GP45: Low Tom
+    adl[138].modChar1 = 0;   adl[138].carChar1 = 0;
+    adl[138].modChar2 = 0;   adl[138].carChar2 = 0;
+    adl[138].modChar3 = 246; adl[138].carChar3 = 246;
+    adl[138].modChar4 = 12;  adl[138].carChar4 = 6;
+    adl[138].modChar5 = 0;   adl[138].carChar5 = 0;
+    adl[138].fbConn = 52;    adl[138].percNote = 51;
+    
+    // GP46: Open High Hat
+    adl[139].modChar1 = 12;  adl[139].carChar1 = 18;
+    adl[139].modChar2 = 0;   adl[139].carChar2 = 0;
+    adl[139].modChar3 = 246; adl[139].carChar3 = 203;
+    adl[139].modChar4 = 2;   adl[139].carChar4 = 67;
+    adl[139].modChar5 = 0;   adl[139].carChar5 = 2;
+    adl[139].fbConn = 58;    adl[139].percNote = 43;
+    
+    // GP47: Low-Mid Tom
+    adl[140].modChar1 = 0;   adl[140].carChar1 = 0;
+    adl[140].modChar2 = 0;   adl[140].carChar2 = 0;
+    adl[140].modChar3 = 246; adl[140].carChar3 = 246;
+    adl[140].modChar4 = 12;  adl[140].carChar4 = 6;
+    adl[140].modChar5 = 0;   adl[140].carChar5 = 0;
+    adl[140].fbConn = 52;    adl[140].percNote = 54;
+    
+    // GP48: High-Mid Tom
+    adl[141].modChar1 = 0;   adl[141].carChar1 = 0;
+    adl[141].modChar2 = 0;   adl[141].carChar2 = 0;
+    adl[141].modChar3 = 246; adl[141].carChar3 = 246;
+    adl[141].modChar4 = 12;  adl[141].carChar4 = 6;
+    adl[141].modChar5 = 0;   adl[141].carChar5 = 0;
+    adl[141].fbConn = 52;    adl[141].percNote = 57;
+    
+    // GP49: Crash Cymbal 1
+    adl[142].modChar1 = 14;  adl[142].carChar1 = 208;
+    adl[142].modChar2 = 0;   adl[142].carChar2 = 0;
+    adl[142].modChar3 = 246; adl[142].carChar3 = 159;
+    adl[142].modChar4 = 0;   adl[142].carChar4 = 2;
+    adl[142].modChar5 = 0;   adl[142].carChar5 = 3;
+    adl[142].fbConn = 62;    adl[142].percNote = 72;
+    
+    // GP50: High Tom
+    adl[143].modChar1 = 0;   adl[143].carChar1 = 0;
+    adl[143].modChar2 = 0;   adl[143].carChar2 = 0;
+    adl[143].modChar3 = 246; adl[143].carChar3 = 246;
+    adl[143].modChar4 = 12;  adl[143].carChar4 = 6;
+    adl[143].modChar5 = 0;   adl[143].carChar5 = 0;
+    adl[143].fbConn = 52;    adl[143].percNote = 60;
+    
+    // GP51: Ride Cymbal 1
+    adl[144].modChar1 = 14;  adl[144].carChar1 = 7;
+    adl[144].modChar2 = 8;   adl[144].carChar2 = 74;
+    adl[144].modChar3 = 248; adl[144].carChar3 = 244;
+    adl[144].modChar4 = 66;  adl[144].carChar4 = 228;
+    adl[144].modChar5 = 0;   adl[144].carChar5 = 3;
+    adl[144].fbConn = 62;    adl[144].percNote = 76;
+    
+    // GP52: Chinese Cymbal
+    adl[145].modChar1 = 14;  adl[145].carChar1 = 208;
+    adl[145].modChar2 = 0;   adl[145].carChar2 = 10;
+    adl[145].modChar3 = 245; adl[145].carChar3 = 159;
+    adl[145].modChar4 = 48;  adl[145].carChar4 = 2;
+    adl[145].modChar5 = 0;   adl[145].carChar5 = 0;
+    adl[145].fbConn = 62;    adl[145].percNote = 84;
+    
+    // GP53: Ride Bell
+    adl[146].modChar1 = 14;  adl[146].carChar1 = 7;
+    adl[146].modChar2 = 10;  adl[146].carChar2 = 93;
+    adl[146].modChar3 = 228; adl[146].carChar3 = 245;
+    adl[146].modChar4 = 228; adl[146].carChar4 = 229;
+    adl[146].modChar5 = 3;   adl[146].carChar5 = 1;
+    adl[146].fbConn = 54;    adl[146].percNote = 36;
+    
+    // GP54: Tambourine
+    adl[147].modChar1 = 2;   adl[147].carChar1 = 5;
+    adl[147].modChar2 = 3;   adl[147].carChar2 = 10;
+    adl[147].modChar3 = 180; adl[147].carChar3 = 151;
+    adl[147].modChar4 = 4;   adl[147].carChar4 = 247;
+    adl[147].modChar5 = 0;   adl[147].carChar5 = 0;
+    adl[147].fbConn = 62;    adl[147].percNote = 65;
+    
+    // GP55: Splash Cymbal
+    adl[148].modChar1 = 78;  adl[148].carChar1 = 158;
+    adl[148].modChar2 = 0;   adl[148].carChar2 = 0;
+    adl[148].modChar3 = 246; adl[148].carChar3 = 159;
+    adl[148].modChar4 = 0;   adl[148].carChar4 = 2;
+    adl[148].modChar5 = 0;   adl[148].carChar5 = 3;
+    adl[148].fbConn = 62;    adl[148].percNote = 84;
+    
+    // GP56: Cow Bell
+    adl[149].modChar1 = 17;  adl[149].carChar1 = 16;
+    adl[149].modChar2 = 69;  adl[149].carChar2 = 8;
+    adl[149].modChar3 = 248; adl[149].carChar3 = 243;
+    adl[149].modChar4 = 55;  adl[149].carChar4 = 5;
+    adl[149].modChar5 = 2;   adl[149].carChar5 = 0;
+    adl[149].fbConn = 56;    adl[149].percNote = 83;
+    
+    // GP57: Crash Cymbal 2
+    adl[150].modChar1 = 14;  adl[150].carChar1 = 208;
+    adl[150].modChar2 = 0;   adl[150].carChar2 = 0;
+    adl[150].modChar3 = 246; adl[150].carChar3 = 159;
+    adl[150].modChar4 = 0;   adl[150].carChar4 = 2;
+    adl[150].modChar5 = 0;   adl[150].carChar5 = 3;
+    adl[150].fbConn = 62;    adl[150].percNote = 84;
+    
+    // GP58: Vibraslap
+    adl[151].modChar1 = 128; adl[151].carChar1 = 16;
+    adl[151].modChar2 = 0;   adl[151].carChar2 = 13;
+    adl[151].modChar3 = 255; adl[151].carChar3 = 255;
+    adl[151].modChar4 = 3;   adl[151].carChar4 = 20;
+    adl[151].modChar5 = 3;   adl[151].carChar5 = 0;
+    adl[151].fbConn = 60;    adl[151].percNote = 24;
+    
+    // GP59: Ride Cymbal 2
+    adl[152].modChar1 = 14;  adl[152].carChar1 = 7;
+    adl[152].modChar2 = 8;   adl[152].carChar2 = 74;
+    adl[152].modChar3 = 248; adl[152].carChar3 = 244;
+    adl[152].modChar4 = 66;  adl[152].carChar4 = 228;
+    adl[152].modChar5 = 0;   adl[152].carChar5 = 3;
+    adl[152].fbConn = 62;    adl[152].percNote = 77;
+    
+    // GP60: High Bongo
+    adl[153].modChar1 = 6;   adl[153].carChar1 = 2;
+    adl[153].modChar2 = 11;  adl[153].carChar2 = 0;
+    adl[153].modChar3 = 245; adl[153].carChar3 = 245;
+    adl[153].modChar4 = 12;  adl[153].carChar4 = 8;
+    adl[153].modChar5 = 0;   adl[153].carChar5 = 0;
+    adl[153].fbConn = 54;    adl[153].percNote = 60;
+    
+    // GP61: Low Bongo
+    adl[154].modChar1 = 1;   adl[154].carChar1 = 2;
+    adl[154].modChar2 = 0;   adl[154].carChar2 = 0;
+    adl[154].modChar3 = 250; adl[154].carChar3 = 200;
+    adl[154].modChar4 = 191; adl[154].carChar4 = 151;
+    adl[154].modChar5 = 0;   adl[154].carChar5 = 0;
+    adl[154].fbConn = 55;    adl[154].percNote = 65;
+    
+    // GP62: Mute High Conga
+    adl[155].modChar1 = 1;   adl[155].carChar1 = 1;
+    adl[155].modChar2 = 81;  adl[155].carChar2 = 0;
+    adl[155].modChar3 = 250; adl[155].carChar3 = 250;
+    adl[155].modChar4 = 135; adl[155].carChar4 = 183;
+    adl[155].modChar5 = 0;   adl[155].carChar5 = 0;
+    adl[155].fbConn = 54;    adl[155].percNote = 59;
+
+    // GP63: Open High Conga
+    adl[156].modChar1 = 1;   adl[156].carChar1 = 2;
+    adl[156].modChar2 = 84;  adl[156].carChar2 = 0;
+    adl[156].modChar3 = 250; adl[156].carChar3 = 248;
+    adl[156].modChar4 = 141; adl[156].carChar4 = 184;
+    adl[156].modChar5 = 0;   adl[156].carChar5 = 0;
+    adl[156].fbConn = 54;    adl[156].percNote = 51;
+    
+    // GP64: Low Conga
+    adl[157].modChar1 = 1;   adl[157].carChar1 = 2;
+    adl[157].modChar2 = 89;  adl[157].carChar2 = 0;
+    adl[157].modChar3 = 250; adl[157].carChar3 = 248;
+    adl[157].modChar4 = 136; adl[157].carChar4 = 182;
+    adl[157].modChar5 = 0;   adl[157].carChar5 = 0;
+    adl[157].fbConn = 54;    adl[157].percNote = 45;
+    
+    // GP65: High Timbale
+    adl[158].modChar1 = 1;   adl[158].carChar1 = 0;
+    adl[158].modChar2 = 0;   adl[158].carChar2 = 0;
+    adl[158].modChar3 = 249; adl[158].carChar3 = 250;
+    adl[158].modChar4 = 10;  adl[158].carChar4 = 6;
+    adl[158].modChar5 = 3;   adl[158].carChar5 = 0;
+    adl[158].fbConn = 62;    adl[158].percNote = 71;
+
+    // GP62: Mute High Conga
+    adl[155].modChar1 = 1;   adl[155].carChar1 = 1;
+    adl[155].modChar2 = 81;  adl[155].carChar2 = 0;
+    adl[155].modChar3 = 250; adl[155].carChar3 = 250;
+    adl[155].modChar4 = 135; adl[155].carChar4 = 183;
+    adl[155].modChar5 = 0;   adl[155].carChar5 = 0;
+    adl[155].fbConn = 54;    adl[155].percNote = 59;
+    
+    // GP63: Open High Conga
+    adl[156].modChar1 = 1;   adl[156].carChar1 = 2;
+    adl[156].modChar2 = 84;  adl[156].carChar2 = 0;
+    adl[156].modChar3 = 250; adl[156].carChar3 = 248;
+    adl[156].modChar4 = 141; adl[156].carChar4 = 184;
+    adl[156].modChar5 = 0;   adl[156].carChar5 = 0;
+    adl[156].fbConn = 54;    adl[156].percNote = 51;
+    
+    // GP64: Low Conga
+    adl[157].modChar1 = 1;   adl[157].carChar1 = 2;
+    adl[157].modChar2 = 89;  adl[157].carChar2 = 0;
+    adl[157].modChar3 = 250; adl[157].carChar3 = 248;
+    adl[157].modChar4 = 136; adl[157].carChar4 = 182;
+    adl[157].modChar5 = 0;   adl[157].carChar5 = 0;
+    adl[157].fbConn = 54;    adl[157].percNote = 45;
+    
+    // GP65: High Timbale
+    adl[158].modChar1 = 1;   adl[158].carChar1 = 0;
+    adl[158].modChar2 = 0;   adl[158].carChar2 = 0;
+    adl[158].modChar3 = 249; adl[158].carChar3 = 250;
+    adl[158].modChar4 = 10;  adl[158].carChar4 = 6;
+    adl[158].modChar5 = 3;   adl[158].carChar5 = 0;
+    adl[158].fbConn = 62;    adl[158].percNote = 71;
+    
+    // GP66: Low Timbale
+    adl[159].modChar1 = 0;   adl[159].carChar1 = 0;
+    adl[159].modChar2 = 128; adl[159].carChar2 = 0;
+    adl[159].modChar3 = 249; adl[159].carChar3 = 246;
+    adl[159].modChar4 = 137; adl[159].carChar4 = 108;
+    adl[159].modChar5 = 3;   adl[159].carChar5 = 0;
+    adl[159].fbConn = 62;    adl[159].percNote = 60;
+    
+    // GP67: High Agogo
+    adl[160].modChar1 = 3;   adl[160].carChar1 = 12;
+    adl[160].modChar2 = 128; adl[160].carChar2 = 8;
+    adl[160].modChar3 = 248; adl[160].carChar3 = 246;
+    adl[160].modChar4 = 136; adl[160].carChar4 = 182;
+    adl[160].modChar5 = 3;   adl[160].carChar5 = 0;
+    adl[160].fbConn = 63;    adl[160].percNote = 58;
+    
+    // GP68: Low Agogo
+    adl[161].modChar1 = 3;   adl[161].carChar1 = 12;
+    adl[161].modChar2 = 133; adl[161].carChar2 = 0;
+    adl[161].modChar3 = 248; adl[161].carChar3 = 246;
+    adl[161].modChar4 = 136; adl[161].carChar4 = 182;
+    adl[161].modChar5 = 3;   adl[161].carChar5 = 0;
+    adl[161].fbConn = 63;    adl[161].percNote = 53;
+    
+    // GP69: Cabasa
+    adl[162].modChar1 = 14;  adl[162].carChar1 = 0;
+    adl[162].modChar2 = 64;  adl[162].carChar2 = 8;
+    adl[162].modChar3 = 118; adl[162].carChar3 = 119;
+    adl[162].modChar4 = 79;  adl[162].carChar4 = 24;
+    adl[162].modChar5 = 0;   adl[162].carChar5 = 2;
+    adl[162].fbConn = 62;    adl[162].percNote = 64;
+    
+    // GP70: Maracas
+    adl[163].modChar1 = 14;  adl[163].carChar1 = 3;
+    adl[163].modChar2 = 64;  adl[163].carChar2 = 0;
+    adl[163].modChar3 = 200; adl[163].carChar3 = 155;
+    adl[163].modChar4 = 73;  adl[163].carChar4 = 105;
+    adl[163].modChar5 = 0;   adl[163].carChar5 = 2;
+    adl[163].fbConn = 62;    adl[163].percNote = 71;
+    
+    // GP71: Short Whistle
+    adl[164].modChar1 = 215; adl[164].carChar1 = 199;
+    adl[164].modChar2 = 220; adl[164].carChar2 = 0;
+    adl[164].modChar3 = 173; adl[164].carChar3 = 141;
+    adl[164].modChar4 = 5;   adl[164].carChar4 = 5;
+    adl[164].modChar5 = 3;   adl[164].carChar5 = 0;
+    adl[164].fbConn = 62;    adl[164].percNote = 61;
+    
+    // GP72: Long Whistle
+    adl[165].modChar1 = 215; adl[165].carChar1 = 199;
+    adl[165].modChar2 = 220; adl[165].carChar2 = 0;
+    adl[165].modChar3 = 168; adl[165].carChar3 = 136;
+    adl[165].modChar4 = 4;   adl[165].carChar4 = 4;
+    adl[165].modChar5 = 3;   adl[165].carChar5 = 0;
+    adl[165].fbConn = 62;    adl[165].percNote = 61;
+    
+    // GP73: Short Guiro
+    adl[166].modChar1 = 128; adl[166].carChar1 = 17;
+    adl[166].modChar2 = 0;   adl[166].carChar2 = 0;
+    adl[166].modChar3 = 246; adl[166].carChar3 = 103;
+    adl[166].modChar4 = 6;   adl[166].carChar4 = 23;
+    adl[166].modChar5 = 3;   adl[166].carChar5 = 3;
+    adl[166].fbConn = 62;    adl[166].percNote = 44;
+    
+    // GP74: Long Guiro
+    adl[167].modChar1 = 128; adl[167].carChar1 = 17;
+    adl[167].modChar2 = 0;   adl[167].carChar2 = 9;
+    adl[167].modChar3 = 245; adl[167].carChar3 = 70;
+    adl[167].modChar4 = 5;   adl[167].carChar4 = 22;
+    adl[167].modChar5 = 2;   adl[167].carChar5 = 3;
+    adl[167].fbConn = 62;    adl[167].percNote = 40;
+    
+    // GP75: Claves
+    adl[168].modChar1 = 6;   adl[168].carChar1 = 21;
+    adl[168].modChar2 = 63;  adl[168].carChar2 = 0;
+    adl[168].modChar3 = 0;   adl[168].carChar3 = 247;
+    adl[168].modChar4 = 244; adl[168].carChar4 = 245;
+    adl[168].modChar5 = 0;   adl[168].carChar5 = 0;
+    adl[168].fbConn = 49;    adl[168].percNote = 69;
+    
+    // GP76: High Wood Block
+    adl[169].modChar1 = 6;   adl[169].carChar1 = 18;
+    adl[169].modChar2 = 63;  adl[169].carChar2 = 0;
+    adl[169].modChar3 = 0;   adl[169].carChar3 = 247;
+    adl[169].modChar4 = 244; adl[169].carChar4 = 245;
+    adl[169].modChar5 = 3;   adl[169].carChar5 = 0;
+    adl[169].fbConn = 48;    adl[169].percNote = 68;
+    
+    // GP77: Low Wood Block
+    adl[170].modChar1 = 6;   adl[170].carChar1 = 18;
+    adl[170].modChar2 = 63;  adl[170].carChar2 = 0;
+    adl[170].modChar3 = 0;   adl[170].carChar3 = 247;
+    adl[170].modChar4 = 244; adl[170].carChar4 = 245;
+    adl[170].modChar5 = 0;   adl[170].carChar5 = 0;
+    adl[170].fbConn = 49;    adl[170].percNote = 63;
+    
+    // GP78: Mute Cuica
+    adl[171].modChar1 = 1;   adl[171].carChar1 = 2;
+    adl[171].modChar2 = 88;  adl[171].carChar2 = 0;
+    adl[171].modChar3 = 103; adl[171].carChar3 = 117;
+    adl[171].modChar4 = 231; adl[171].carChar4 = 7;
+    adl[171].modChar5 = 0;   adl[171].carChar5 = 0;
+    adl[171].fbConn = 48;    adl[171].percNote = 74;
+    
+    // GP79: Open Cuica
+    adl[172].modChar1 = 65;  adl[172].carChar1 = 66;
+    adl[172].modChar2 = 69;  adl[172].carChar2 = 8;
+    adl[172].modChar3 = 248; adl[172].carChar3 = 117;
+    adl[172].modChar4 = 72;  adl[172].carChar4 = 5;
+    adl[172].modChar5 = 0;   adl[172].carChar5 = 0;
+    adl[172].fbConn = 48;    adl[172].percNote = 60;
+    
+    // GP80: Mute Triangle
+    adl[173].modChar1 = 10;  adl[173].carChar1 = 30;
+    adl[173].modChar2 = 64;  adl[173].carChar2 = 78;
+    adl[173].modChar3 = 224; adl[173].carChar3 = 255;
+    adl[173].modChar4 = 240; adl[173].carChar4 = 5;
+    adl[173].modChar5 = 3;   adl[173].carChar5 = 0;
+    adl[173].fbConn = 56;    adl[173].percNote = 80;
+    
+    // GP81: Open Triangle
+    adl[174].modChar1 = 10;  adl[174].carChar1 = 30;
+    adl[174].modChar2 = 124; adl[174].carChar2 = 82;
+    adl[174].modChar3 = 224; adl[174].carChar3 = 255;
+    adl[174].modChar4 = 240; adl[174].carChar4 = 2;
+    adl[174].modChar5 = 3;   adl[174].carChar5 = 0;
+    adl[174].fbConn = 56;    adl[174].percNote = 64;
+    
+    // GP82
+    adl[175].modChar1 = 14;  adl[175].carChar1 = 0;
+    adl[175].modChar2 = 64;  adl[175].carChar2 = 8;
+    adl[175].modChar3 = 122; adl[175].carChar3 = 123;
+    adl[175].modChar4 = 74;  adl[175].carChar4 = 27;
+    adl[175].modChar5 = 0;   adl[175].carChar5 = 2;
+    adl[175].fbConn = 62;    adl[175].percNote = 72;
+    
+    // GP83
+    adl[176].modChar1 = 14;  adl[176].carChar1 = 7;
+    adl[176].modChar2 = 10;  adl[176].carChar2 = 64;
+    adl[176].modChar3 = 228; adl[176].carChar3 = 85;
+    adl[176].modChar4 = 228; adl[176].carChar4 = 57;
+    adl[176].modChar5 = 3;   adl[176].carChar5 = 1;
+    adl[176].fbConn = 54;    adl[176].percNote = 73;
+    
+    // GP84
+    adl[177].modChar1 = 5;   adl[177].carChar1 = 4;
+    adl[177].modChar2 = 5;   adl[177].carChar2 = 64;
+    adl[177].modChar3 = 249; adl[177].carChar3 = 214;
+    adl[177].modChar4 = 50;  adl[177].carChar4 = 165;
+    adl[177].modChar5 = 3;   adl[177].carChar5 = 0;
+    adl[177].fbConn = 62;    adl[177].percNote = 70;
+    
+    // GP85
+    adl[178].modChar1 = 2;   adl[178].carChar1 = 21;
+    adl[178].modChar2 = 63;  adl[178].carChar2 = 0;
+    adl[178].modChar3 = 0;   adl[178].carChar3 = 247;
+    adl[178].modChar4 = 243; adl[178].carChar4 = 245;
+    adl[178].modChar5 = 3;   adl[178].carChar5 = 0;
+    adl[178].fbConn = 56;    adl[178].percNote = 68;
+    
+    // GP86
+    adl[179].modChar1 = 1;   adl[179].carChar1 = 2;
+    adl[179].modChar2 = 79;  adl[179].carChar2 = 0;
+    adl[179].modChar3 = 250; adl[179].carChar3 = 248;
+    adl[179].modChar4 = 141; adl[179].carChar4 = 181;
+    adl[179].modChar5 = 0;   adl[179].carChar5 = 0;
+    adl[179].fbConn = 55;    adl[179].percNote = 48;
+    
+    // GP87
+    adl[180].modChar1 = 0;   adl[180].carChar1 = 0;
+    adl[180].modChar2 = 0;   adl[180].carChar2 = 0;
+    adl[180].modChar3 = 246; adl[180].carChar3 = 246;
+    adl[180].modChar4 = 12;  adl[180].carChar4 = 6;
+    adl[180].modChar5 = 0;   adl[180].carChar5 = 0;
+    adl[180].fbConn = 52;    adl[180].percNote = 53;
 }

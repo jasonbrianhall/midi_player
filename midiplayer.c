@@ -222,7 +222,7 @@ void OPL_Touch_Real(int c, int v) {
 }
 
 void increaseVolume() {
-    if (globalVolume < 150) globalVolume += 10;
+    if (globalVolume < 300) globalVolume += 10;
     updateAllNotes();
 }
 
@@ -344,27 +344,6 @@ unsigned long convertInteger(char* str, int len) {
         value = value * 256 + (unsigned char)str[i];
     }
     return value;
-}
-
-// Initialize FM instrument data
-void initFMInstruments() {
-    // This function will initialize the FM instrument data array
-    // with 180 FM instrument definitions from the original QBasic code
-    
-    // GP1: Acoustic Grand Piano
-    adl[0].modChar1 = 1;   adl[0].carChar1 = 1;
-    adl[0].modChar2 = 143; adl[0].carChar2 = 6;
-    adl[0].modChar3 = 242; adl[0].carChar3 = 242;
-    adl[0].modChar4 = 244; adl[0].carChar4 = 247;
-    adl[0].modChar5 = 0;   adl[0].carChar5 = 0;
-    adl[0].fbConn = 56;    adl[0].percNote = 0;
-    
-    // Fill in the rest of the instrument data here...
-    // This would be too large to include completely, but would follow the
-    // pattern shown in the QBasic DATA statements
-    
-    // For this example, we're just initializing the first instrument
-    // In a full implementation, you would initialize all 180 instruments
 }
 
 // Deallocate an active note
@@ -911,6 +890,11 @@ void playMidiFile(const char* filename) {
     gotoxy(1, 2);
     textcolor(8);
     printf("Press Q to quit; Space to pause\n");
+    printf("Controls:\n");
+    printf("  Q     - Quit\n");
+    printf("  Space - Pause/Resume\n");
+    printf("  +/-   - Increase/Decrease Volume\n");
+    printf("  N     - Toggle Volume Normalization\n\n");
     
     // Start playback
     isPlaying = true;
@@ -987,17 +971,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // Display a short delay to show filename
-    printf("Loading %s...\n", filename);
-    delay(1000); // 1-second delay
-    
-    // Display controls
-    printf("Controls:\n");
-    printf("  Q     - Quit\n");
-    printf("  Space - Pause/Resume\n");
-    printf("  +/-   - Increase/Decrease Volume\n");
-    printf("  N     - Toggle Volume Normalization\n\n");
-    
+    printf("Loading %s...\n", filename);    
     // Play the MIDI file
     playMidiFile(filename);
     
