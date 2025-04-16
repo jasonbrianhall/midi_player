@@ -177,13 +177,25 @@ void stopNote(int channel, int note);
 unsigned short readShort(FILE *file) {
     unsigned char buffer[2];
     fread(buffer, 1, 2, file);
-    return (buffer[0]) | (buffer[1] << 8);
+    return (buffer[0]) | (buffer[1] << 8);  // Little-endian
 }
 
 unsigned long readLong(FILE *file) {
     unsigned char buffer[4];
     fread(buffer, 1, 4, file);
-    return (buffer[0]) | (buffer[1] << 8) | (buffer[2] << 16) | (buffer[3] << 24);
+    return (buffer[0]) | (buffer[1] << 8) | (buffer[2] << 16) | (buffer[3] << 24);  // Little-endian
+}
+
+unsigned short readMidiShort(FILE *file) {
+    unsigned char buffer[2];
+    fread(buffer, 1, 2, file);
+    return (buffer[0] << 8) | buffer[1];  // Big-endian
+}
+
+unsigned long readMidiLong(FILE *file) {
+    unsigned char buffer[4];
+    fread(buffer, 1, 4, file);
+    return (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3];  // Big-endian
 }
 
 /* Read a variable-length value from MIDI file */
@@ -209,6 +221,14 @@ int readChunkHeader(FILE *file, ChunkHeader *header) {
         return 0;
     }
     header->size = readLong(file);
+    return 1;
+}
+
+int readMidiChunkHeader(FILE *file, ChunkHeader *header) {
+    if (fread(header->id, 1, 4, file) != 4) {
+        return 0;
+    }
+    header->size = readMidiLong(file);
     return 1;
 }
 
@@ -987,6 +1007,7 @@ void mixAudioBuffer(unsigned char *buffer, int size) {
 }
 
 /* Pre-process MIDI file to load all events */
+/* Pre-process MIDI file to load all events */
 int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
     ChunkHeader header;
     unsigned char buffer[BUFFER_SIZE];
@@ -996,15 +1017,15 @@ int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
     midi->tempo = 500000; /* Default tempo (120 BPM) */
     
     /* Read the MThd header */
-    if (!readChunkHeader(midiFile, &header) || !compareID(header.id, "MThd")) {
+    if (!readMidiChunkHeader(midiFile, &header) || !compareID(header.id, "MThd")) {
         printf("Error: Not a valid MIDI file\n");
         return 0;
     }
     
     /* Read MIDI header data */
-    midi->format = readShort(midiFile);
-    midi->numTracks = readShort(midiFile);
-    midi->division = readShort(midiFile);
+    midi->format = readMidiShort(midiFile);
+    midi->numTracks = readMidiShort(midiFile);
+    midi->division = readMidiShort(midiFile);
     
     /* Skip any remaining header bytes */
     if (header.size > 6) {
@@ -1022,12 +1043,25 @@ int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
     /* Read each track */
     for (int t = 0; t < midi->numTracks; t++) {
         /* Read the MTrk header */
-        if (!readChunkHeader(midiFile, &header) || !compareID(header.id, "MTrk")) {
+        if (!readMidiChunkHeader(midiFile, &header) || !compareID(header.id, "MTrk")) {
             printf("Error: Invalid track header\n");
             return 0;
         }
         
         printf("Track %d, Length: %lu bytes\n", t, header.size);
+        
+        /* Allocate memory for events */
+        midi->tracks[t].events = static_cast<MIDIEvent*>(malloc(MAX_MIDI_EVENTS * sizeof(MIDIEvent)));
+        if (!midi->tracks[t].events) {
+            printf("Error: Memory allocation failed for track %d events\n", t);
+            
+            /* Free previously allocated track event memories */
+            for (int j = 0; j < t; j++) {
+                free(midi->tracks[j].events);
+                midi->tracks[j].events = NULL;
+            }
+            return 0;
+        }
         
         /* Initialize track */
         midi->tracks[t].length = header.size;
@@ -1035,14 +1069,14 @@ int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
         midi->tracks[t].endOfTrack = 0;
         midi->tracks[t].eventCount = 0;
         
-        /* Allocate memory for events (we'll count them first) */
+        /* Prepare for event processing */
         long trackStart = ftell(midiFile);
         long trackEnd = trackStart + header.size;
         unsigned long absTime = 0;
         unsigned char status = 0;
         int eventCount = 0;
         
-        /* First pass - count events */
+        /* First pass - process events */
         while (ftell(midiFile) < trackEnd && eventCount < MAX_MIDI_EVENTS) {
             /* Read delta time */
             unsigned long delta = readVarLen(midiFile);
@@ -1099,6 +1133,7 @@ int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
                     if (metaData) {
                         fread(metaData, 1, len, midiFile);
                     } else {
+                        printf("Warning: Could not allocate memory for meta event data\n");
                         fseek(midiFile, len, SEEK_CUR);
                     }
                 }
@@ -1125,6 +1160,12 @@ int loadMIDIEvents(FILE *midiFile, MIDIFile *midi) {
                 fseek(midiFile, len, SEEK_CUR);
                 
                 eventCount++;
+            }
+            
+            /* Check for event count overflow */
+            if (eventCount >= MAX_MIDI_EVENTS) {
+                printf("Warning: Track %d exceeds maximum event count of %d\n", t, MAX_MIDI_EVENTS);
+                break;
             }
         }
         
@@ -1297,14 +1338,32 @@ void playMIDIFile(MIDIFile *midi) {
     }
 }
 
+void freeMIDIFile(MIDIFile *midi) {
+    for (int t = 0; t < midi->numTracks; t++) {
+        if (midi->tracks[t].events) {
+            /* Free meta event data */
+            for (int i = 0; i < midi->tracks[t].eventCount; i++) {
+                if (midi->tracks[t].events[i].metaData) {
+                    free(midi->tracks[t].events[i].metaData);
+                    midi->tracks[t].events[i].metaData = NULL;
+                }
+            }
+            
+            /* Free event array */
+            free(midi->tracks[t].events);
+            midi->tracks[t].events = NULL;
+        }
+    }
+    
+    /* Zero out the structure */
+    memset(midi, 0, sizeof(MIDIFile));
+}
+
 /* Main function */
 int main(int argc, char *argv[]) {
     MIDIFile midi;
-    char *sf2File = NULL;
-    char *midiFile = NULL;
-    int sbPort = SB_BASE;
-    int sbIrq = SB_IRQ;
-    int sbDma = SB_DMA;
+    int result = 1;
+    FILE *midiFileHandle = NULL;
     
     printf("SF2MIDI - SoundFont 2 MIDI Player for DOS\n");
     printf("Compiled with DJGPP on %s at %s\n\n", __DATE__, __TIME__);
@@ -1315,13 +1374,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    sf2File = argv[1];
-    midiFile = argv[2];
+    char *sf2File = argv[1];
+    char *midiFileName = argv[2];
     
     /* Parse optional Sound Blaster parameters */
-    if (argc > 3) sbPort = strtol(argv[3], NULL, 16);
-    if (argc > 4) sbIrq = atoi(argv[4]);
-    if (argc > 5) sbDma = atoi(argv[5]);
+    int sbPort = (argc > 3) ? strtol(argv[3], NULL, 16) : SB_BASE;
+    int sbIrq = (argc > 4) ? atoi(argv[4]) : SB_IRQ;
+    int sbDma = (argc > 5) ? atoi(argv[5]) : SB_DMA;
+    
+    /* Zero out MIDI structure */
+    memset(&midi, 0, sizeof(MIDIFile));
     
     /* Initialize Sound Blaster */
     if (!SB_Init(sbPort, sbIrq, sbDma)) {
@@ -1332,17 +1394,44 @@ int main(int argc, char *argv[]) {
     /* Load the soundfont */
     if (!loadSF2(sf2File)) {
         printf("Failed to load SF2 file: %s\n", sf2File);
+        __djgpp_nearptr_disable();
         return 1;
     }
-    
+
     printf("\nSF2 file loaded successfully!\n");
     
-    /* Load the MIDI file */
-    if (!loadMIDIFile(midiFile, &midi)) {
-        printf("Failed to load MIDI file: %s\n", midiFile);
-        fclose(g_sf2File);
-        return 1;
+    /* Open MIDI file */
+    midiFileHandle = fopen(midiFileName, "rb");
+    if (!midiFileHandle) {
+        printf("Failed to open MIDI file: %s\n", midiFileName);
+        result = 1;
+        
+        /* Cleanup Sound Blaster and SoundFont file */
+        if (g_sf2File) {
+            fclose(g_sf2File);
+            g_sf2File = NULL;
+        }
+        __djgpp_nearptr_disable();
+        return result;
     }
+    
+    /* Load the MIDI file */
+    if (!loadMIDIEvents(midiFileHandle, &midi)) {
+        printf("Failed to load MIDI file: %s\n", midiFileName);
+        result = 1;
+        
+        /* Cleanup resources */
+        fclose(midiFileHandle);
+        if (g_sf2File) {
+            fclose(g_sf2File);
+            g_sf2File = NULL;
+        }
+        __djgpp_nearptr_disable();
+        return result;
+    }
+    
+    /* Close the MIDI file handle */
+    fclose(midiFileHandle);
     
     printf("\nMIDI file loaded successfully!\n");
     
@@ -1350,9 +1439,15 @@ int main(int argc, char *argv[]) {
     printf("\nPress any key to stop playback...\n");
     playMIDIFile(&midi);
     
-    /* Clean up */
+    /* Successful exit */
+    result = 0;
+
+    /* Clean up resources */
+    freeMIDIFile(&midi);
+    
     if (g_sf2File) {
         fclose(g_sf2File);
+        g_sf2File = NULL;
     }
     
     /* Disable near pointers */
@@ -1360,5 +1455,5 @@ int main(int argc, char *argv[]) {
     
     printf("\nThank you for using SF2MIDI!\n");
     
-    return 0;
+    return result;
 }
