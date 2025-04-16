@@ -698,36 +698,67 @@ int SB_Init(int basePort, int irq, int dma) {
     sb_irq = irq;
     sb_dma = dma;
     
-    printf("Initializing Sound Blaster: Port 0x%03X, IRQ %d, DMA %d\n", 
-           sb_port, sb_irq, sb_dma);
+    printf("Detailed Sound Blaster Initialization:\n");
+    printf("  Base Port: 0x%03X\n", sb_port);
+    printf("  IRQ: %d\n", sb_irq);
+    printf("  DMA Channel: %d\n", sb_dma);
     
     /* Enable memory access via near pointers */
     if (__djgpp_nearptr_enable() == 0) {
-        printf("Error: Cannot enable near pointers\n");
+        printf("ERROR: Cannot enable near pointers\n");
         return 0;
     }
+    
+    /* Extensive DSP reset and version checking */
+    printf("Attempting DSP Reset...\n");
     
     /* Reset the DSP */
-    if (!SB_Reset()) {
-        printf("Error: Sound Blaster not detected\n");
+    outportb(sb_port + 0x6, 1);
+    delay(10);
+    outportb(sb_port + 0x6, 0);
+    
+    /* Wait for and validate DSP response */
+    int timeout;
+    for (timeout = 0; timeout < 100; timeout++) {
+        if (inportb(sb_port + 0xE) & 0x80)
+            break;
+        delay(10);
+    }
+    
+    if (timeout >= 100) {
+        printf("ERROR: DSP did not respond during reset\n");
         return 0;
     }
     
-    /* Get version */
-    sb_version = SB_GetVersion();
-    printf("Sound Blaster version %d.%d detected\n", 
-           (sb_version >> 8), (sb_version & 0xFF));
+    /* Read and validate DSP reset response */
+    unsigned char response = inportb(sb_port + 0xA);
+    if (response != 0xAA) {
+        printf("ERROR: Invalid DSP reset response: 0x%02X\n", response);
+        return 0;
+    }
     
-    /* Turn on speaker */
-    SB_WriteCommand(0xD1);
+    /* Get DSP version */
+    SB_WriteCommand(0xE1);
+    unsigned char major = SB_ReadData();
+    unsigned char minor = SB_ReadData();
+    
+    printf("Sound Blaster DSP Version: %d.%d\n", major, minor);
+    sb_version = (major << 8) | minor;
+    
+    /* Explicitly enable speaker */
+    printf("Enabling Speaker Output...\n");
+    SB_WriteCommand(0xD1);  /* Speaker on command */
     
     /* Align DMA buffer */
     dma_buffer_aligned = (unsigned char *)(((unsigned long)dma_buffer + 31) & ~31);
     dma_buffer_physical = __djgpp_conventional_base + (unsigned long)dma_buffer_aligned;
     
+    /* Final validation */
     sb_detected = 1;
+    printf("Sound Blaster Initialization Successful!\n");
     return 1;
 }
+
 
 /* Set up DMA for audio transfer */
 void SB_SetupDMA(unsigned char *buffer, int count, int auto_init) {
@@ -759,32 +790,75 @@ void SB_SetupDMA(unsigned char *buffer, int count, int auto_init) {
     outportb(DMA_MASK_REG, (sb_dma & 3));
 }
 
+short readAndConvertSample(FILE *file, unsigned long offset) {
+    short sample_data;
+    
+    /* Seek to the sample position */
+    if (fseek(file, offset, SEEK_SET) != 0) {
+        printf("Error seeking to sample offset: %lu\n", offset);
+        return 128;  /* Midpoint of 8-bit range */
+    }
+    
+    /* Read 16-bit sample */
+    if (fread(&sample_data, sizeof(short), 1, file) != 1) {
+        printf("Error reading sample at offset: %lu\n", offset);
+        return 128;
+    }
+    
+    /* Convert 16-bit to 8-bit */
+    /* Shift right to reduce 16-bit to 8-bit and center around 128 */
+    short converted = (sample_data >> 8) + 128;
+    
+    /* Clamp to 8-bit range */
+    if (converted < 0) converted = 0;
+    if (converted > 255) converted = 255;
+    
+    return converted;
+}
+
+
 /* Program DSP to play a sound */
 void SB_PlaySound(unsigned char *buffer, int count, int rate, int auto_init) {
     unsigned int time_constant;
+    
+    printf("Detailed Sound Blaster Playback Configuration:\n");
+    printf("  Buffer Address: %p\n", (void*)buffer);
+    printf("  Buffer Count: %d\n", count);
+    printf("  Sample Rate: %d Hz\n", rate);
+    printf("  Auto-Init Mode: %s\n", auto_init ? "Enabled" : "Disabled");
     
     /* Set up DMA for transfer */
     SB_SetupDMA(buffer, count, auto_init);
     
     /* Calculate time constant */
     time_constant = 256 - (1000000 / rate);
+    printf("  Time Constant: %u\n", time_constant);
+    
+    /* Detailed DSP command sequence */
+    printf("Sending DSP Commands:\n");
     
     /* Set sample rate */
+    printf("  Setting Sample Rate\n");
     SB_WriteCommand(0x40);
     SB_WriteCommand(time_constant);
     
     /* Play sound */
     if (auto_init) {
         /* 8-bit auto-init DMA digitized sound */
+        printf("  Sending Auto-Init Playback Command\n");
         SB_WriteCommand(0x1C);
     } else {
         /* 8-bit single-cycle DMA digitized sound */
+        printf("  Sending Single-Cycle Playback Command\n");
         SB_WriteCommand(0x14);
     }
     
     /* Output length - 1 */
+    printf("  Setting Transfer Length\n");
     SB_WriteCommand((count - 1) & 0xFF);
     SB_WriteCommand(((count - 1) >> 8) & 0xFF);
+    
+    printf("Sound Playback Configured Successfully\n");
 }
 
 /* Stop sound playback */
@@ -949,18 +1023,50 @@ void handleMetaEvent(MIDIFile *midiFile, unsigned char type, unsigned char *data
 
 /* Fill the audio buffer with samples from active voices */
 void mixAudioBuffer(unsigned char *buffer, int size) {
-    /* Clear buffer */
+    static int mixCallCount = 0;
+    int activeVoiceCount = 0;
+    int samplesProcessed = 0;
+    
+    /* Extensive diagnostic logging every 50 calls */
+    mixCallCount++;
+    
+    /* Clear buffer to midpoint */
     memset(buffer, 128, size);
+    
+    /* Verify sound file is open */
+    if (!g_sf2File) {
+        printf("ERROR: Sound file not open during mixing\n");
+        return;
+    }
     
     /* Mix samples from all active voices */
     for (int i = 0; i < MAX_VOICES; i++) {
         if (voices[i].active) {
+            activeVoiceCount++;
             SF2Sample *sample = voices[i].sample;
+            
+            /* Validate sample pointer */
+            if (!sample) {
+                printf("ERROR: NULL sample for active voice %d\n", i);
+                voices[i].active = 0;
+                continue;
+            }
+            
             unsigned long start = sample->start;
             unsigned long end = sample->end;
             unsigned long loopStart = sample->loopStart;
             unsigned long loopEnd = sample->loopEnd;
             
+            /* Detailed sample info logging */
+            if (mixCallCount % 50 == 0) {
+                printf("Voice %d Sample Info:\n", i);
+                printf("  Name: %s\n", sample->name);
+                printf("  Start: %lu, End: %lu\n", start, end);
+                printf("  Loop Start: %lu, Loop End: %lu\n", loopStart, loopEnd);
+                printf("  Current Position: %lu\n", voices[i].position >> 16);
+            }
+            
+            /* Process each sample in the buffer */
             for (int j = 0; j < size; j++) {
                 /* Calculate sample position */
                 unsigned long pos = start + (voices[i].position >> 16);
@@ -979,18 +1085,12 @@ void mixAudioBuffer(unsigned char *buffer, int size) {
                     }
                 }
                 
-                /* Read sample data (8-bit) */
+                /* Read and convert sample data */
                 short sample_data;
-                if (g_sf2File) {
-                    fseek(g_sf2File, g_sampleDataOffset + pos * 2, SEEK_SET);
-                    sample_data = readShort(g_sf2File);
-                    /* Convert from 16-bit to 8-bit, centered at 128 */
-                    sample_data = (sample_data >> 8) + 128;
-                } else {
-                    sample_data = 128; /* Silence if no file */
-                }
+                unsigned long sampleOffset = g_sampleDataOffset + pos * 2;
+                sample_data = readAndConvertSample(g_sf2File, sampleOffset);
                 
-                /* Mix with existing buffer data (simple addition) */
+                /* Mix with existing buffer data */
                 int mixed = buffer[j] + (((sample_data - 128) * voices[i].velocity) >> 7);
                 
                 /* Clamp to 8-bit range */
@@ -1001,8 +1101,19 @@ void mixAudioBuffer(unsigned char *buffer, int size) {
                 
                 /* Increment position */
                 voices[i].position += voices[i].increment;
+                
+                samplesProcessed++;
             }
         }
+    }
+    
+    /* Periodic diagnostic output */
+    if (mixCallCount % 50 == 0) {
+        printf("Audio Mixing Diagnostics:\n");
+        printf("  Mix Call Count: %d\n", mixCallCount);
+        printf("  Active Voices: %d\n", activeVoiceCount);
+        printf("  Samples Processed: %d\n", samplesProcessed);
+        printf("  Sample Data Offset: %lu\n", g_sampleDataOffset);
     }
 }
 
