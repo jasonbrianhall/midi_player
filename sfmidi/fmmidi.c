@@ -1,6 +1,78 @@
 #include "sfmidi.h"
 
-// Global data storage - removed duplicates since they're already in the header
+// SoundFont data
+SF2Sample g_samples[MAX_SAMPLES];
+SF2Instrument g_instruments[MAX_INSTRUMENTS];
+SF2Preset g_presets[MAX_PRESETS];
+ActiveNote g_activeNotes[32];
+
+int g_sampleCount = 0;
+int g_instrumentCount = 0;
+int g_presetCount = 0;
+unsigned long g_sampleDataOffset = 0;
+
+// Sound Blaster variables
+int sb_port = SB_DEFAULT_PORT;
+int sb_irq = SB_DEFAULT_IRQ;
+int sb_dma = SB_DEFAULT_DMA;
+int sb_hdma = SB_DEFAULT_HDMA;
+int sb_version = 0;
+short* dma_buffer = NULL;
+int current_buffer = 0;
+int sb_initialized = 0;
+
+// MIDI playback variables
+FILE* midiFile = NULL;
+FILE* sf2File = NULL;
+bool isPlaying = false;
+bool paused = false;
+bool loopStart = false;
+bool loopEnd = false;
+double playwait = 0;
+int txtline = 0;
+int TrackCount = 0;
+int DeltaTicks = 0;
+double InvDeltaTicks = 0;
+double Tempo = 0;
+double bendsense = 0;
+int began = 0;
+int globalVolume = 100;
+int enableSamplePlayback = 1;
+
+// Track variables
+int tkPtr[MAX_TRACKS] = {0};
+double tkDelay[MAX_TRACKS] = {0};
+int tkStatus[MAX_TRACKS] = {0};
+int loPtr[MAX_TRACKS] = {0};
+double loDelay[MAX_TRACKS] = {0};
+int loStatus[MAX_TRACKS] = {0};
+int rbPtr[MAX_TRACKS] = {0};
+double rbDelay[MAX_TRACKS] = {0};
+int rbStatus[MAX_TRACKS] = {0};
+
+// Channel state
+int ChPatch[16] = {0};
+double ChBend[16] = {0};
+int ChVolume[16] = {127};
+int ChPanning[16] = {0};
+int ChVibrato[16] = {0};
+
+// Additional global variables
+int chins[18] = {0};
+int chpan[18] = {0};
+int chpit[18] = {0};
+int ActCount[16] = {0};
+int ActTone[16][128] = {{0}};
+int ActAdlChn[16][128] = {{0}};
+int ActVol[16][128] = {{0}};
+int ActRev[16][128] = {{0}};
+int ActList[16][100] = {{0}};
+int chon[18] = {0};
+double chage[18] = {0};
+int chm[18] = {0}, cha[18] = {0};
+int chx[18] = {0}, chc[18] = {0};
+bool enableNormalization = false;
+double loopwait = 0;
 
 // Forward declarations for missing functions
 unsigned long readVarLen(FILE* f);
@@ -8,11 +80,57 @@ int readString(FILE* f, int len, char* str);
 unsigned long convertInteger(char* str, int len);
 void outOPL(int port, int reg, int val);
 
+void outOPL(int port, int reg, int val) {
+    outportb(port, reg);
+    // OPL requires a small delay between register select and data write
+    for (int i = 0; i < 6; i++) {
+        inportb(0x80); // Reading from port 0x80 causes a small delay
+    }
+    outportb(port + 1, val);
+    // Another small delay after write
+    for (int i = 0; i < 35; i++) {
+        inportb(0x80);
+    }
+}
+
+// readVarLen: Read variable length value
+unsigned long readVarLen(FILE* f) {
+    unsigned char c;
+    unsigned long value = 0;
+    
+    if (fread(&c, 1, 1, f) != 1) return 0;
+    
+    value = c;
+    if (c & 0x80) {
+        value &= 0x7F;
+        do {
+            if (fread(&c, 1, 1, f) != 1) return value;
+            value = (value << 7) + (c & 0x7F);
+        } while (c & 0x80);
+    }
+    
+    return value;
+}
+
+// readString: Read bytes from file
+int readString(FILE* f, int len, char* str) {
+    return fread(str, 1, len, f);
+}
+
 // Functions to read data with correct endianness
 unsigned short readShort(FILE *file) {
     unsigned char buffer[2];
     fread(buffer, 1, 2, file);
     return (buffer[0]) | (buffer[1] << 8);
+}
+
+// convertInteger: Parse big-endian integer
+unsigned long convertInteger(char* str, int len) {
+    unsigned long value = 0;
+    for (int i = 0; i < len; i++) {
+        value = value * 256 + (unsigned char)str[i];
+    }
+    return value;
 }
 
 unsigned long readLong(FILE *file) {
@@ -1058,7 +1176,7 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
     
     // Read MIDI header
     char id[5] = {0};
-    unsigned char buffer[256];
+    char buffer[256];
     
     if (readString(midiFile, 4, id) != 4 || strncmp(id, "MThd", 4) != 0) {
         printf("Error: Not a valid MIDI file\n");
@@ -1073,20 +1191,24 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
     }
     
     // Read header length
-    readString(midiFile, 4, buffer);
-    unsigned long headerLength = convertInteger(buffer, 4);
+    char headerLenBuffer[4] = {0};
+    readString(midiFile, 4, headerLenBuffer);
+    unsigned long headerLength = convertInteger(headerLenBuffer, 4);
     
     // Read format type
-    readString(midiFile, 2, buffer);
-    int format = (int)convertInteger(buffer, 2);
+    char formatBuffer[2] = {0};
+    readString(midiFile, 2, formatBuffer);
+    int format = (int)convertInteger(formatBuffer, 2);
     
     // Read number of tracks
-    readString(midiFile, 2, buffer);
-    TrackCount = (int)convertInteger(buffer, 2);
+    char trackCountBuffer[2] = {0};
+    readString(midiFile, 2, trackCountBuffer);
+    TrackCount = (int)convertInteger(trackCountBuffer, 2);
     
     // Read time division
-    readString(midiFile, 2, buffer);
-    DeltaTicks = (int)convertInteger(buffer, 2);
+    char timeDivBuffer[2] = {0};
+    readString(midiFile, 2, timeDivBuffer);
+    DeltaTicks = (int)convertInteger(timeDivBuffer, 2);
     
     InvDeltaTicks = 1.0 / (double)DeltaTicks;
     Tempo = 500000 * InvDeltaTicks;  // Default tempo: 120 BPM
@@ -1111,8 +1233,9 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
         }
         
         // Read track length
-        readString(midiFile, 4, buffer);
-        unsigned long trackLength = convertInteger(buffer, 4);
+        char trackLenBuffer[4] = {0};
+        readString(midiFile, 4, trackLenBuffer);
+        unsigned long trackLength = convertInteger(trackLenBuffer, 4);
         long pos = ftell(midiFile);
         
         // Save track position and read first event delay
