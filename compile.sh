@@ -5,7 +5,7 @@ DJGPP_IMAGE="djfdyuruiry/djgpp"
 CSDPMI_URL="http://na.mirror.garr.it/mirrors/djgpp/current/v2misc/csdpmi7b.zip"
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-DOS_TARGET="midiplayer.exe"
+DOS_TARGET="midipl.exe"
 
 # Build MSDOS version using Docker
 echo "Building MSDOS version of midiplayer..."

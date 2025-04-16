@@ -42,6 +42,9 @@
 #define PLAY_MODE_TICKS     255 * 64
 #define PLAY_BUFFER_LEN     2
 
+int globalVolume = 100;  // Global volume control (0-100)
+bool enableNormalization = true;  // Enable volume normalization
+
 // FM Instrument data structure
 struct FMInstrument {
     unsigned char modChar1;
@@ -136,6 +139,7 @@ void handleMidiEvent(int tk);
 void deallocateActiveNote(int m, int n);
 void handleTimer();
 void playMidiFile(const char* filename);
+void updateAllNotes();
 
 // Helper function to output to OPL ports
 void outOPL(int port, int reg, int val) {
@@ -200,11 +204,46 @@ void OPL_Touch_Real(int c, int v) {
     OPL_SetupParams(c, p, q, o);
     i = chins[c];
     
+    // Apply global volume adjustment
+    if (enableNormalization) {
+        // Scale the volume value by the global volume
+        v = (v * globalVolume) / 100;
+        
+        // Make sure volume never goes below a minimum threshold
+        // This helps with quieter instruments
+        if (v > 0 && v < 20) v = 20;
+    }
+    
     // Operator 1
     outOPL(p, 0x40 + o, (adl[i].modChar2 | 63) - v + ((adl[i].modChar2 & 63) * v) / 63);
     
     // Operator 2
     outOPL(p, 0x43 + o, (adl[i].carChar2 | 63) - v + ((adl[i].carChar2 & 63) * v) / 63);
+}
+
+void increaseVolume() {
+    if (globalVolume < 150) globalVolume += 10;
+    updateAllNotes();
+}
+
+void decreaseVolume() {
+    if (globalVolume > 10) globalVolume -= 10;
+    updateAllNotes();
+}
+
+void toggleNormalization() {
+    enableNormalization = !enableNormalization;
+    updateAllNotes();
+}
+
+void updateAllNotes() {
+    for (int m = 0; m < 16; m++) {
+        for (int a = 1; a <= ActCount[m]; a++) {
+            int note = ActList[m][a];
+            int c = ActAdlChn[m][note];
+            OPL_Touch_Real(c, ActVol[m][note] * ChVolume[m]);
+        }
+    }
 }
 
 // OPL_Patch: Set instrument for a channel
@@ -882,32 +921,40 @@ void playMidiFile(const char* filename) {
     txtline = 2;
     
     // Main playback loop
-    while (isPlaying) {
-        // Check for keypresses
-        if (kbhit()) {
-            int key = getch();
-            if (key == ' ') {
-                paused = !paused;
-                if (paused) {
-                    printf("Pause\n");
-                } else {
-                    printf("Ok\n");
-                }
-            } else if (key == 'q' || key == 'Q' || key == 27) {
-                isPlaying = false;
-                break;
+while (isPlaying) {
+    // Check for keypresses
+    if (kbhit()) {
+        int key = getch();
+        if (key == ' ') {
+            paused = !paused;
+            if (paused) {
+                printf("Pause\n");
+            } else {
+                printf("Ok\n");
             }
+        } else if (key == 'q' || key == 'Q' || key == 27) {
+            isPlaying = false;
+            break;
+        } else if (key == '+' || key == '=') {
+            increaseVolume();
+            printf("Volume: %d%%\n", globalVolume);
+        } else if (key == '-' || key == '_') {
+            decreaseVolume();
+            printf("Volume: %d%%\n", globalVolume);
+        } else if (key == 'n' || key == 'N') {
+            toggleNormalization();
+            printf("Normalization: %s\n", enableNormalization ? "ON" : "OFF");
         }
-        
-        // Process events if not paused
-        if (!paused) {
-            handleTimer();
-        }
-        
-        // Simple delay to prevent CPU hogging
-        delay(10);
     }
     
+    // Process events if not paused
+    if (!paused) {
+        handleTimer();
+    }
+    
+    // Simple delay to prevent CPU hogging
+    delay(10);
+}    
     // Clean up
     OPL_Silence();
     if (midiFile) {
