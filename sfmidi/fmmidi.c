@@ -79,6 +79,63 @@ unsigned long readVarLen(FILE* f);
 int readString(FILE* f, int len, char* str);
 unsigned long convertInteger(char* str, int len);
 void outOPL(int port, int reg, int val);
+void OPL_SetupParams(int c, int* p, int* q, int* o);
+void OPL_Reset();
+void OPL_Silence();
+
+// OPL_SetupParams: Set up OPL parameters
+void OPL_SetupParams(int c, int* p, int* q, int* o) {
+    *p = OPL_PORT + 2 * (c / 9);
+    *q = c % 9;
+    *o = (*q % 3) + 8 * (*q / 3);
+}
+
+// OPL_Reset: Reset the OPL chip
+void OPL_Reset() {
+    int c, p, q, o, x, y;
+    
+    // Detect OPL3
+    c = 0;
+    OPL_SetupParams(c, &p, &q, &o);
+    for (y = 3; y <= 4; y++) {
+        outOPL(p, 4, y * 32);
+    }
+    inportb(p);
+    
+    c = 9;
+    OPL_SetupParams(c, &p, &q, &o);
+    for (y = 0; y <= 2; y++) {
+        outOPL(p, 5, y & 1);
+    }
+    
+    // Reset OPL3
+    c = 0;
+    OPL_SetupParams(c, &p, &q, &o);
+    outOPL(p, 1, 32);        // Enable wave selection
+    outOPL(p, 0xBD, 0);      // Set melodic mode, no rhythm
+    
+    c = 9;
+    OPL_SetupParams(c, &p, &q, &o);
+    outOPL(p, 5, 1);         // Enable OPL3
+    outOPL(p, 4, 0);         // Select mode 0
+    
+    // Silence all channels
+    OPL_Silence();
+}
+
+// OPL_Silence: Turn off all notes
+void OPL_Silence() {
+    for (int c = 0; c < 18; c++) {
+        int p, q, o;
+        OPL_SetupParams(c, &p, &q, &o);
+        outOPL(p, 0xB0 + q, 0);  // Note off
+        
+        // Set volume to zero
+        outOPL(p, 0x40 + o, 0x3F);  // Operator 1
+        outOPL(p, 0x43 + o, 0x3F);  // Operator 2
+    }
+}
+
 
 void outOPL(int port, int reg, int val) {
     outportb(port, reg);
@@ -726,18 +783,17 @@ int initSoundBlaster() {
 
 // Mix active notes into the output buffer
 void mixActiveNotes(short* buffer, int length) {
-    int i, j;
-    double sample;
+    int activeNoteCount = 0;
     
-    // Clear buffer
     memset(buffer, 0, length * sizeof(short));
     
-    // Mix each active note
-    for (i = 0; i < 32; i++) {
+    for (int i = 0; i < 32; i++) {
         if (!g_activeNotes[i].isActive) continue;
         
         SF2Sample* sampleData = g_activeNotes[i].sample;
         if (!sampleData || !sampleData->sampleData) continue;
+        
+        activeNoteCount++;
         
         // Calculate volume (0.0 - 1.0)
         double volume = (g_activeNotes[i].velocity / 127.0) * 
@@ -745,7 +801,7 @@ void mixActiveNotes(short* buffer, int length) {
                        (globalVolume / 100.0);
         
         // Mix samples into buffer
-        for (j = 0; j < length; j++) {
+        for (int j = 0; j < length; j++) {
             // Calculate sample position (with pitch adjustment)
             double pos = g_activeNotes[i].currentPos;
             int pos_int = (int)pos;
@@ -766,6 +822,7 @@ void mixActiveNotes(short* buffer, int length) {
             }
             
             // Linear interpolation between samples
+            double sample;
             if (pos_int < sampleData->sampleLength - 1) {
                 sample = sampleData->sampleData[pos_int] * (1.0 - pos_frac) + 
                          sampleData->sampleData[pos_int + 1] * pos_frac;
@@ -780,67 +837,66 @@ void mixActiveNotes(short* buffer, int length) {
             g_activeNotes[i].currentPos += g_activeNotes[i].playbackRate;
         }
     }
+    
+    printf("Active Notes Mixed: %d\n", activeNoteCount);
 }
 
 // Start a new note
 int startNote(int channel, int note, int velocity) {
-    int i;
-    SF2Sample* sample = NULL;
-    
-    // Find the sample to use for this note/program
-    if (enableSamplePlayback) {
-        // Find the matching preset
-        for (i = 0; i < g_presetCount; i++) {
-            if (g_presets[i].bank == 0 && g_presets[i].preset == ChPatch[channel]) {
-                // Get the instrument
-                int instrumentIdx = g_presets[i].instrumentIndex;
-                
-                // Find the matching key range
-                for (int j = 0; j < g_instruments[instrumentIdx].sampleCount; j++) {
-                    if (note >= g_instruments[instrumentIdx].keyRangeStart[j] &&
-                        note <= g_instruments[instrumentIdx].keyRangeEnd[j] &&
-                        velocity >= g_instruments[instrumentIdx].velRangeStart[j] &&
-                        velocity <= g_instruments[instrumentIdx].velRangeEnd[j]) {
-                        
-                        // Get the sample
-                        int sampleIdx = g_instruments[instrumentIdx].sampleIndex2[j];
-                        sample = &g_samples[sampleIdx];
-                        
-                        // Load sample data if not already loaded
-                        if (!sample->sampleData) {
-                            loadSampleData(sf2File, sampleIdx);
-                        }
-                        break;
-                    }
-                }
-                
-                // If no specific range found, use the first sample
-                if (!sample) {
-                    int sampleIdx = g_instruments[instrumentIdx].sampleIndex;
-                    sample = &g_samples[sampleIdx];
-                    
-                    // Load sample data if not already loaded
-                    if (!sample->sampleData) {
-                        loadSampleData(sf2File, sampleIdx);
-                    }
-                }
-                
+    printf("Starting Note: Channel %d, Note %d, Velocity %d, Patch %d\n", 
+           channel, note, velocity, ChPatch[channel]);
+
+    // Calculate the base instrument index
+    int instrumentIndex = ChPatch[channel];
+    if (channel == 9) {
+        // Percussion channel - use note as basis for instrument selection
+        instrumentIndex = 128 + note - 35;
+        if (instrumentIndex < 128 || instrumentIndex >= 181) {
+            instrumentIndex = 128; // Default percussion
+        }
+    }
+
+    // Try to find a free Adlib channel (first 9 channels)
+    int adlibChannel = -1;
+    for (int c = 0; c < 9; c++) {
+        int found = 1;
+        for (int i = 0; i < 32; i++) {
+            if (g_activeNotes[i].isActive && g_activeNotes[i].adlibChannel == c+1) {
+                found = 0;
                 break;
             }
         }
-        
-        // If no matching preset found, use first sample
-        if (!sample && g_sampleCount > 0) {
-            sample = &g_samples[0];
-            
-            // Load sample data if not already loaded
-            if (!sample->sampleData) {
-                loadSampleData(sf2File, 0);
-            }
+        if (found) {
+            adlibChannel = c;
+            break;
         }
     }
+
+    // If no free channel, find the oldest note and replace it
+    if (adlibChannel == -1) {
+        double oldest = 0;
+        int oldestIndex = -1;
+        for (int i = 0; i < 32; i++) {
+            if (g_activeNotes[i].isActive && g_activeNotes[i].adlibChannel > 0) {
+                if (oldest == 0 || g_activeNotes[i].currentPos > oldest) {
+                    oldest = g_activeNotes[i].currentPos;
+                    oldestIndex = i;
+                }
+            }
+        }
+        
+        if (oldestIndex >= 0) {
+            adlibChannel = g_activeNotes[oldestIndex].adlibChannel - 1;
+            g_activeNotes[oldestIndex].isActive = 0;
+        } else {
+            adlibChannel = 0; // Use first channel if nothing else available
+        }
+    }
+
+    printf("Using FM Synthesis on AdLib channel %d\n", adlibChannel);
     
     // Find a free slot for the note
+    int i;
     for (i = 0; i < 32; i++) {
         if (!g_activeNotes[i].isActive) {
             // Initialize note parameters
@@ -848,71 +904,72 @@ int startNote(int channel, int note, int velocity) {
             g_activeNotes[i].midiChannel = channel;
             g_activeNotes[i].note = note;
             g_activeNotes[i].velocity = velocity;
-            g_activeNotes[i].sample = sample;
+            g_activeNotes[i].sample = NULL; // No sample playback
             g_activeNotes[i].currentPos = 0;
+            g_activeNotes[i].adlibChannel = adlibChannel + 1;
             
-            // Calculate playback rate
-            if (sample) {
-                double noteFreq = 440.0 * pow(2.0, (note - 69) / 12.0);
-                double sampleBaseFreq = 440.0 * pow(2.0, (sample->originalPitch - 69) / 12.0);
-                g_activeNotes[i].playbackRate = noteFreq / sampleBaseFreq * 
-                                               (sample->sampleRate / (double)SB_SAMPLE_RATE);
-            } else {
-                g_activeNotes[i].playbackRate = 1.0;
-            }
-            
-            // Initialize Adlib channel for FM fallback if sample playback fails
-            if (!sample || !sample->sampleData) {
-                // Find a free Adlib channel (first 9 channels)
-                for (int c = 0; c < 9; c++) {
-                    if (g_activeNotes[i].adlibChannel == 0) {
-                        g_activeNotes[i].adlibChannel = c + 1;
-                        
-                        // Set up FM synthesis
-                        int fmInstrument = ChPatch[channel];
-                        if (channel == 9) fmInstrument = 128 + note - 35; // Percussion
-                        
-                        // Load FM instrument settings from adl array
-                        if (fmInstrument >= 0 && fmInstrument < 181) {
-                            outOPL(OPL_PORT, 0x20 + c, g_fmInstruments[fmInstrument].modChar1);
-                            outOPL(OPL_PORT, 0x23 + c, g_fmInstruments[fmInstrument].carChar1);
-                            outOPL(OPL_PORT, 0x40 + c, g_fmInstruments[fmInstrument].modChar2);
-                            outOPL(OPL_PORT, 0x43 + c, g_fmInstruments[fmInstrument].carChar2);
-                            outOPL(OPL_PORT, 0x60 + c, g_fmInstruments[fmInstrument].modChar3);
-                            outOPL(OPL_PORT, 0x63 + c, g_fmInstruments[fmInstrument].carChar3);
-                            outOPL(OPL_PORT, 0x80 + c, g_fmInstruments[fmInstrument].modChar4);
-                            outOPL(OPL_PORT, 0x83 + c, g_fmInstruments[fmInstrument].carChar4);
-                            outOPL(OPL_PORT, 0xE0 + c, g_fmInstruments[fmInstrument].modChar5);
-                            outOPL(OPL_PORT, 0xE3 + c, g_fmInstruments[fmInstrument].carChar5);
-                            outOPL(OPL_PORT, 0xC0 + c, g_fmInstruments[fmInstrument].fbConn);
-                            
-                            // Set volume based on velocity
-                            int vol = (velocity * ChVolume[channel]) / 127;
-                            outOPL(OPL_PORT, 0x43 + c, (g_fmInstruments[fmInstrument].carChar2 | 0x3F) - (vol >> 1));
-                            
-                            // Calculate frequency
-                            double freq = 440.0 * pow(2.0, (note - 69) / 12.0);
-                            int block = 3;
-                            while (freq >= 1023.5) {
-                                freq /= 2.0;
-                                block++;
-                            }
-                            
-                            int fnum = (int)freq;
-                            outOPL(OPL_PORT, 0xA0 + c, fnum & 0xFF);
-                            outOPL(OPL_PORT, 0xB0 + c, ((block & 7) << 2) | ((fnum >> 8) & 3) | 0x20);
-                        }
-                        break;
-                    }
+            // Set up FM synthesis for this note
+
+            // Check if instrument index is valid
+            if (instrumentIndex >= 0 && instrumentIndex < 181) {
+                // Load FM instrument settings from the FM instruments array
+                int c = adlibChannel;
+                
+                // Set up parameters for the operator
+                int p, q, o;
+                p = OPL_PORT;
+                q = c;
+                o = (q % 3) + 8 * (q / 3);
+                
+                // Program the OPL registers with instrument parameters
+                outOPL(p, 0x20 + o, g_fmInstruments[instrumentIndex].modChar1);
+                outOPL(p, 0x23 + o, g_fmInstruments[instrumentIndex].carChar1);
+                outOPL(p, 0x40 + o, g_fmInstruments[instrumentIndex].modChar2);
+                outOPL(p, 0x43 + o, g_fmInstruments[instrumentIndex].carChar2);
+                outOPL(p, 0x60 + o, g_fmInstruments[instrumentIndex].modChar3);
+                outOPL(p, 0x63 + o, g_fmInstruments[instrumentIndex].carChar3);
+                outOPL(p, 0x80 + o, g_fmInstruments[instrumentIndex].modChar4);
+                outOPL(p, 0x83 + o, g_fmInstruments[instrumentIndex].carChar4);
+                outOPL(p, 0xE0 + o, g_fmInstruments[instrumentIndex].modChar5);
+                outOPL(p, 0xE3 + o, g_fmInstruments[instrumentIndex].carChar5);
+                outOPL(p, 0xC0 + q, g_fmInstruments[instrumentIndex].fbConn);
+                
+                // Set volume based on velocity and channel volume
+                int vol = ((velocity * ChVolume[channel]) / 127) * globalVolume / 100;
+                // Volume is inverted in OPL (0x3F is minimum, 0x00 is maximum)
+                int oplVol = 0x3F - ((vol * 0x3F) / 127);
+                if (oplVol < 0) oplVol = 0;
+                if (oplVol > 0x3F) oplVol = 0x3F;
+                
+                // Apply volume to carrier operator (the one that produces sound)
+                outOPL(p, 0x43 + o, (g_fmInstruments[instrumentIndex].carChar2 & 0xC0) | oplVol);
+                
+                // Calculate frequency based on note number
+                int tone = note;
+                if (channel == 9 && g_fmInstruments[instrumentIndex].percNote > 0) {
+                    tone = g_fmInstruments[instrumentIndex].percNote;
                 }
+                
+                double freq = 440.0 * pow(2.0, (tone - 69) / 12.0);
+                int block = 1;
+                while (freq >= 1023.5 && block < 7) {
+                    freq /= 2.0;
+                    block++;
+                }
+                
+                int fnum = (int)freq;
+                // Note on bit (0x20) + block and freq MSB
+                outOPL(p, 0xA0 + q, fnum & 0xFF);
+                outOPL(p, 0xB0 + q, ((block & 7) << 2) | ((fnum >> 8) & 3) | 0x20);
+                
+                return i;  // Return active note index
             }
-            
-            return i;  // Return active note index
         }
     }
     
     return -1;  // No free slots
 }
+
 
 // Stop a note
 void stopNote(int channel, int note) {
@@ -925,7 +982,12 @@ void stopNote(int channel, int note) {
             // Stop the Adlib channel if using FM synthesis
             if (g_activeNotes[i].adlibChannel > 0) {
                 int c = g_activeNotes[i].adlibChannel - 1;
-                outOPL(OPL_PORT, 0xB0 + c, 0); // Note off
+                int p = OPL_PORT;
+                int q = c;
+                
+                // Note off - clear the 0x20 bit in register B0+c
+                int currentValue = inportb(p + 1); // Read current value (optional)
+                outOPL(p, 0xB0 + q, currentValue & 0xDF); // Note off
             }
             
             g_activeNotes[i].isActive = 0;
@@ -1134,10 +1196,9 @@ void sbInterruptHandler() {
 void playMidiFile(const char* midiFilename, const char* sf2Filename) {
     char input;
     
-    // Initialize OPL (for FM fallback)
-    outOPL(OPL_PORT, 1, 0x20);     // Enable waveform selection
-    outOPL(OPL_PORT, 0x8, 0x40);   // Turn on CSW mode
-    outOPL(OPL_PORT, 0xBD, 0x00);  // Set melodic mode, no rhythm
+    // Initialize OPL (for FM synthesis)
+    printf("Initializing OPL3 FM Synthesis...\n");
+    OPL_Reset();  // Add this proper reset
     
     // Initialize sound blaster
     if (!initSoundBlaster()) {
