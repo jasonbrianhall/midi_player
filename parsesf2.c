@@ -6,9 +6,9 @@
 #include <string.h>
 
 // Maximum number of instruments and samples to support
-#define MAX_PRESETS 128
-#define MAX_INSTRUMENTS 256
-#define MAX_SAMPLES 1024
+#define MAX_PRESETS 1024
+#define MAX_INSTRUMENTS 4096
+#define MAX_SAMPLES 8192
 
 // Simplified structures for SF2 parsing
 typedef struct {
