@@ -5,7 +5,7 @@ DJGPP_IMAGE="djfdyuruiry/djgpp"
 CSDPMI_URL="http://na.mirror.garr.it/mirrors/djgpp/current/v2misc/csdpmi7b.zip"
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-SOURCE_FILE="midiplayer.cpp"
+SOURCE_FILES=("midiplayer.c" "instruments.c")
 DOS_TARGET="midipl.exe"
 
 # Build MSDOS version using Docker
@@ -35,7 +35,7 @@ set -e
 cd /src
 echo "Building midiplayer for MSDOS..."
 # Add preprocessor define for MSDOS to handle any platform-specific code
-g++ ${SOURCE_FILE} -o ${DOS_TARGET} -DMSDOS
+g++ *.c -o ${DOS_TARGET} -DMSDOS
 
 echo "Build complete!"
 EOF
@@ -47,15 +47,16 @@ chmod +x build_msdos.sh
 TEMP_BUILD_DIR=$(mktemp -d)
 echo "Created temporary build directory: ${TEMP_BUILD_DIR}"
 
-# Check if source file exists
-if [ ! -f "${SOURCE_FILE}" ]; then
-    echo "Error: Source file ${SOURCE_FILE} not found!"
-    exit 1
-fi
-
-# Copy source file to the temporary directory
-echo "Copying source file to temporary directory..."
-cp -L "${SOURCE_FILE}" "${TEMP_BUILD_DIR}/" || { echo "Failed to copy source file"; exit 1; }
+# Copy all source files to the temporary directory
+echo "Copying source files to temporary directory..."
+for file in "${SOURCE_FILES[@]}"; do
+    if [ -f "$file" ]; then
+        cp -L "$file" "${TEMP_BUILD_DIR}/" || { echo "Failed to copy $file"; exit 1; }
+    else
+        echo "Warning: Source file $file not found!"
+        exit 1
+    fi
+done
 
 # Copy build script
 cp build_msdos.sh "${TEMP_BUILD_DIR}/" || { echo "Failed to copy build script"; exit 1; }
@@ -69,7 +70,6 @@ echo "Starting Docker build process..."
 docker run --rm \
     -v "${TEMP_BUILD_DIR}:/src:z" \
     -u ${USER_ID}:${GROUP_ID} \
-    -e SOURCE_FILE=${SOURCE_FILE} \
     -e DOS_TARGET=${DOS_TARGET} \
     ${DJGPP_IMAGE} /bin/bash -c "chmod +x /src/build_msdos.sh && /src/build_msdos.sh"
 
