@@ -1,6 +1,8 @@
 #include "sfmidi.h"
 
-// Initialize FM instrument data
+// Global declaration of FM instrument array
+FMInstrument g_fmInstruments[181];// Initialize FM instrument data
+
 void initFMInstruments() {
     // This function initializes the FM instrument data array
     // with 180 FM instrument definitions from the original QBasic code
