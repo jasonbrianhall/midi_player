@@ -1,4 +1,4 @@
-#include "fmmidi.h"
+#include "sfmidi.h"
 
 // Initialize FM instrument data
 void initFMInstruments() {

@@ -1,189 +1,12 @@
-#include "fmmidi.h"
+#include "sfmidi.h"
 
-// Global data storage
-SF2Sample g_samples[MAX_SAMPLES];
-SF2Instrument g_instruments[MAX_INSTRUMENTS];
-SF2Preset g_presets[MAX_PRESETS];
-FMInstrument g_fmInstruments[181];  // FM fallback instruments
-ActiveNote g_activeNotes[32];       // Up to 32 active notes at once
-int g_sampleCount = 0;
-int g_instrumentCount = 0;
-int g_presetCount = 0;
-unsigned long g_sampleDataOffset = 0; // Offset to sample data in file
+// Global data storage - removed duplicates since they're already in the header
 
-// Sound Blaster variables
-int sb_port = SB_DEFAULT_PORT;
-int sb_irq = SB_DEFAULT_IRQ;
-int sb_dma = SB_DEFAULT_DMA;
-int sb_hdma = SB_DEFAULT_HDMA;
-int sb_version = 0;
-short* dma_buffer = NULL;
-int current_buffer = 0;
-int sb_initialized = 0;
-
-// MIDI playback variables
-FILE* midiFile = NULL;
-FILE* sf2File = NULL;
-int isPlaying = 0;
-int paused = 0;
-int loopStart = 0;
-int loopEnd = 0;
-double playwait = 0;
-int txtline = 0;
-int TrackCount = 0;
-int DeltaTicks = 0;
-double InvDeltaTicks = 0;
-double Tempo = 0;
-double bendsense = 0;
-int began = 0;
-int globalVolume = 100;
-int enableSamplePlayback = 1;  // Enable sample playback (vs FM synthesis)
-
-// Track variables
-int tkPtr[MAX_TRACKS] = {0};
-double tkDelay[MAX_TRACKS] = {0};
-int tkStatus[MAX_TRACKS] = {0};
-int loPtr[MAX_TRACKS] = {0};
-double loDelay[MAX_TRACKS] = {0};
-int loStatus[MAX_TRACKS] = {0};
-int rbPtr[MAX_TRACKS] = {0};
-double rbDelay[MAX_TRACKS] = {0};
-int rbStatus[MAX_TRACKS] = {0};
-
-// Channel state
-int ChPatch[16] = {0};
-double ChBend[16] = {0};
-int ChVolume[16] = {127};
-int ChPanning[16] = {0};
-int ChVibrato[16] = {0};
-
-// Simplified structures for SF2 parsing
-typedef struct {
-    char id[4];
-    unsigned long size;
-} ChunkHeader;
-
-// Simplified sample data
-typedef struct {
-    char name[20];
-    unsigned long start;      // Start offset in sample data
-    unsigned long end;        // End offset in sample data
-    unsigned long loopStart;  // Loop start point
-    unsigned long loopEnd;    // Loop end point
-    unsigned long sampleRate; // Sample rate in Hz
-    unsigned char originalPitch; // Original MIDI key number
-    char pitchCorrection;     // Pitch correction in cents
-    unsigned short sampleLink;// Stereo link
-    unsigned short sampleType;// 1=mono, 2=right, 4=left
-    short* sampleData;        // Pointer to loaded sample data
-    int sampleLength;         // Length of sample in frames
-} SF2Sample;
-
-// Simplified instrument data
-typedef struct {
-    char name[20];
-    int sampleIndex;        // Index of first sample for this instrument
-    int sampleCount;        // Number of samples for this instrument
-    int keyRangeStart[128]; // First key in range for each sample
-    int keyRangeEnd[128];   // Last key in range for each sample
-    int sampleIndex2[128];  // Sample index for each key range
-    int velRangeStart[128]; // First velocity in range for each sample
-    int velRangeEnd[128];   // Last velocity in range for each sample
-} SF2Instrument;
-
-// Simplified preset data
-typedef struct {
-    char name[20];
-    unsigned short preset;   // MIDI program number
-    unsigned short bank;     // MIDI bank number
-    int instrumentIndex;     // Index to instrument
-} SF2Preset;
-
-// FM Instrument data structure (for fallback)
-typedef struct {
-    unsigned char modChar1;
-    unsigned char carChar1;
-    unsigned char modChar2;
-    unsigned char carChar2;
-    unsigned char modChar3;
-    unsigned char carChar3;
-    unsigned char modChar4;
-    unsigned char carChar4;
-    unsigned char modChar5;
-    unsigned char carChar5;
-    unsigned char fbConn;
-    unsigned char percNote;
-} FMInstrument;
-
-// Active note structure
-typedef struct {
-    int midiChannel;         // MIDI channel
-    int note;                // MIDI note number
-    int velocity;            // Note velocity
-    SF2Sample* sample;       // Sample being played
-    double playbackRate;     // Playback rate for pitch adjustment
-    double currentPos;       // Current position in sample
-    int isActive;            // Whether note is active
-    double volumeScale;      // Volume scaling factor
-    int adlibChannel;        // OPL3 channel for FM fallback
-} ActiveNote;
-
-// Global data storage
-SF2Sample g_samples[MAX_SAMPLES];
-SF2Instrument g_instruments[MAX_INSTRUMENTS];
-SF2Preset g_presets[MAX_PRESETS];
-FMInstrument g_fmInstruments[181];  // FM fallback instruments
-ActiveNote g_activeNotes[32];       // Up to 32 active notes at once
-int g_sampleCount = 0;
-int g_instrumentCount = 0;
-int g_presetCount = 0;
-unsigned long g_sampleDataOffset = 0; // Offset to sample data in file
-
-// Sound Blaster variables
-int sb_port = SB_DEFAULT_PORT;
-int sb_irq = SB_DEFAULT_IRQ;
-int sb_dma = SB_DEFAULT_DMA;
-int sb_hdma = SB_DEFAULT_HDMA;
-int sb_version = 0;
-short* dma_buffer = NULL;
-int current_buffer = 0;
-int sb_initialized = 0;
-
-// MIDI playback variables
-FILE* midiFile = NULL;
-FILE* sf2File = NULL;
-int isPlaying = 0;
-int paused = 0;
-int loopStart = 0;
-int loopEnd = 0;
-double playwait = 0;
-int txtline = 0;
-int TrackCount = 0;
-int DeltaTicks = 0;
-double InvDeltaTicks = 0;
-double Tempo = 0;
-double bendsense = 0;
-int began = 0;
-int globalVolume = 100;
-int enableSamplePlayback = 1;  // Enable sample playback (vs FM synthesis)
-
-// Track variables
-int tkPtr[MAX_TRACKS] = {0};
-double tkDelay[MAX_TRACKS] = {0};
-int tkStatus[MAX_TRACKS] = {0};
-int loPtr[MAX_TRACKS] = {0};
-double loDelay[MAX_TRACKS] = {0};
-int loStatus[MAX_TRACKS] = {0};
-int rbPtr[MAX_TRACKS] = {0};
-double rbDelay[MAX_TRACKS] = {0};
-int rbStatus[MAX_TRACKS] = {0};
-
-// Channel state
-int ChPatch[16] = {0};
-double ChBend[16] = {0};
-int ChVolume[16] = {127};
-int ChPanning[16] = {0};
-int ChVibrato[16] = {0};
+// Forward declarations for missing functions
+unsigned long readVarLen(FILE* f);
+int readString(FILE* f, int len, char* str);
+unsigned long convertInteger(char* str, int len);
+void outOPL(int port, int reg, int val);
 
 // Functions to read data with correct endianness
 unsigned short readShort(FILE *file) {
@@ -1196,9 +1019,6 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
     // Load the FM instrument definitions
     initFMInstruments();
     
-    // Copy FM instrument array to our local copy
-    memcpy(g_fmInstruments, adl, sizeof(adl));
-    
     // Load SoundFont file
     if (enableSamplePlayback) {
         if (!loadSF2(sf2Filename)) {
@@ -1393,4 +1213,17 @@ void playMidiFile(const char* midiFilename, const char* sf2Filename) {
     }
     
     printf("Playback finished.\n");
+}
+
+int main(int argc, char* argv[]) {
+    // Simple command-line argument handling
+    if (argc < 3) {
+        printf("Usage: %s <midi_file> <soundfont_file>\n", argv[0]);
+        return 1;
+    }
+
+    // Play the MIDI file using the specified SoundFont
+    playMidiFile(argv[1], argv[2]);
+
+    return 0;
 }
