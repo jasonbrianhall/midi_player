@@ -936,21 +936,8 @@ int main(int argc, char* argv[]) {
         filename[MAX_FILENAME - 1] = '\0';
         printf("Using MIDI file from command line: %s\n", filename);
     } else {
-        // No command line argument, ask for a filename
-        printf("Enter MIDI file to play: ");
-        fgets(filename, MAX_FILENAME - 1, stdin);
-        
-        // Remove newline character if present
-        int len = strlen(filename);
-        if (len > 0 && filename[len-1] == '\n') {
-            filename[len-1] = '\0';
-        }
-        
-        // If empty input, use default
-        if (strlen(filename) == 0) {
-            strcpy(filename, "chmmr.mid");
-            printf("No filename entered, using default: %s\n", filename);
-        }
+        printf("Please enter a midi file to play\n");
+        return 1;
     }
     
     // Display a short delay to show filename
