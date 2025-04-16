@@ -5,7 +5,8 @@ DJGPP_IMAGE="djfdyuruiry/djgpp"
 CSDPMI_URL="http://na.mirror.garr.it/mirrors/djgpp/current/v2misc/csdpmi7b.zip"
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-SOURCE_FILES=("midiplayer.c" "instruments.c")
+# Automatically find all .c and .h files
+SOURCE_FILES=(*.c *.h)
 DOS_TARGET="midipl.exe"
 
 # Build MSDOS version using Docker
@@ -53,7 +54,7 @@ for file in "${SOURCE_FILES[@]}"; do
     if [ -f "$file" ]; then
         cp -L "$file" "${TEMP_BUILD_DIR}/" || { echo "Failed to copy $file"; exit 1; }
     else
-        echo "Warning: Source file $file not found!"
+        echo "Warning: Source file pattern $file did not match any files!"
         exit 1
     fi
 done

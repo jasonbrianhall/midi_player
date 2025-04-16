@@ -1,3 +1,5 @@
+#include "midiplayer.h"
+
 // Initialize FM instrument data
 void initFMInstruments() {
     // This function initializes the FM instrument data array

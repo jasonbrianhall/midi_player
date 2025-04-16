@@ -13,133 +13,73 @@
 #include <go32.h>
 #include <sys/farptr.h>
 #include <time.h>
+#include "midiplayer.h"
 
-// OPL3 I/O ports (may need to be adjusted based on card configuration)
-#define OPL_PORT        0x388   // FM synthesis port
+// Global variables definitions for MIDI Player
 
-// MIDI constants
-#define MAX_TRACKS      100
-#define MAX_FILENAME    256
-#define BUFFER_SIZE     8192
+#include "midiplayer.h"
 
-// MIDI event types
-#define NOTE_OFF        0x80
-#define NOTE_ON         0x90
-#define POLY_PRESSURE   0xA0
-#define CONTROL_CHANGE  0xB0
-#define PROGRAM_CHANGE  0xC0
-#define CHAN_PRESSURE   0xD0
-#define PITCH_BEND      0xE0
-#define SYSTEM_MESSAGE  0xF0
-#define META_EVENT      0xFF
+// Global volume and normalization
+int globalVolume = 100;
+bool enableNormalization = true;
 
-// MIDI meta event types
-#define META_END_OF_TRACK   0x2F
-#define META_TEMPO          0x51
-#define META_TEXT           0x01
+// FM Instrument data
+FMInstrument adl[181];
 
-// Constants for play mode
-#define PLAY_MODE_TICKS     255 * 64
-#define PLAY_BUFFER_LEN     2
+// Channel state variables
+int chins[18] = {0};
+int chpan[18] = {0};
+int chpit[18] = {0};
+int chon[18] = {0};
+double chage[18] = {0};
 
-int globalVolume = 100;  // Global volume control (0-100)
-bool enableNormalization = true;  // Enable volume normalization
+// Track variables
+int tkPtr[MAX_TRACKS] = {0};
+double tkDelay[MAX_TRACKS] = {0};
+int tkStatus[MAX_TRACKS] = {0};
+int loPtr[MAX_TRACKS] = {0};
+double loDelay[MAX_TRACKS] = {0};
+int loStatus[MAX_TRACKS] = {0};
+int rbPtr[MAX_TRACKS] = {0};
+double rbDelay[MAX_TRACKS] = {0};
+int rbStatus[MAX_TRACKS] = {0};
 
-// FM Instrument data structure
-struct FMInstrument {
-    unsigned char modChar1;
-    unsigned char carChar1;
-    unsigned char modChar2;
-    unsigned char carChar2;
-    unsigned char modChar3;
-    unsigned char carChar3;
-    unsigned char modChar4;
-    unsigned char carChar4;
-    unsigned char modChar5;
-    unsigned char carChar5;
-    unsigned char fbConn;
-    unsigned char percNote;
-};
+// MIDI Channel variables
+int ChPatch[16] = {0};
+double ChBend[16] = {0};
+int ChVolume[16] = {127};
+int ChPanning[16] = {0};
+int ChVibrato[16] = {0};
 
-// Global variables
-FMInstrument adl[181];      // FM instrument data
-int chins[18];              // Channel instruments
-int chpan[18];              // Channel panning
-int chpit[18];              // Channel pitch
+// Active note tracking
+int ActCount[16] = {0};
+int ActTone[16][128] = {{0}};
+int ActAdlChn[16][128] = {{0}};
+int ActVol[16][128] = {{0}};
+int ActRev[16][128] = {{0}};
+int ActList[16][100] = {{0}};
+double loopwait=0;
 
-// Track information
-int tkPtr[MAX_TRACKS];      // File position for each track
-double tkDelay[MAX_TRACKS]; // Delay for next event
-int tkStatus[MAX_TRACKS];   // Running status
-double playwait;            // Wait time for playback
+// Playback and channel management
+int chm[18] = {0}, cha[18] = {0};
+int chx[18] = {0}, chc[18] = {0};
 
-// Loop point information
-int loPtr[MAX_TRACKS];      // File position for loop
-double loDelay[MAX_TRACKS]; // Delay for loop
-int loStatus[MAX_TRACKS];   // Status at loop
-double loopwait;            // Wait time for loop
-
-// Rollback info (for loop points)
-int rbPtr[MAX_TRACKS];
-double rbDelay[MAX_TRACKS];
-int rbStatus[MAX_TRACKS];
-
-// MIDI channel settings
-int ChPatch[16];            // Program/patch for each channel
-double ChBend[16];          // Pitch bend
-int ChVolume[16];           // Volume
-int ChPanning[16];          // Panning
-int ChVibrato[16];          // Vibrato depth
-
-// Note tracking
-int ActCount[16];                  // Number of active notes per channel
-int ActTone[16][128];              // Original note to simulated note
-int ActAdlChn[16][128];            // Original note to adlib channel
-int ActVol[16][128];               // Original note to pressure
-int ActRev[16][128];               // Original note to active index
-int ActList[16][100];              // Active index to original note
-
-// Adlib channel state
-int chon[18];                      // Channel on flag
-double chage[18];                  // Channel age (for allocation)
-int chm[18], cha[18];              // Channel MIDI and active info
-int chx[18], chc[18];              // Channel x position and color
-
-// Other globals
+// File and playback state
 FILE* midiFile = NULL;
 bool isPlaying = false;
 bool paused = false;
-bool loopStart = true;
+bool loopStart = false;
 bool loopEnd = false;
+double playwait = 0;
+int txtline = 0;
+
+// Track and timing variables
 int TrackCount = 0;
 int DeltaTicks = 0;
 double InvDeltaTicks = 0;
 double Tempo = 0;
 double bendsense = 0;
 bool began = false;
-int txtline = 2;
-
-// Function prototypes
-void initFMInstruments();
-void OPL_SetupParams(int c, int& p, int& q, int& o);
-void OPL_NoteOff(int c);
-void OPL_NoteOn(int c, double hertz);
-void OPL_Touch(int c, int v);
-void OPL_Touch_Real(int c, int v);
-void OPL_Patch(int c);
-void OPL_Pan(int c);
-void OPL_Reset();
-void OPL_Silence();
-int readString(FILE* f, int len, char* str);
-unsigned long readVarLen(FILE* f);
-unsigned long convertInteger(char* str, int len);
-bool loadMidiFile(const char* filename);
-void processEvents();
-void handleMidiEvent(int tk);
-void deallocateActiveNote(int m, int n);
-void handleTimer();
-void playMidiFile(const char* filename);
-void updateAllNotes();
 
 // Helper function to output to OPL ports
 void outOPL(int port, int reg, int val) {
