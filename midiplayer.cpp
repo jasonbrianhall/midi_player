@@ -974,8 +974,8 @@ int main(int argc, char* argv[]) {
     textcolor(7);
     textbackground(0);
     
-    printf("DJGPP MIDI Player\n");
-    printf("------------------\n");
+    printf("DJGPP MIDI Player with Volume Control\n");
+    printf("-------------------------------------\n");
     
     // Check for command line parameter
     if (argc > 1) {
@@ -991,8 +991,16 @@ int main(int argc, char* argv[]) {
     printf("Loading %s...\n", filename);
     delay(1000); // 1-second delay
     
+    // Display controls
+    printf("Controls:\n");
+    printf("  Q     - Quit\n");
+    printf("  Space - Pause/Resume\n");
+    printf("  +/-   - Increase/Decrease Volume\n");
+    printf("  N     - Toggle Volume Normalization\n\n");
+    
     // Play the MIDI file
     playMidiFile(filename);
     
     return 0;
 }
+
