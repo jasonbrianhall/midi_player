@@ -330,40 +330,6 @@ bool MidiPlayer::isNormalizationEnabled() const {
     return useNormalization;
 }
 
-// Initialize FM instruments data
-void MidiPlayer::initFMInstruments() {
-    // This function will initialize the instruments array with the FM instrument definitions
-    // Implementation remains the same as the original code in instruments.c
-    // We'll only include a few examples here for brevity
-    
-    // GM1: Acoustic Grand Piano
-    instruments[0].modChar1 = 1;   instruments[0].carChar1 = 1;
-    instruments[0].modChar2 = 143; instruments[0].carChar2 = 6;
-    instruments[0].modChar3 = 242; instruments[0].carChar3 = 242;
-    instruments[0].modChar4 = 244; instruments[0].carChar4 = 247;
-    instruments[0].modChar5 = 0;   instruments[0].carChar5 = 0;
-    instruments[0].fbConn = 56;    instruments[0].percNote = 0;
-    
-    // GM25: Acoustic Guitar1
-    instruments[24].modChar1 = 2;   instruments[24].carChar1 = 65;
-    instruments[24].modChar2 = 156; instruments[24].carChar2 = 128;
-    instruments[24].modChar3 = 243; instruments[24].carChar3 = 243;
-    instruments[24].modChar4 = 148; instruments[24].carChar4 = 200;
-    instruments[24].modChar5 = 1;   instruments[24].carChar5 = 0;
-    instruments[24].fbConn = 60;    instruments[24].percNote = 0;
-    
-    // GM74: Flute
-    instruments[73].modChar1 = 225; instruments[73].carChar1 = 225;
-    instruments[73].modChar2 = 70;  instruments[73].carChar2 = 0;
-    instruments[73].modChar3 = 136; instruments[73].carChar3 = 101;
-    instruments[73].modChar4 = 95;  instruments[73].carChar4 = 26;
-    instruments[73].modChar5 = 0;   instruments[73].carChar5 = 0;
-    instruments[73].fbConn = 48;    instruments[73].percNote = 0;
-    
-    // Note: The full implementation would include all 181 instrument definitions
-    // This would be copied from the original instruments.c file
-}
-
 void MidiPlayer::writeOPL(uint32_t reg, uint8_t val) {
     // Pass through to the audio system
     Audio::writeOPL(reg, val);
