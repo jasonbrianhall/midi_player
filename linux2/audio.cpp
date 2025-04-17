@@ -25,16 +25,15 @@ void audioCallback(void* userdata, Uint8* stream, int len) {
     int sampleCount = len / sizeof(int16_t);
     int16_t* output = reinterpret_cast<int16_t*>(stream);
     
+    // Clear the buffer first
+    SDL_memset(stream, 0, len);
+    
     std::lock_guard<std::mutex> lock(audioMutex);
     
     // Fill the buffer with data from the queue, or silence if queue is empty
-    for (int i = 0; i < sampleCount; i++) {
-        if (!audioQueue.empty()) {
-            output[i] = audioQueue.front();
-            audioQueue.pop();
-        } else {
-            output[i] = 0;
-        }
+    for (int i = 0; i < sampleCount && !audioQueue.empty(); i++) {
+        output[i] = audioQueue.front();
+        audioQueue.pop();
     }
 }
 
@@ -46,16 +45,16 @@ bool Audio::init() {
     }
     
     // Set up SDL audio
-    SDL_AudioSpec wantedSpec, actualSpec;
+    SDL_AudioSpec wantedSpec;
     SDL_zero(wantedSpec);
     wantedSpec.freq = sampleRate;
     wantedSpec.format = AUDIO_S16;
-    wantedSpec.channels = 1; // Mono output (we'll handle stereo ourselves)
+    wantedSpec.channels = 1;
     wantedSpec.samples = bufferSize;
     wantedSpec.callback = audioCallback;
     
-    // Open audio device
-    audioDevice = SDL_OpenAudioDevice(nullptr, 0, &wantedSpec, &actualSpec, 0);
+    // Open audio device with simpler settings
+    audioDevice = SDL_OpenAudioDevice(NULL, 0, &wantedSpec, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
     if (audioDevice == 0) {
         std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
         return false;
@@ -67,7 +66,7 @@ bool Audio::init() {
     // Start audio playback
     SDL_PauseAudioDevice(audioDevice, 0);
     
-    std::cout << "Audio initialized - Sample rate: " << actualSpec.freq << std::endl;
+    std::cout << "Audio initialized - Sample rate: " << sampleRate << std::endl;
     return true;
 }
 
@@ -95,30 +94,37 @@ void Audio::writeOPL(uint32_t reg, uint8_t val) {
 }
 
 void Audio::updateOPL() {
-    // Generate a buffer of audio data from the OPL emulator
-    audioBuffer.resize(bufferSize);
-    int32_t* tempBuffer = new int32_t[bufferSize];
-    
-    // Generate OPL output samples
-    oplHandler.Generate(tempBuffer, bufferSize);
-    
-    // Lock the audio mutex before modifying the queue
-    std::lock_guard<std::mutex> lock(audioMutex);
-    
-    // Convert 32-bit samples to 16-bit and add to the queue
-    for (int i = 0; i < bufferSize; i++) {
-        // Scale the volume and clip to 16-bit
-        int32_t sample = tempBuffer[i] / 32;
+    try {
+        // Generate a buffer of audio data from the OPL emulator
+        int bufSize = bufferSize;
+        audioBuffer.resize(bufSize);
+        int32_t* tempBuffer = new int32_t[bufSize];
         
-        // Apply soft clipping to avoid harsh distortion
-        if (sample > 32767) sample = 32767;
-        if (sample < -32768) sample = -32768;
+        // Generate OPL output samples
+        oplHandler.Generate(tempBuffer, bufSize);
         
-        // Add the sample to the queue
-        audioQueue.push(static_cast<int16_t>(sample));
+        // Lock the audio mutex before modifying the queue
+        std::lock_guard<std::mutex> lock(audioMutex);
+        
+        // Convert 32-bit samples to 16-bit and add to the queue
+        for (int i = 0; i < bufSize; i++) {
+            // Scale the volume and clip to 16-bit
+            int32_t sample = tempBuffer[i] / 32;
+            
+            // Apply soft clipping to avoid harsh distortion
+            if (sample > 32767) sample = 32767;
+            if (sample < -32768) sample = -32768;
+            
+            // Add the sample to the queue
+            audioQueue.push(static_cast<int16_t>(sample));
+        }
+        
+        delete[] tempBuffer;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in updateOPL: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in updateOPL" << std::endl;
     }
-    
-    delete[] tempBuffer;
 }
 
 int Audio::queueRemaining() {
