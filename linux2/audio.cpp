@@ -1,39 +1,27 @@
-// audio.cpp
-// SDL-based audio output for MIDI player with DBOPL integration
-
 #include "audio.h"
 #include "dbopl.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 #include <iostream>
-#include <mutex>
-#include <queue>
 #include <vector>
 
-// Global variables for audio system
+// Static variables
 static SDL_AudioDeviceID audioDevice;
-static std::mutex audioMutex;
-static std::vector<int16_t> audioBuffer;
-static std::queue<int16_t> audioQueue;
 static DBOPL::Handler oplHandler;
 static int sampleRate = 44100;
 static int bufferSize = 512;
 
-// Callback function for SDL audio
+// Simple buffer for audio
+static std::vector<int16_t> audioBuffer;
+
+// Very basic audio callback
 void audioCallback(void* userdata, Uint8* stream, int len) {
-    // Calculate how many samples we need to fill
-    int sampleCount = len / sizeof(int16_t);
-    int16_t* output = reinterpret_cast<int16_t*>(stream);
-    
-    // Clear the buffer first
+    // Clear the stream to silence
     SDL_memset(stream, 0, len);
     
-    std::lock_guard<std::mutex> lock(audioMutex);
-    
-    // Fill the buffer with data from the queue, or silence if queue is empty
-    for (int i = 0; i < sampleCount && !audioQueue.empty(); i++) {
-        output[i] = audioQueue.front();
-        audioQueue.pop();
+    // Directly copy our buffer to the stream if available
+    if (audioBuffer.size() * sizeof(int16_t) >= (size_t)len) {
+        SDL_memcpy(stream, audioBuffer.data(), len);
     }
 }
 
@@ -44,17 +32,17 @@ bool Audio::init() {
         return false;
     }
     
-    // Set up SDL audio
-    SDL_AudioSpec wantedSpec;
-    SDL_zero(wantedSpec);
-    wantedSpec.freq = sampleRate;
-    wantedSpec.format = AUDIO_S16;
-    wantedSpec.channels = 1;
-    wantedSpec.samples = bufferSize;
-    wantedSpec.callback = audioCallback;
+    // Set up a very simple SDL audio spec
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = sampleRate;
+    want.format = AUDIO_S16;
+    want.channels = 1;
+    want.samples = bufferSize;
+    want.callback = audioCallback;
     
-    // Open audio device with simpler settings
-    audioDevice = SDL_OpenAudioDevice(NULL, 0, &wantedSpec, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
+    // Open audio device with minimal requirements
+    audioDevice = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (audioDevice == 0) {
         std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
         return false;
@@ -63,10 +51,13 @@ bool Audio::init() {
     // Initialize OPL emulator
     oplHandler.Init(sampleRate);
     
+    // Pre-allocate audio buffer
+    audioBuffer.resize(bufferSize);
+    
     // Start audio playback
     SDL_PauseAudioDevice(audioDevice, 0);
     
-    std::cout << "Audio initialized - Sample rate: " << sampleRate << std::endl;
+    std::cout << "Audio initialized - Sample rate: " << have.freq << std::endl;
     return true;
 }
 
@@ -77,12 +68,10 @@ void Audio::shutdown() {
         audioDevice = 0;
     }
     
-    SDL_Quit();
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
 void Audio::writeOPL(uint32_t reg, uint8_t val) {
-    std::lock_guard<std::mutex> lock(audioMutex);
-    
     // Write to the OPL emulator
     uint32_t port = 0;
     if (reg & 0x100) {
@@ -94,59 +83,61 @@ void Audio::writeOPL(uint32_t reg, uint8_t val) {
 }
 
 void Audio::updateOPL() {
+    // Use fixed buffer size to avoid any potential overflow
+    const int size = 256; // Smaller buffer for safety
+    
+    // Generate audio with bounds checking
     try {
-        // Generate a buffer of audio data from the OPL emulator
-        int bufSize = bufferSize;
-        audioBuffer.resize(bufSize);
-        int32_t* tempBuffer = new int32_t[bufSize];
+        int32_t tempBuffer[size];
         
-        // Generate OPL output samples
-        oplHandler.Generate(tempBuffer, bufSize);
+        // Clear buffer first
+        memset(tempBuffer, 0, size * sizeof(int32_t));
         
-        // Lock the audio mutex before modifying the queue
-        std::lock_guard<std::mutex> lock(audioMutex);
+        // Generate OPL output samples with careful size management
+        oplHandler.Generate(tempBuffer, size);
         
-        // Convert 32-bit samples to 16-bit and add to the queue
-        for (int i = 0; i < bufSize; i++) {
-            // Scale the volume and clip to 16-bit
-            int32_t sample = tempBuffer[i] / 32;
-            
-            // Apply soft clipping to avoid harsh distortion
-            if (sample > 32767) sample = 32767;
-            if (sample < -32768) sample = -32768;
-            
-            // Add the sample to the queue
-            audioQueue.push(static_cast<int16_t>(sample));
+        // Lock audio while we update
+        SDL_LockAudioDevice(audioDevice);
+        
+        // Resize the buffer if needed
+        if (audioBuffer.size() < size) {
+            audioBuffer.resize(size);
         }
         
-        delete[] tempBuffer;
-    } catch (const std::exception& e) {
+        // Convert to 16-bit with simple scaling and bounds checking
+        for (int i = 0; i < size; i++) {
+            int32_t sample = tempBuffer[i] / 32;
+            if (sample > 32767) sample = 32767;
+            if (sample < -32768) sample = -32768;
+            audioBuffer[i] = static_cast<int16_t>(sample);
+        }
+        
+        SDL_UnlockAudioDevice(audioDevice);
+    }
+    catch (const std::exception& e) {
         std::cerr << "Exception in updateOPL: " << e.what() << std::endl;
-    } catch (...) {
+    }
+    catch (...) {
         std::cerr << "Unknown exception in updateOPL" << std::endl;
     }
 }
 
 int Audio::queueRemaining() {
-    std::lock_guard<std::mutex> lock(audioMutex);
-    return audioQueue.size();
+    return bufferSize; // Simplified
 }
 
-// Audio namespace implementation
-namespace Audio {
-    int getSampleRate() {
-        return sampleRate;
-    }
-    
-    void setSampleRate(int rate) {
-        sampleRate = rate;
-    }
-    
-    int getBufferSize() {
-        return bufferSize;
-    }
-    
-    void setBufferSize(int size) {
-        bufferSize = size;
-    }
+int Audio::getSampleRate() {
+    return sampleRate;
+}
+
+void Audio::setSampleRate(int rate) {
+    sampleRate = rate;
+}
+
+int Audio::getBufferSize() {
+    return bufferSize;
+}
+
+void Audio::setBufferSize(int size) {
+    bufferSize = size;
 }

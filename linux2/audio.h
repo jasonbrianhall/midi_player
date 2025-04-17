@@ -1,6 +1,3 @@
-// audio.h
-// Header file for SDL-based audio system with DBOPL integration
-
 #ifndef AUDIO_H
 #define AUDIO_H
 

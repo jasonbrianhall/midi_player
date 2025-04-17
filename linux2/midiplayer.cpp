@@ -244,24 +244,27 @@ void MidiPlayer::update() {
         return;
     }
     
-    // Make sure the audio queue doesn't get too full
-    if (Audio::queueRemaining() > Audio::getBufferSize() * 8) {
-        // Wait a bit
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        return;
+    try {
+        // Update the OPL emulator to generate more audio
+        Audio::updateOPL();
+        
+        // Count down playback wait time
+        if (began) {
+            playWait -= 1.0;
+        }
+        
+        // Process events until we have enough delay
+        while (playWait < 16.0 && playing) {
+            processEvents();
+        }
     }
-    
-    // Update the OPL emulator to generate more audio
-    Audio::updateOPL();
-    
-    // Count down playback wait time
-    if (began) {
-        playWait -= 1.0;
+    catch (const std::exception& e) {
+        std::cerr << "Exception in update: " << e.what() << std::endl;
+        playing = false; // Stop if we encounter an error
     }
-    
-    // Process events until we have enough delay
-    while (playWait < 16.0) {
-        processEvents();
+    catch (...) {
+        std::cerr << "Unknown exception in update" << std::endl;
+        playing = false;
     }
 }
 
@@ -511,13 +514,31 @@ void MidiPlayer::oplSetPanning(int channel) {
 }
 
 void MidiPlayer::processEvents() {
+    // Check for null file pointer
+    if (!midiFile) {
+        playing = false;
+        return;
+    }
+    
     // Save rollback info for each track
     for (int tk = 0; tk < trackCount; tk++) {
         rollbackPoints[tk] = tracks[tk];
         
         // Handle events for tracks that are due
         if (tracks[tk].active && tracks[tk].delay <= 0) {
-            handleMidiEvent(tk);
+            try {
+                handleMidiEvent(tk);
+            }
+            catch (const std::exception& e) {
+                std::cerr << "Exception in handleMidiEvent: " << e.what() << std::endl;
+                playing = false;
+                return;
+            }
+            catch (...) {
+                std::cerr << "Unknown exception in handleMidiEvent" << std::endl;
+                playing = false;
+                return;
+            }
         }
     }
     
@@ -885,6 +906,7 @@ void MidiPlayer::handleMidiEvent(int trackIndex) {
 }
 
 uint32_t MidiPlayer::convertInteger(const char* buffer, int length) {
+    if (!buffer || length <= 0) return 0;
     uint32_t value = 0;
     for (int i = 0; i < length; i++) {
         value = value * 256 + (uint8_t)buffer[i];
