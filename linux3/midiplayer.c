@@ -213,6 +213,7 @@ bool loadMidiFile(const char* filename) {
 }
 
 // Handle a single MIDI event
+// Handle a single MIDI event
 void handleMidiEvent(int tk) {
     unsigned char status, data1, data2;
     unsigned char buffer[256];
@@ -269,6 +270,16 @@ void handleMidiEvent(int tk) {
             fread(&data2, 1, 1, midiFile);
             
             switch (data1) {
+                case 1:  // Modulation Wheel
+                    ChVibrato[midCh] = data2;
+                    // Implementation depends on dbopl_wrapper.cpp supporting this
+                    // We could add a new function: OPL_SetModulation(midCh, data2);
+                    break;
+                    
+                case 6:  // Data Entry MSB (for RPN/NRPN)
+                    // Could be used for fine pitch control
+                    break;
+                    
                 case 7:  // Channel Volume
                     ChVolume[midCh] = data2;
                     OPL_SetVolume(midCh, data2);
@@ -279,10 +290,66 @@ void handleMidiEvent(int tk) {
                     OPL_SetPan(midCh, data2);
                     break;
                     
+                case 11: // Expression
+                    // Expression is like a secondary volume control
+                    // We could scale the existing volume by this value
+                    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
+                        if (opl_channels[i].active && opl_channels[i].midi_channel == midCh) {
+                            set_channel_volume(i, opl_channels[i].velocity, 
+                                             (ChVolume[midCh] * data2) / 127);
+                        }
+                    }
+                    break;
+                    
+                case 64: // Sustain Pedal
+                    // Implement sustain by delaying note-offs
+                    // This would require tracking sustained notes
+                    break;
+                    
+                case 71: // Sound Controller 2 - Resonance/Timbre
+                    // Could adjust FM feedback parameters
+                    break;
+                    
+                case 72: // Sound Controller 3 - Release Time
+                    // Could adjust envelope release rate
+                    break;
+                    
+                case 73: // Sound Controller 4 - Attack Time
+                    // Could adjust envelope attack rate
+                    break;
+                    
+                case 74: // Sound Controller 5 - Brightness
+                    // Could adjust FM modulation index or carrier frequency
+                    break;
+                    
+                case 91: // Effects 1 Depth (Reverb)
+                    // Could implement basic reverb simulation
+                    break;
+                    
+                case 93: // Effects 3 Depth (Chorus)
+                    // Could implement chorus effect through slight detuning
+                    break;
+                    
+                case 120: // All Sound Off
+                    // Immediately silence all sound (emergency)
+                    OPL_Reset();
+                    break;
+                    
+                case 121: // Reset All Controllers
+                    // Reset controllers to default
+                    for (int i = 0; i < 16; i++) {
+                        ChBend[i] = 0;
+                        ChVibrato[i] = 0;
+                        // Don't reset volume and panning
+                    }
+                    break;
+                    
                 case 123: // All Notes Off
                     // Turn off all notes on this channel
-                    for (int note = 0; note < 128; note++) {
-                        OPL_NoteOff(midCh, note);
+                    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
+                        if (opl_channels[i].active && opl_channels[i].midi_channel == midCh) {
+                            OPL_NoteOff(midCh, opl_channels[i].midi_note);
+                        }
                     }
                     break;
             }
@@ -294,6 +361,21 @@ void handleMidiEvent(int tk) {
             fread(&data1, 1, 1, midiFile);
             ChPatch[midCh] = data1;
             OPL_ProgramChange(midCh, data1);
+            break;
+        }
+        
+        case CHAN_PRESSURE: {
+            // Channel Aftertouch
+            fread(&data1, 1, 1, midiFile);
+            // Could apply pressure to all active notes on this channel
+            // Similar to expression control
+            for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
+                if (opl_channels[i].active && opl_channels[i].midi_channel == midCh) {
+                    // Apply aftertouch as a volume scaling
+                    set_channel_volume(i, opl_channels[i].velocity, 
+                                     (ChVolume[midCh] * data1) / 127);
+                }
+            }
             break;
         }
         
@@ -327,15 +409,30 @@ void handleMidiEvent(int tk) {
                     unsigned long tempoVal = convertInteger(tempo, (int)len);
                     Tempo = tempoVal;
                 } else if (evtype == META_TEXT) {
-                    // Text event - check for loop markers
+                    // Text event - check for loop markers or custom instructions
                     char text[256] = {0};
-                    readString(midiFile, (int)len, text);
+                    readString(midiFile, (int)len < 255 ? (int)len : 255, text);
                     
                     if (strcmp(text, "loopStart") == 0) {
                         loopStart = true;
                     } else if (strcmp(text, "loopEnd") == 0) {
                         loopEnd = true;
+                    } else if (strstr(text, "volume=") == text) {
+                        // Custom volume instruction, format: "volume=XX"
+                        int volume = atoi(text + 7);
+                        if (volume >= 0 && volume <= 127) {
+                            ChVolume[midCh] = volume;
+                            OPL_SetVolume(midCh, volume);
+                        }
+                    } else if (strstr(text, "instrument=") == text) {
+                        // Custom instrument instruction, format: "instrument=XX"
+                        int instrument = atoi(text + 11);
+                        if (instrument >= 0 && instrument < 181) {
+                            ChPatch[midCh] = instrument;
+                            OPL_ProgramChange(midCh, instrument);
+                        }
                     }
+                    // Could handle other custom text commands here
                 } else {
                     // Skip other meta events
                     fseek(midiFile, len, SEEK_CUR);
@@ -344,6 +441,21 @@ void handleMidiEvent(int tk) {
                 // System exclusive - skip
                 len = readVarLen(midiFile);
                 fseek(midiFile, (long)len, SEEK_CUR);
+            }
+            break;
+        }
+        
+        default: {
+            // Unknown or unsupported message type
+            // Try to skip based on expected message length
+            switch (status & 0xF0) {
+                case 0xC0: // Program Change
+                case 0xD0: // Channel Pressure
+                    fseek(midiFile, 1, SEEK_CUR); // One data byte
+                    break;
+                default:
+                    fseek(midiFile, 2, SEEK_CUR); // Assume two data bytes
+                    break;
             }
             break;
         }

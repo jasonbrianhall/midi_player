@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <climits>
 #include "dbopl_wrapper.h"
 #include "dbopl.h"
 
@@ -16,14 +17,7 @@ static DBOPL::Handler opl_handler;
 static int32_t opl_buffer[1024 * 2];
 
 // OPL channel allocation and state tracking
-static struct {
-    bool active;
-    int midi_channel;
-    int midi_note;
-    int instrument;
-    int velocity;
-    int pan;
-} opl_channels[36];
+OPLChannel opl_channels[MAX_OPL_CHANNELS];
 
 // Track MIDI channel state
 static int midi_channel_program[16] = {0};
@@ -42,15 +36,16 @@ extern "C" void OPL_Init(int sample_rate) {
     opl_handler.WriteReg(0x105, 0x01);
     
     // Initialize the instruments (from the original MIDI player)
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         opl_channels[i].active = false;
+        opl_channels[i].start_time = 0;
     }
 }
 
 // Reset the OPL emulator
 extern "C" void OPL_Reset(void) {
     // Turn off all notes
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active) {
             // Key off
             uint32_t reg_offset = (i % 9);
@@ -97,21 +92,43 @@ extern "C" void OPL_Shutdown(void) {
 // Find a free OPL channel for a new note
 static int allocate_opl_channel(int midi_channel, int note) {
     // First try to find an inactive channel
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (!opl_channels[i].active) {
             return i;
         }
     }
     
-    // If no free channels, find the oldest channel of the same MIDI channel
-    for (int i = 0; i < 18; i++) {
-        if (opl_channels[i].midi_channel == midi_channel) {
+    // If no free channels, try to find the channel with the same note
+    // to handle repeated notes (this prevents choppy playback)
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
+        if (opl_channels[i].midi_channel == midi_channel && 
+            opl_channels[i].midi_note == note) {
             return i;
         }
     }
     
-    // If still no channel, just take the first one
-    return 0;
+    // If still no channel, prioritize by velocity and age
+    uint32_t current_time = SDL_GetTicks();
+    int lowest_priority = INT_MAX;
+    int lowest_priority_channel = 0;
+    
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
+        // Don't replace percussion channels if possible
+        if (opl_channels[i].midi_channel == 9) {
+            continue;
+        }
+        
+        // Calculate priority based on velocity and age
+        int priority = opl_channels[i].velocity * 10 + 
+                      (current_time - opl_channels[i].start_time) / 1000;
+        
+        if (priority < lowest_priority) {
+            lowest_priority = priority;
+            lowest_priority_channel = i;
+        }
+    }
+    
+    return lowest_priority_channel;
 }
 
 // Load an FM instrument into an OPL channel
@@ -165,25 +182,25 @@ static void set_note_frequency(int opl_channel, int note, bool keyon) {
 }
 
 // Set volume for an OPL channel
-static void set_channel_volume(int opl_channel, int velocity, int volume) {
+extern "C" void set_channel_volume(int opl_channel, int velocity, int volume) {
     uint32_t reg_offset = (opl_channel % 9);
     uint32_t bank = (opl_channel / 9);
     int instrument = opl_channels[opl_channel].instrument;
     
-    // Scale volume based on velocity and channel volume
-    int scaled_vol = (velocity * volume) / 127;
+    // Use logarithmic scaling for better dynamics
+    double volumeScale = pow((velocity / 127.0) * (volume / 127.0), 1.5);
     
     // Calculate operator attenuation
     int mod_level = adl[instrument].modChar2 & 0x3F;
     int car_level = adl[instrument].carChar2 & 0x3F;
     
-    // Apply velocity scaling to carrier level (main volume)
-    // Higher value = more attenuation = less volume
-    int scaled_car_level = car_level + (63 - scaled_vol) / 2;
-    if (scaled_car_level > 63) scaled_car_level = 63;
+    // Apply logarithmic scaling
+    int attenuation = (int)(63 * (1.0 - volumeScale));
+    int scaled_car_level = car_level + attenuation;
+    int scaled_mod_level = mod_level + (attenuation / 2); // Less effect on modulator
     
-    // Apply velocity scaling to modulator (softer effect)
-    int scaled_mod_level = mod_level + (63 - scaled_vol) / 4;
+    // Clamp to valid range
+    if (scaled_car_level > 63) scaled_car_level = 63;
     if (scaled_mod_level > 63) scaled_mod_level = 63;
     
     // Update registers
@@ -224,7 +241,19 @@ static void set_channel_pan(int opl_channel, int pan) {
 
 extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
     // Determine which instrument to use
-    int instrument = (channel == 9) ? 128 + note - 35 : midi_channel_program[channel];
+    int instrument;
+    
+    if (channel == 9) {
+        // Get percussion instrument based on note
+        instrument = 128 + note - 35; // Standard GM percussion mapping
+        
+        // Bounds checking
+        if (instrument < 128 || instrument >= 181) {
+            instrument = 128; // Default to acoustic bass drum if out of range
+        }
+    } else {
+        instrument = midi_channel_program[channel];
+    }
     
     // Make sure the instrument number is valid
     if (instrument < 0) instrument = 0;
@@ -244,6 +273,7 @@ extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
     opl_channels[opl_channel].midi_note = note;
     opl_channels[opl_channel].instrument = instrument;
     opl_channels[opl_channel].velocity = velocity;
+    opl_channels[opl_channel].start_time = SDL_GetTicks();
     
     // Configure the OPL channel
     load_instrument(opl_channel, instrument);
@@ -256,7 +286,7 @@ extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
 
 extern "C" void OPL_NoteOff(int channel, int note) {
     // Find the OPL channel playing this note
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && 
             opl_channels[i].midi_channel == channel && 
             opl_channels[i].midi_note == note) {
@@ -274,7 +304,7 @@ extern "C" void OPL_ProgramChange(int channel, int program) {
     midi_channel_program[channel] = program;
     
     // Update any currently playing notes on this channel
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
             // If it's not a percussion channel, update the instrument
             if (channel != 9) {
@@ -294,7 +324,7 @@ extern "C" void OPL_SetPan(int channel, int pan) {
     midi_channel_pan[channel] = pan;
     
     // Update any currently playing notes on this channel
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
             set_channel_pan(i, pan);
         }
@@ -306,7 +336,7 @@ extern "C" void OPL_SetVolume(int channel, int volume) {
     midi_channel_volume[channel] = volume;
     
     // Update any currently playing notes on this channel
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
             set_channel_volume(i, opl_channels[i].velocity, volume);
         }
@@ -316,7 +346,7 @@ extern "C" void OPL_SetVolume(int channel, int volume) {
 extern "C" void OPL_SetPitchBend(int channel, int bend) {
     // Pitch bend is more complex with OPL - we'd need to recalculate frequencies
     // This is a simplified implementation
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
             // Calculate a note offset based on the bend
             // Bend range: -8192 to 8191, typically ±2 semitones
