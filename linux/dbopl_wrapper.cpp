@@ -349,7 +349,6 @@ extern "C" void OPL_SetPan(int channel, int pan) {
 
 extern "C" void OPL_SetVolume(int channel, int volume) {
     // Store the volume setting for this MIDI channel
-    printf("Volume called with channel %i and volume %i\n", channel, volume);
     midi_channel_volume[channel] = volume;
     
     // Update any currently playing notes on this channel
