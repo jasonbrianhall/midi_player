@@ -71,10 +71,13 @@ extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
     // Generate OPL audio
     opl_handler.Generate(opl_buffer, num_samples);
     
+    // Get external global volume (already declared as int in midiplayer.c)
+    extern int globalVolume;
+    
     // Convert to 16-bit and apply volume scaling
     for (int i = 0; i < num_samples * 2; i++) {
-        // Use full volume - no division
-        int32_t sample = opl_buffer[i];
+        // Apply global volume scaling (100 = normal volume)
+        int32_t sample = (int32_t)(opl_buffer[i] * (globalVolume / 100.0));
         
         // Clip to 16-bit range
         if (sample > 32767) sample = 32767;
@@ -187,26 +190,39 @@ extern "C" void set_channel_volume(int opl_channel, int velocity, int volume) {
     uint32_t bank = (opl_channel / 9);
     int instrument = opl_channels[opl_channel].instrument;
     
-    // Use a less aggressive logarithmic scaling for better dynamics
-    double volumeScale = pow((velocity / 127.0) * (volume / 127.0), 0.8); // Changed from 1.5 to 0.8
+    // Check for invalid instrument index to prevent crashes
+    if (instrument < 0 || instrument >= 181) {
+        instrument = 0;
+    }
     
-    // Calculate operator attenuation
+    // Calculate volume scale (0.0 to 1.0)
+    // In OPL, volume is inverted: 0x3F (63) is silent, 0x00 is loudest
+    double volumeScale = ((double)velocity / 127.0) * ((double)volume / 127.0);
+    
+    // Get the base levels from the instrument definition
     int mod_level = adl[instrument].modChar2 & 0x3F;
     int car_level = adl[instrument].carChar2 & 0x3F;
     
-    // Apply logarithmic scaling
-    int attenuation = (int)(48 * (1.0 - volumeScale)); // Changed from 63 to 48
-    int scaled_car_level = car_level + attenuation;
-    int scaled_mod_level = mod_level + (attenuation / 2);
+    // Adjust carrier level based on volume (carrier is the main output operator)
+    // For volume, we need to adjust between the base level and max attenuation (63)
+    // As volume decreases, we move closer to 63 (silence)
+    int scaled_car_level = car_level + (int)((63 - car_level) * (1.0 - volumeScale));
+    
+    // Modulator scaling is more subtle (affects timbre more than volume)
+    // Scale it less aggressively
+    int scaled_mod_level = mod_level + (int)((63 - mod_level) * (1.0 - volumeScale) * 0.5);
     
     // Clamp to valid range
     if (scaled_car_level > 63) scaled_car_level = 63;
+    if (scaled_car_level < 0) scaled_car_level = 0;
     if (scaled_mod_level > 63) scaled_mod_level = 63;
+    if (scaled_mod_level < 0) scaled_mod_level = 0;
     
-    // Update registers
-    uint8_t car_reg_val = (adl[instrument].carChar2 & 0xC0) | scaled_car_level;
+    // Preserve the top 2 bits (Key Scale Level) and set the new level
     uint8_t mod_reg_val = (adl[instrument].modChar2 & 0xC0) | scaled_mod_level;
+    uint8_t car_reg_val = (adl[instrument].carChar2 & 0xC0) | scaled_car_level;
     
+    // Update the OPL registers
     OPL_WriteReg(0x40 + reg_offset + (bank * 0x100), mod_reg_val);
     OPL_WriteReg(0x43 + reg_offset + (bank * 0x100), car_reg_val);
 }
@@ -333,11 +349,13 @@ extern "C" void OPL_SetPan(int channel, int pan) {
 
 extern "C" void OPL_SetVolume(int channel, int volume) {
     // Store the volume setting for this MIDI channel
+    printf("Volume called with channel %i and volume %i\n", channel, volume);
     midi_channel_volume[channel] = volume;
     
     // Update any currently playing notes on this channel
     for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
+            // Apply the new volume
             set_channel_volume(i, opl_channels[i].velocity, volume);
         }
     }

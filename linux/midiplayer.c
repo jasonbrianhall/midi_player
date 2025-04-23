@@ -718,6 +718,9 @@ void updateVolume(int change) {
     if (globalVolume < 10) globalVolume = 10;
     if (globalVolume > 300) globalVolume = 300;
     
+    // Remove the loop that calls OPL_SetVolume for all channels
+    // The global volume will be applied in OPL_Generate instead
+    
     pthread_mutex_unlock(&audioMutex);
     
     printf("Volume: %d%%\n", globalVolume);
