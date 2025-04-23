@@ -31,6 +31,9 @@ void OPL_SetPan(int channel, int pan);
 void OPL_SetVolume(int channel, int volume);
 void OPL_SetPitchBend(int channel, int bend);
 
+// Load instrument data from your existing instruments.c
+extern void OPL_LoadInstruments(void);
+
 #ifdef __cplusplus
 }
 #endif

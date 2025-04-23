@@ -56,11 +56,8 @@ extern "C" void OPL_Reset(void) {
             uint32_t reg_offset = (i % 9);
             uint32_t bank = (i / 9);
             uint32_t reg_b0 = 0xB0 + reg_offset + (bank * 0x100);
-            
-            // Get current value and clear key-on bit
-            uint8_t current_val = opl_handler.chip.regBD;  // Get current value
-            opl_handler.WriteReg(reg_b0, current_val & 0xDF); // Clear key-on bit
-            
+            uint8_t current = opl_handler.WriteAddr(reg_b0, 0) & 0xDF; // Get current value and clear key-on bit
+            opl_handler.WriteReg(reg_b0, current);
             opl_channels[i].active = false;
         }
     }
@@ -154,6 +151,7 @@ static void set_note_frequency(int opl_channel, int note, bool keyon) {
     // Calculate F-Number
     double fnumVal = freq * (1 << (20 - block)) / 49716.0;
     int fnum = (int)fnumVal;
+    if (fnum > 1023) fnum = 1023;
     
     // Frequency low byte
     OPL_WriteReg(0xA0 + reg_offset + (bank * 0x100), fnum & 0xFF);
@@ -321,15 +319,22 @@ extern "C" void OPL_SetPitchBend(int channel, int bend) {
     for (int i = 0; i < 18; i++) {
         if (opl_channels[i].active && opl_channels[i].midi_channel == channel) {
             // Calculate a note offset based on the bend
-           // Bend range: -8192 to 8191, typically ±2 semitones
-           double bend_amount = (bend - 8192) / 8192.0;
-           double semitones = bend_amount * 2.0; // ±2 semitone range
-           
-           // Calculate the adjusted frequency
-           double note = opl_channels[i].midi_note + semitones;
-           
-           // Update the frequency but keep note on
-           set_note_frequency(i, (int)round(note), true);
-       }
-   }
-}            
+            // Bend range: -8192 to 8191, typically ±2 semitones
+            double bend_amount = (bend - 8192) / 8192.0;
+            double semitones = bend_amount * 2.0; // ±2 semitone range
+            
+            // Calculate the adjusted frequency
+            double note = opl_channels[i].midi_note + semitones;
+            
+            // Update the frequency but keep note on
+            set_note_frequency(i, (int)round(note), true);
+        }
+    }
+}
+
+// Load the instrument data
+extern "C" void OPL_LoadInstruments(void) {
+    // This function is implemented in instruments.c
+    // Just call it to load the instrument data
+    initFMInstruments();
+}

@@ -25,13 +25,6 @@ int DeltaTicks = 0;
 double Tempo = 500000;  // Default 120 BPM
 double playTime = 0;
 
-// Channel state
-int chins[18] = {0};  // Instrument for each channel
-int chpan[18] = {0};  // Panning
-int chpit[18] = {0};  // Pitch
-int chon[18] = {0};   // Channel on flag
-double chage[18] = {0};  // Channel age for note allocation
-
 // Track state
 int tkPtr[MAX_TRACKS] = {0};
 double tkDelay[MAX_TRACKS] = {0};
@@ -53,16 +46,6 @@ double ChBend[16] = {0};
 int ChVolume[16] = {127};
 int ChPanning[16] = {0};
 int ChVibrato[16] = {0};
-
-// Active note tracking
-int ActCount[16] = {0};
-int ActTone[16][128] = {{0}};
-int ActAdlChn[16][128] = {{0}};
-int ActVol[16][128] = {{0}};
-int ActRev[16][128] = {{0}};
-int ActList[16][100] = {{0}};
-int chm[18] = {0}, cha[18] = {0};
-int chx[18] = {0}, chc[18] = {0};
 
 // SDL Audio
 SDL_AudioDeviceID audioDevice;
@@ -93,6 +76,9 @@ bool initSDL() {
     
     // Initialize the OPL emulator
     OPL_Init(SAMPLE_RATE);
+    
+    // Initialize the FM instruments
+    OPL_LoadInstruments();
     
     return true;
 }
@@ -289,13 +275,7 @@ void handleMidiEvent(int tk) {
                     break;
                     
                 case 10: // Pan
-                    if (data2 < 48)
-                        ChPanning[midCh] = 32;
-                    else if (data2 > 79)
-                        ChPanning[midCh] = 16;
-                    else
-                        ChPanning[midCh] = 0;
-                    
+                    ChPanning[midCh] = data2;
                     OPL_SetPan(midCh, data2);
                     break;
                     
@@ -324,7 +304,7 @@ void handleMidiEvent(int tk) {
             
             // Combine LSB and MSB into a 14-bit value
             int bend = (data2 << 7) | data1;
-            ChBend[midCh] = bend - 8192; // Center at 0 (-8192 to 8191)
+            ChBend[midCh] = bend;
             
             OPL_SetPitchBend(midCh, bend);
             break;
@@ -391,7 +371,7 @@ void processEvents() {
         }
     }
     
-    // Handle loop points
+// Handle loop points
     if (loopStart) {
         // Save loop beginning point
         for (int tk = 0; tk < TrackCount; tk++) {
@@ -455,19 +435,11 @@ void processEvents() {
     // Schedule next event
     double t = nextDelay * Tempo / (DeltaTicks * 1000000.0);
     playwait += t;
-    
-    // Age all channels
-    for (int a = 0; a < 18; a++) {
-        chage[a] += t;
-    }
 }
 
 // SDL audio callback function
 void generateAudio(void* userdata, Uint8* stream, int len) {
     (void)userdata; // Unused parameter
-    
-    int16_t* output = (int16_t*)stream;
-    int samples = len / (sizeof(int16_t) * AUDIO_CHANNELS);
     
     // Clear buffer
     memset(stream, 0, len);
@@ -479,13 +451,13 @@ void generateAudio(void* userdata, Uint8* stream, int len) {
     pthread_mutex_lock(&audioMutex);
     
     // Generate OPL audio
-    OPL_Generate(output, samples);
+    OPL_Generate((int16_t*)stream, len / (sizeof(int16_t) * AUDIO_CHANNELS));
     
     // Update playback time
-    playTime += samples / (double)SAMPLE_RATE;
+    playTime += len / (double)(SAMPLE_RATE * sizeof(int16_t) * AUDIO_CHANNELS);
     
     // Process MIDI events based on timing
-    playwait -= samples / (double)SAMPLE_RATE;
+    playwait -= len / (double)(SAMPLE_RATE * sizeof(int16_t) * AUDIO_CHANNELS);
     while (playwait <= 0.1 && isPlaying) {
         processEvents();
     }
@@ -495,18 +467,13 @@ void generateAudio(void* userdata, Uint8* stream, int len) {
 
 // Initialize everything and start playback
 void playMidiFile() {
-    // Initialize variables
+    // Initialize variables for all channels
     for (int i = 0; i < 16; i++) {
         ChPatch[i] = 0;
         ChBend[i] = 0;
         ChVolume[i] = 127;
-        ChPanning[i] = 0;
+        ChPanning[i] = 64;
         ChVibrato[i] = 0;
-        ActCount[i] = 0;
-        
-        for (int j = 0; j < 128; j++) {
-            ActRev[i][j] = 0;
-        }
     }
     
     // Reset playback state
