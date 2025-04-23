@@ -7,8 +7,12 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
+
+struct termios old_tio;
+volatile sig_atomic_t keep_running = 1;
 
 #ifndef M_PI
 #define M_PI 3.1415926154
@@ -240,7 +244,23 @@ bool loadMidiFile(const char* filename) {
     return true;
 }
 
-// Handle a single MIDI event
+void handle_sigint(int sig) {
+    keep_running = 0;
+    // Restore terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    
+    // Stop audio and perform cleanup
+    isPlaying = false;
+    SDL_PauseAudioDevice(audioDevice, 1);
+    
+    printf("\nPlayback interrupted. Cleaning up...\n");
+    cleanup();
+    
+    // Exit the program
+    exit(0);
+}
+
+
 // Handle a single MIDI event
 void handleMidiEvent(int tk) {
     unsigned char status, data1, data2;
@@ -636,16 +656,23 @@ void playMidiFile() {
     printf("  Space - Pause/Resume\n");
     printf("  +/- - Increase/Decrease Volume\n");
     printf("  n - Toggle Volume Normalization\n");
+    printf("  Ctrl+C - Stop Playback\n");
     
     // Disable input buffering
-    struct termios old_tio, new_tio;
+    struct termios new_tio;
     tcgetattr(STDIN_FILENO, &old_tio);
     new_tio = old_tio;
     new_tio.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
     
+    // Set up signal handler for SIGINT (CTRL+C)
+    signal(SIGINT, handle_sigint);
+    
+    // Reset keep_running flag
+    keep_running = 1;
+    
     // Main loop - handle console input
-    while (isPlaying) {
+    while (isPlaying && keep_running) {
         // Check for key press without blocking
         if (kbhit()) {
             int ch = getchar();
