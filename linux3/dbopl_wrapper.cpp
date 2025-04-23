@@ -73,8 +73,8 @@ extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
     
     // Convert to 16-bit and apply volume scaling
     for (int i = 0; i < num_samples * 2; i++) {
-        // Scale down to 16-bit range and apply master volume
-        int32_t sample = opl_buffer[i] / 4;
+        // Use full volume - no division
+        int32_t sample = opl_buffer[i];
         
         // Clip to 16-bit range
         if (sample > 32767) sample = 32767;
@@ -187,17 +187,17 @@ extern "C" void set_channel_volume(int opl_channel, int velocity, int volume) {
     uint32_t bank = (opl_channel / 9);
     int instrument = opl_channels[opl_channel].instrument;
     
-    // Use logarithmic scaling for better dynamics
-    double volumeScale = pow((velocity / 127.0) * (volume / 127.0), 1.5);
+    // Use a less aggressive logarithmic scaling for better dynamics
+    double volumeScale = pow((velocity / 127.0) * (volume / 127.0), 0.8); // Changed from 1.5 to 0.8
     
     // Calculate operator attenuation
     int mod_level = adl[instrument].modChar2 & 0x3F;
     int car_level = adl[instrument].carChar2 & 0x3F;
     
     // Apply logarithmic scaling
-    int attenuation = (int)(63 * (1.0 - volumeScale));
+    int attenuation = (int)(48 * (1.0 - volumeScale)); // Changed from 63 to 48
     int scaled_car_level = car_level + attenuation;
-    int scaled_mod_level = mod_level + (attenuation / 2); // Less effect on modulator
+    int scaled_mod_level = mod_level + (attenuation / 2);
     
     // Clamp to valid range
     if (scaled_car_level > 63) scaled_car_level = 63;
