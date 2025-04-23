@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <math.h>
 #include <pthread.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
 
@@ -51,6 +54,31 @@ int ChVibrato[16] = {0};
 SDL_AudioDeviceID audioDevice;
 SDL_AudioSpec audioSpec;
 pthread_mutex_t audioMutex = PTHREAD_MUTEX_INITIALIZER;
+
+int kbhit() {
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if(ch != EOF) {
+        ungetc(ch, stdin);
+        return 1;
+    }
+
+    return 0;
+}
 
 // SDL Audio initialization
 bool initSDL() {
@@ -609,38 +637,45 @@ void playMidiFile() {
     printf("  +/- - Increase/Decrease Volume\n");
     printf("  n - Toggle Volume Normalization\n");
     
-    // Main loop - handle SDL events
-    SDL_Event event;
+    // Disable input buffering
+    struct termios old_tio, new_tio;
+    tcgetattr(STDIN_FILENO, &old_tio);
+    new_tio = old_tio;
+    new_tio.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    
+    // Main loop - handle console input
     while (isPlaying) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                isPlaying = false;
-            } else if (event.type == SDL_KEYDOWN) {
-                switch (event.key.keysym.sym) {
-                    case SDLK_SPACE:
-                        paused = !paused;
-                        printf("%s\n", paused ? "Paused" : "Resumed");
-                        break;
-                    case SDLK_q:
-                        isPlaying = false;
-                        break;
-                    case SDLK_PLUS:
-                    case SDLK_EQUALS:
-                        updateVolume(10);
-                        break;
-                    case SDLK_MINUS:
-                        updateVolume(-10);
-                        break;
-                    case SDLK_n:
-                        toggleNormalization();
-                        break;
-                }
+        // Check for key press without blocking
+        if (kbhit()) {
+            int ch = getchar();
+            switch (ch) {
+                case ' ':
+                    paused = !paused;
+                    printf("%s\n", paused ? "Paused" : "Resumed");
+                    break;
+                case 'q':
+                    isPlaying = false;
+                    break;
+                case '+':
+                case '=':
+                    updateVolume(10);
+                    break;
+                case '-':
+                    updateVolume(-10);
+                    break;
+                case 'n':
+                    toggleNormalization();
+                    break;
             }
         }
         
         // Sleep to prevent CPU hogging
-        SDL_Delay(10);
+        usleep(10000); // 10 milliseconds
     }
+    
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
     
     // Stop audio
     SDL_PauseAudioDevice(audioDevice, 1);
