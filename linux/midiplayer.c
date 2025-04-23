@@ -6,7 +6,9 @@
 #include <pthread.h>
 #include "midiplayer.h"
 
+#ifndef M_PI
 #define M_PI 3.1415926154
+#endif
 
 // Global variables
 struct FMInstrument adl[181];
