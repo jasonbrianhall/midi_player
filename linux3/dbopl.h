@@ -208,8 +208,8 @@ struct Channel {
 };
 
 struct Chip {
-	//18 channels with 2 operators each. Leave on top of struct for simpler pointer math.
-	Channel chan[18];
+	//36 channels with 2 operators each. Leave on top of struct for simpler pointer math.
+	Channel chan[36];
 
 	//This is used as the base counter for vibrato and tremolo
 	Bit32u lfoCounter;

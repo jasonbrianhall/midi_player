@@ -177,7 +177,7 @@ static Bit16u MulTable[ 384 ];
 static Bit8u KslTable[ 8 * 16 ];
 static Bit8u TremoloTable[ TREMOLO_TABLE ];
 //Start of a channel behind the chip struct start
-static Bit16u ChanOffsetTable[32];
+static Bit16u ChanOffsetTable[64];
 //Start of an operator behind the chip struct start
 static Bit16u OpOffsetTable[64];
 
@@ -1098,7 +1098,7 @@ void Chip::WriteBD( Bit8u val ) {
 
 //Update the 0xc0 register for all channels to signal the switch to mono/stereo handlers
 void Chip::UpdateSynths() {
-	for (int i = 0; i < 18; i++) {
+	for (int i = 0; i < 36; i++) {
 		chan[i].UpdateSynth(this);
 	}
 }
@@ -1183,309 +1183,278 @@ Bit32u Chip::WriteAddr( Bit32u port, Bit8u val ) {
 }
 
 void Chip::GenerateBlock2( Bitu total, Bit32s* output ) {
-	while ( total > 0 ) {
-		Bit32u samples = ForwardLFO( total );
-		memset(output, 0, sizeof(Bit32s) * samples);
-//		int count = 0;
-		for( Channel* ch = chan; ch < chan + 9; ) {
-//			count++;
-			ch = (ch->*(ch->synthHandler))( this, samples, output );
-		}
-		total -= samples;
-		output += samples;
-	}
+    while ( total > 0 ) {
+        Bit32u samples = ForwardLFO( total );
+        memset(output, 0, sizeof(Bit32s) * samples);
+        for( Channel* ch = chan; ch < chan + 18; ) {
+            ch = (ch->*(ch->synthHandler))( this, samples, output );
+        }
+        total -= samples;
+        output += samples;
+    }
 }
 
 void Chip::GenerateBlock3( Bitu total, Bit32s* output  ) {
-	while ( total > 0 ) {
-		Bit32u samples = ForwardLFO( total );
-		memset(output, 0, sizeof(Bit32s) * samples *2);
-//		int count = 0;
-		for( Channel* ch = chan; ch < chan + 18; ) {
-//			count++;
-			ch = (ch->*(ch->synthHandler))( this, samples, output );
-		}
-		total -= samples;
-		output += samples * 2;
-	}
+    while ( total > 0 ) {
+        Bit32u samples = ForwardLFO( total );
+        memset(output, 0, sizeof(Bit32s) * samples *2);
+        for( Channel* ch = chan; ch < chan + 36; ) { // Changed from 18 to 36
+            ch = (ch->*(ch->synthHandler))( this, samples, output );
+        }
+        total -= samples;
+        output += samples * 2;
+    }
 }
 
 void Chip::Setup( Bit32u rate ) {
-	double original = OPLRATE;
-//	double original = rate;
-	double scale = original / (double)rate;
+    double original = OPLRATE;
+    double scale = original / (double)rate;
 
-	//Noise counter is run at the same precision as general waves
-	noiseAdd = (Bit32u)( 0.5 + scale * ( 1 << LFO_SH ) );
-	noiseCounter = 0;
-	noiseValue = 1;	//Make sure it triggers the noise xor the first time
-	//The low frequency oscillation counter
-	//Every time his overflows vibrato and tremoloindex are increased
-	lfoAdd = (Bit32u)( 0.5 + scale * ( 1 << LFO_SH ) );
-	lfoCounter = 0;
-	vibratoIndex = 0;
-	tremoloIndex = 0;
+    //Noise counter is run at the same precision as general waves
+    noiseAdd = (Bit32u)( 0.5 + scale * ( 1 << LFO_SH ) );
+    noiseCounter = 0;
+    noiseValue = 1;	//Make sure it triggers the noise xor the first time
+    //The low frequency oscillation counter
+    //Every time his overflows vibrato and tremoloindex are increased
+    lfoAdd = (Bit32u)( 0.5 + scale * ( 1 << LFO_SH ) );
+    lfoCounter = 0;
+    vibratoIndex = 0;
+    tremoloIndex = 0;
 
-	//With higher octave this gets shifted up
-	//-1 since the freqCreateTable = *2
+    //With higher octave this gets shifted up
+    //-1 since the freqCreateTable = *2
 #ifdef WAVE_PRECISION
-	double freqScale = ( 1 << 7 ) * scale * ( 1 << ( WAVE_SH - 1 - 10));
-	for ( int i = 0; i < 16; i++ ) {
-		freqMul[i] = (Bit32u)( 0.5 + freqScale * FreqCreateTable[ i ] );
-	}
+    double freqScale = ( 1 << 7 ) * scale * ( 1 << ( WAVE_SH - 1 - 10));
+    for ( int i = 0; i < 16; i++ ) {
+        freqMul[i] = (Bit32u)( 0.5 + freqScale * FreqCreateTable[ i ] );
+    }
 #else
-	Bit32u freqScale = (Bit32u)( 0.5 + scale * ( 1 << ( WAVE_SH - 1 - 10)));
-	for ( int i = 0; i < 16; i++ ) {
-		freqMul[i] = freqScale * FreqCreateTable[ i ];
-	}
+    Bit32u freqScale = (Bit32u)( 0.5 + scale * ( 1 << ( WAVE_SH - 1 - 10)));
+    for ( int i = 0; i < 16; i++ ) {
+        freqMul[i] = freqScale * FreqCreateTable[ i ];
+    }
 #endif
 
-	//-3 since the real envelope takes 8 steps to reach the single value we supply
-	for ( Bit8u i = 0; i < 76; i++ ) {
-		Bit8u index, shift;
-		EnvelopeSelect( i, index, shift );
-		linearRates[i] = (Bit32u)( scale * (EnvelopeIncreaseTable[ index ] << ( RATE_SH + ENV_EXTRA - shift - 3 )));
-	}
-//	Bit32s attackDiffs[62];
-	//Generate the best matching attack rate
-	for ( Bit8u i = 0; i < 62; i++ ) {
-		Bit8u index, shift;
-		EnvelopeSelect( i, index, shift );
-		//Original amount of samples the attack would take
-		Bit32s original = (Bit32u)( (AttackSamplesTable[ index ] << shift) / scale);
-		 
-		Bit32s guessAdd = (Bit32u)( scale * (EnvelopeIncreaseTable[ index ] << ( RATE_SH - shift - 3 )));
-		Bit32s bestAdd = guessAdd;
-		Bit32u bestDiff = 1 << 30;
-		for( Bit32u passes = 0; passes < 16; passes ++ ) {
-			Bit32s volume = ENV_MAX;
-			Bit32s samples = 0;
-			Bit32u count = 0;
-			while ( volume > 0 && samples < original * 2 ) {
-				count += guessAdd;
-				Bit32s change = count >> RATE_SH;
-				count &= RATE_MASK;
-				if ( GCC_UNLIKELY(change) ) { // less than 1 % 
-					volume += ( ~volume * change ) >> 3;
-				}
-				samples++;
+    //-3 since the real envelope takes 8 steps to reach the single value we supply
+    for ( Bit8u i = 0; i < 76; i++ ) {
+        Bit8u index, shift;
+        EnvelopeSelect( i, index, shift );
+        linearRates[i] = (Bit32u)( scale * (EnvelopeIncreaseTable[ index ] << ( RATE_SH + ENV_EXTRA - shift - 3 )));
+    }
+    //Generate the best matching attack rate
+    for ( Bit8u i = 0; i < 62; i++ ) {
+        Bit8u index, shift;
+        EnvelopeSelect( i, index, shift );
+        //Original amount of samples the attack would take
+        Bit32s original = (Bit32u)( (AttackSamplesTable[ index ] << shift) / scale);
+         
+        Bit32s guessAdd = (Bit32u)( scale * (EnvelopeIncreaseTable[ index ] << ( RATE_SH - shift - 3 )));
+        Bit32s bestAdd = guessAdd;
+        Bit32u bestDiff = 1 << 30;
+        for( Bit32u passes = 0; passes < 16; passes ++ ) {
+            Bit32s volume = ENV_MAX;
+            Bit32s samples = 0;
+            Bit32u count = 0;
+            while ( volume > 0 && samples < original * 2 ) {
+                count += guessAdd;
+                Bit32s change = count >> RATE_SH;
+                count &= RATE_MASK;
+                if ( GCC_UNLIKELY(change) ) { // less than 1 % 
+                    volume += ( ~volume * change ) >> 3;
+                }
+                samples++;
 
-			}
-			Bit32s diff = original - samples;
-			Bit32u lDiff = labs( diff );
-			//Init last on first pass
-			if ( lDiff < bestDiff ) {
-				bestDiff = lDiff;
-				bestAdd = guessAdd;
-				//We hit an exactly matching sample count
-				if ( !bestDiff )
-					break;
-			}
-			//Linear correction factor, not exactly perfect but seems to work
-			double correct = (original - diff) / (double)original;
-			guessAdd = (Bit32u)(guessAdd * correct); 
-			//Below our target
-			if ( diff < 0 ) {
-				//Always add one here for rounding, an overshoot will get corrected by another pass decreasing
-				guessAdd++;
-			}
-		}
-		attackRates[i] = bestAdd;
-		//Keep track of the diffs for some debugging
-//		attackDiffs[i] = bestDiff;
-	}
-	for ( Bit8u i = 62; i < 76; i++ ) {
-		//This should provide instant volume maximizing
-		attackRates[i] = 8 << RATE_SH;
-	}
-	//Setup the channels with the correct four op flags
-	//Channels are accessed through a table so they appear linear here
-	chan[ 0].fourMask = 0x00 | ( 1 << 0 );
-	chan[ 1].fourMask = 0x80 | ( 1 << 0 );
-	chan[ 2].fourMask = 0x00 | ( 1 << 1 );
-	chan[ 3].fourMask = 0x80 | ( 1 << 1 );
-	chan[ 4].fourMask = 0x00 | ( 1 << 2 );
-	chan[ 5].fourMask = 0x80 | ( 1 << 2 );
+            }
+            Bit32s diff = original - samples;
+            Bit32u lDiff = labs( diff );
+            //Init last on first pass
+            if ( lDiff < bestDiff ) {
+                bestDiff = lDiff;
+                bestAdd = guessAdd;
+                //We hit an exactly matching sample count
+                if ( !bestDiff )
+                    break;
+            }
+            //Linear correction factor, not exactly perfect but seems to work
+            double correct = (original - diff) / (double)original;
+            guessAdd = (Bit32u)(guessAdd * correct); 
+            //Below our target
+            if ( diff < 0 ) {
+                //Always add one here for rounding, an overshoot will get corrected by another pass decreasing
+                guessAdd++;
+            }
+        }
+        attackRates[i] = bestAdd;
+    }
+    for ( Bit8u i = 62; i < 76; i++ ) {
+        //This should provide instant volume maximizing
+        attackRates[i] = 8 << RATE_SH;
+    }
+    //Setup the channels with the correct four op flags
+    //Channels are accessed through a table so they appear linear here
+    chan[ 0].fourMask = 0x00 | ( 1 << 0 );
+    chan[ 1].fourMask = 0x80 | ( 1 << 0 );
+    chan[ 2].fourMask = 0x00 | ( 1 << 1 );
+    chan[ 3].fourMask = 0x80 | ( 1 << 1 );
+    chan[ 4].fourMask = 0x00 | ( 1 << 2 );
+    chan[ 5].fourMask = 0x80 | ( 1 << 2 );
 
-	chan[ 9].fourMask = 0x00 | ( 1 << 3 );
-	chan[10].fourMask = 0x80 | ( 1 << 3 );
-	chan[11].fourMask = 0x00 | ( 1 << 4 );
-	chan[12].fourMask = 0x80 | ( 1 << 4 );
-	chan[13].fourMask = 0x00 | ( 1 << 5 );
-	chan[14].fourMask = 0x80 | ( 1 << 5 );
+    chan[ 9].fourMask = 0x00 | ( 1 << 3 );
+    chan[10].fourMask = 0x80 | ( 1 << 3 );
+    chan[11].fourMask = 0x00 | ( 1 << 4 );
+    chan[12].fourMask = 0x80 | ( 1 << 4 );
+    chan[13].fourMask = 0x00 | ( 1 << 5 );
+    chan[14].fourMask = 0x80 | ( 1 << 5 );
 
-	//mark the percussion channels
-	chan[ 6].fourMask = 0x40;
-	chan[ 7].fourMask = 0x40;
-	chan[ 8].fourMask = 0x40;
+    // Additional channels (new)
+    for (int i = 18; i < 36; i++) {
+        chan[i].fourMask = 0x00;  // Set these as regular 2-op channels
+    }
 
-	//Clear Everything in opl3 mode
-	WriteReg( 0x105, 0x1 );
-	for ( int i = 0; i < 512; i++ ) {
-		if ( i == 0x105 )
-			continue;
-		WriteReg( i, 0xff );
-		WriteReg( i, 0x0 );
-	}
-	WriteReg( 0x105, 0x0 );
-	//Clear everything in opl2 mode
-	for ( int i = 0; i < 255; i++ ) {
-		WriteReg( i, 0xff );
-		WriteReg( i, 0x0 );
-	}
+    //mark the percussion channels
+    chan[ 6].fourMask = 0x40;
+    chan[ 7].fourMask = 0x40;
+    chan[ 8].fourMask = 0x40;
+
+    //Clear Everything in opl3 mode
+    WriteReg( 0x105, 0x1 );
+    for ( int i = 0; i < 512; i++ ) {
+        if ( i == 0x105 )
+            continue;
+        WriteReg( i, 0xff );
+        WriteReg( i, 0x0 );
+    }
+    WriteReg( 0x105, 0x0 );
+    //Clear everything in opl2 mode
+    for ( int i = 0; i < 255; i++ ) {
+        WriteReg( i, 0xff );
+        WriteReg( i, 0x0 );
+    }
 }
 
 static bool doneTables = false;
 void InitTables( void ) {
-	if ( doneTables )
-		return;
-	doneTables = true;
+    if ( doneTables )
+        return;
+    doneTables = true;
 #if ( DBOPL_WAVE == WAVE_HANDLER ) || ( DBOPL_WAVE == WAVE_TABLELOG )
-	//Exponential volume table, same as the real adlib
-	for ( int i = 0; i < 256; i++ ) {
-		//Save them in reverse
-		ExpTable[i] = (int)( 0.5 + ( pow(2.0, ( 255 - i) * ( 1.0 /256 ) )-1) * 1024 );
-		ExpTable[i] += 1024; //or remove the -1 oh well :)
-		//Preshift to the left once so the final volume can shift to the right
-		ExpTable[i] *= 2;
-	}
+    //Exponential volume table, same as the real adlib
+    for ( int i = 0; i < 256; i++ ) {
+        //Save them in reverse
+        ExpTable[i] = (int)( 0.5 + ( pow(2.0, ( 255 - i) * ( 1.0 /256 ) )-1) * 1024 );
+        ExpTable[i] += 1024; //or remove the -1 oh well :)
+        //Preshift to the left once so the final volume can shift to the right
+        ExpTable[i] *= 2;
+    }
 #endif
 #if ( DBOPL_WAVE == WAVE_HANDLER )
-	//Add 0.5 for the trunc rounding of the integer cast
-	//Do a PI sinetable instead of the original 0.5 PI
-	for ( int i = 0; i < 512; i++ ) {
-		SinTable[i] = (Bit16s)( 0.5 - log10( sin( (i + 0.5) * (PI / 512.0) ) ) / log10(2.0)*256 );
-	}
+    //Add 0.5 for the trunc rounding of the integer cast
+    //Do a PI sinetable instead of the original 0.5 PI
+    for ( int i = 0; i < 512; i++ ) {
+        SinTable[i] = (Bit16s)( 0.5 - log10( sin( (i + 0.5) * (PI / 512.0) ) ) / log10(2.0)*256 );
+    }
 #endif
 #if ( DBOPL_WAVE == WAVE_TABLEMUL )
-	//Multiplication based tables
-	for ( int i = 0; i < 384; i++ ) {
-		int s = i * 8;
-		//TODO maybe keep some of the precision errors of the original table?
-		double val = ( 0.5 + ( pow(2.0, -1.0 + ( 255 - s) * ( 1.0 /256 ) )) * ( 1 << MUL_SH ));
-		MulTable[i] = (Bit16u)(val);
-	}
+    //Multiplication based tables
+    for ( int i = 0; i < 384; i++ ) {
+        int s = i * 8;
+        //TODO maybe keep some of the precision errors of the original table?
+        double val = ( 0.5 + ( pow(2.0, -1.0 + ( 255 - s) * ( 1.0 /256 ) )) * ( 1 << MUL_SH ));
+        MulTable[i] = (Bit16u)(val);
+    }
 
-	//Sine Wave Base
-	for ( int i = 0; i < 512; i++ ) {
-		WaveTable[ 0x0200 + i ] = (Bit16s)(sin( (i + 0.5) * (PI / 512.0) ) * 4084);
-		WaveTable[ 0x0000 + i ] = -WaveTable[ 0x200 + i ];
-	}
-	//Exponential wave
-	for ( int i = 0; i < 256; i++ ) {
-		WaveTable[ 0x700 + i ] = (Bit16s)( 0.5 + ( pow(2.0, -1.0 + ( 255 - i * 8) * ( 1.0 /256 ) ) ) * 4085 );
-		WaveTable[ 0x6ff - i ] = -WaveTable[ 0x700 + i ];
-	}
+    //Sine Wave Base
+    for ( int i = 0; i < 512; i++ ) {
+        WaveTable[ 0x0200 + i ] = (Bit16s)(sin( (i + 0.5) * (PI / 512.0) ) * 4084);
+        WaveTable[ 0x0000 + i ] = -WaveTable[ 0x200 + i ];
+    }
+    //Exponential wave
+    for ( int i = 0; i < 256; i++ ) {
+        WaveTable[ 0x700 + i ] = (Bit16s)( 0.5 + ( pow(2.0, -1.0 + ( 255 - i * 8) * ( 1.0 /256 ) ) ) * 4085 );
+        WaveTable[ 0x6ff - i ] = -WaveTable[ 0x700 + i ];
+    }
 #endif
 #if ( DBOPL_WAVE == WAVE_TABLELOG )
-	//Sine Wave Base
-	for ( int i = 0; i < 512; i++ ) {
-		WaveTable[ 0x0200 + i ] = (Bit16s)( 0.5 - log10( sin( (i + 0.5) * (PI / 512.0) ) ) / log10(2.0)*256 );
-		WaveTable[ 0x0000 + i ] = ((Bit16s)0x8000) | WaveTable[ 0x200 + i];
-	}
-	//Exponential wave
-	for ( int i = 0; i < 256; i++ ) {
-		WaveTable[ 0x700 + i ] = i * 8;
-		WaveTable[ 0x6ff - i ] = ((Bit16s)0x8000) | i * 8;
-	} 
+    //Sine Wave Base
+    for ( int i = 0; i < 512; i++ ) {
+        WaveTable[ 0x0200 + i ] = (Bit16s)( 0.5 - log10( sin( (i + 0.5) * (PI / 512.0) ) ) / log10(2.0)*256 );
+        WaveTable[ 0x0000 + i ] = ((Bit16s)0x8000) | WaveTable[ 0x200 + i];
+    }
+    //Exponential wave
+    for ( int i = 0; i < 256; i++ ) {
+        WaveTable[ 0x700 + i ] = i * 8;
+        WaveTable[ 0x6ff - i ] = ((Bit16s)0x8000) | i * 8;
+    } 
 #endif
 
-	//	|    |//\\|____|WAV7|//__|/\  |____|/\/\|
-	//	|\\//|    |    |WAV7|    |  \/|    |    |
-	//	|06  |0126|27  |7   |3   |4   |4 5 |5   |
+    //	|    |//\\|____|WAV7|//__|/\  |____|/\/\|
+    //	|\\//|    |    |WAV7|    |  \/|    |    |
+    //	|06  |0126|27  |7   |3   |4   |4 5 |5   |
 
 #if (( DBOPL_WAVE == WAVE_TABLELOG ) || ( DBOPL_WAVE == WAVE_TABLEMUL ))
-	for ( int i = 0; i < 256; i++ ) {
-		//Fill silence gaps
-		WaveTable[ 0x400 + i ] = WaveTable[0];
-		WaveTable[ 0x500 + i ] = WaveTable[0];
-		WaveTable[ 0x900 + i ] = WaveTable[0];
-		WaveTable[ 0xc00 + i ] = WaveTable[0];
-		WaveTable[ 0xd00 + i ] = WaveTable[0];
-		//Replicate sines in other pieces
-		WaveTable[ 0x800 + i ] = WaveTable[ 0x200 + i ];
-		//double speed sines
-		WaveTable[ 0xa00 + i ] = WaveTable[ 0x200 + i * 2 ];
-		WaveTable[ 0xb00 + i ] = WaveTable[ 0x000 + i * 2 ];
-		WaveTable[ 0xe00 + i ] = WaveTable[ 0x200 + i * 2 ];
-		WaveTable[ 0xf00 + i ] = WaveTable[ 0x200 + i * 2 ];
-	} 
+    for ( int i = 0; i < 256; i++ ) {
+        //Fill silence gaps
+        WaveTable[ 0x400 + i ] = WaveTable[0];
+        WaveTable[ 0x500 + i ] = WaveTable[0];
+        WaveTable[ 0x900 + i ] = WaveTable[0];
+        WaveTable[ 0xc00 + i ] = WaveTable[0];
+        WaveTable[ 0xd00 + i ] = WaveTable[0];
+        //Replicate sines in other pieces
+        WaveTable[ 0x800 + i ] = WaveTable[ 0x200 + i ];
+        //double speed sines
+        WaveTable[ 0xa00 + i ] = WaveTable[ 0x200 + i * 2 ];
+        WaveTable[ 0xb00 + i ] = WaveTable[ 0x000 + i * 2 ];
+        WaveTable[ 0xe00 + i ] = WaveTable[ 0x200 + i * 2 ];
+        WaveTable[ 0xf00 + i ] = WaveTable[ 0x200 + i * 2 ];
+    } 
 #endif
 
-	//Create the ksl table
-	for ( int oct = 0; oct < 8; oct++ ) {
-		int base = oct * 8;
-		for ( int i = 0; i < 16; i++ ) {
-			int val = base - KslCreateTable[i];
-			if ( val < 0 )
-				val = 0;
-			//*4 for the final range to match attenuation range
-			KslTable[ oct * 16 + i ] = val * 4;
-		}
-	}
-	//Create the Tremolo table, just increase and decrease a triangle wave
-	for ( Bit8u i = 0; i < TREMOLO_TABLE / 2; i++ ) {
-		Bit8u val = i << ENV_EXTRA;
-		TremoloTable[i] = val;
-		TremoloTable[TREMOLO_TABLE - 1 - i] = val;
-	}
-	//Create a table with offsets of the channels from the start of the chip
-	for ( Bitu i = 0; i < 32; i++ ) {
-		Bitu index = i & 0xf;
-		if ( index >= 9 ) {
-			ChanOffsetTable[i] = 0;
-			continue;
-		}
-		//Make sure the four op channels follow eachother
-		if ( index < 6 ) {
-			index = (index % 3) * 2 + ( index / 3 );
-		}
-		//Add back the bits for highest ones
-		if ( i >= 16 )
-			index += 9;
-		ChanOffsetTable[i] = 1+(Bit16u)(index*sizeof(DBOPL::Channel));
-	}
-	//Same for operators
-	for ( Bitu i = 0; i < 64; i++ ) {
-		if ( i % 8 >= 6 || ( (i / 8) % 4 == 3 ) ) {
-			OpOffsetTable[i] = 0;
-			continue;
-		}
-		Bitu chNum = (i / 8) * 3 + (i % 8) % 3;
-		//Make sure we use 16 and up for the 2nd range to match the chanoffset gap
-		if ( chNum >= 12 )
-			chNum += 16 - 12;
-		Bitu opNum = ( i % 8 ) / 3;
-		OpOffsetTable[i] = ChanOffsetTable[chNum]+(Bit16u)(opNum*sizeof(DBOPL::Operator));
-	}
-#if 0
-	DBOPL::Chip* chip = 0;
-	//Stupid checks if table's are correct
-	for ( Bitu i = 0; i < 18; i++ ) {
-		Bit32u find = (Bit16u)( &(chip->chan[ i ]) );
-		for ( Bitu c = 0; c < 32; c++ ) {
-			if ( ChanOffsetTable[c] == find+1 ) {
-				find = 0;
-				break;
-			}
-		}
-		if ( find ) {
-			find = find;
-		}
-	}
-	for ( Bitu i = 0; i < 36; i++ ) {
-		Bit32u find = (Bit16u)( &(chip->chan[ i / 2 ].op[i % 2]) );
-		for ( Bitu c = 0; c < 64; c++ ) {
-			if ( OpOffsetTable[c] == find+1 ) {
-				find = 0;
-				break;
-			}
-		}
-		if ( find ) {
-			find = find;
-		}
-	}
-#endif
+    //Create the ksl table
+    for ( int oct = 0; oct < 8; oct++ ) {
+        int base = oct * 8;
+        for ( int i = 0; i < 16; i++ ) {
+            int val = base - KslCreateTable[i];
+            if ( val < 0 )
+                val = 0;
+            //*4 for the final range to match attenuation range
+            KslTable[ oct * 16 + i ] = val * 4;
+        }
+    }
+    //Create the Tremolo table, just increase and decrease a triangle wave
+    for ( Bit8u i = 0; i < TREMOLO_TABLE / 2; i++ ) {
+        Bit8u val = i << ENV_EXTRA;
+        TremoloTable[i] = val;
+        TremoloTable[TREMOLO_TABLE - 1 - i] = val;
+    }
+    //Create a table with offsets of the channels from the start of the chip
+    for ( Bitu i = 0; i < 64; i++ ) {
+        Bitu index = i & 0x1f;
+        if ( index >= 36 ) {
+            ChanOffsetTable[i] = 0;
+            continue;
+        }
+        //Make sure the four op channels follow eachother
+        if ( index < 6 ) {
+            index = (index % 3) * 2 + ( index / 3 );
+        }
+        //Add back the bits for highest ones
+        if ( i >= 32 )
+            index += 18;
+        ChanOffsetTable[i] = 1+(Bit16u)(index*sizeof(DBOPL::Channel));
+    }
+    //Same for operators
+    for ( Bitu i = 0; i < 64; i++ ) {
+        if ( i % 8 >= 6 || ( (i / 8) % 4 == 3 ) ) {
+            OpOffsetTable[i] = 0;
+            continue;
+        }
+        Bitu chNum = (i / 8) * 3 + (i % 8) % 3;
+        //Make sure we use 16 and up for the 2nd range to match the chanoffset gap
+        if ( chNum >= 12 )
+            chNum += 16 - 12;
+        Bitu opNum = ( i % 8 ) / 3;
+        OpOffsetTable[i] = ChanOffsetTable[chNum]+(Bit16u)(opNum*sizeof(DBOPL::Operator));
+    }
 }
 
 Bit32u Handler::WriteAddr( Bit32u port, Bit8u val ) {

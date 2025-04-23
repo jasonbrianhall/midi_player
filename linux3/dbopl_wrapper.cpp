@@ -23,7 +23,7 @@ static struct {
     int instrument;
     int velocity;
     int pan;
-} opl_channels[18];
+} opl_channels[36];
 
 // Track MIDI channel state
 static int midi_channel_program[16] = {0};
