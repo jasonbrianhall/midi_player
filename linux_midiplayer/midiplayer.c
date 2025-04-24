@@ -713,17 +713,26 @@ void playMidiFile() {
 // Update global volume
 void updateVolume(int change) {
     pthread_mutex_lock(&audioMutex);
-    
     globalVolume += change;
-    if (globalVolume < 10) globalVolume = 10;
-    if (globalVolume > 300) globalVolume = 300;
-    
+    if (globalVolume < 0) {
+         globalVolume = 0;
+    }
+    else if (globalVolume > 5000){ 
+         globalVolume = 5000;
+    }
+    else
+    {
+        if (globalVolume==0)
+        {
+            printf("Volume muted\n");
+        } else {
+             printf("Volume: %d%%\n", globalVolume);
+        }
+    }
     // Remove the loop that calls OPL_SetVolume for all channels
     // The global volume will be applied in OPL_Generate instead
     
     pthread_mutex_unlock(&audioMutex);
-    
-    printf("Volume: %d%%\n", globalVolume);
 }
 
 // Toggle volume normalization
