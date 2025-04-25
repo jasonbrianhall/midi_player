@@ -6,10 +6,10 @@
 #include "wav_converter.h"
 #include "dbopl_wrapper.h"
 
-// Declare external variables and functions needed for conversion
+// Declare external variables
 extern double playTime;
 extern bool isPlaying;
-extern int TrackCount;
+extern double playwait;
 extern void processEvents(void);
 
 // Function to convert MIDI to WAV
@@ -48,12 +48,19 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename) {
     // Temporary buffer for audio generation
     int16_t audio_buffer[AUDIO_BUFFER * AUDIO_CHANNELS];
     
-    // Track max conversion iterations to prevent infinite loop
-    int max_iterations = 5000;  // Approximately 5-10 minutes of audio
-    int iteration_count = 0;
+    printf("Converting %s to WAV...\n", midi_filename);
     
-    // Simulate full MIDI playback
-    while (isPlaying && iteration_count < max_iterations) {
+    // Duration of an audio buffer in seconds
+    double buffer_duration = (double)AUDIO_BUFFER / SAMPLE_RATE;
+    
+    // Begin conversion
+    int previous_seconds = -1;
+    
+    // Initialize playwait for the first events
+    processEvents();
+    
+    // Continue processing as long as the MIDI is still playing
+    while (isPlaying) {
         // Generate audio block
         memset(audio_buffer, 0, sizeof(audio_buffer));
         OPL_Generate(audio_buffer, AUDIO_BUFFER);
@@ -64,11 +71,29 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename) {
             break;
         }
         
-        // Process events to track playback state
-        processEvents();
+        // Update playTime
+        playTime += buffer_duration;
         
-        iteration_count++;
+        // Process events if needed
+        // The critical fix: decrease playwait by exactly the buffer duration
+        // This ensures events are processed at the right time
+        playwait -= buffer_duration;
+        
+        // Process events when timer reaches zero or below
+        while (playwait <= 0 && isPlaying) {
+            processEvents();
+        }
+        
+        // Display progress
+        int current_seconds = (int)playTime;
+        if (current_seconds > previous_seconds) {
+            printf("\rConverting... %d seconds", current_seconds);
+            fflush(stdout);
+            previous_seconds = current_seconds;
+        }
     }
+    
+    printf("\nFinishing conversion...\n");
     
     // Finalize WAV file
     wav_converter_finish(wav_converter);
@@ -76,11 +101,6 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename) {
     
     // Cleanup
     cleanup();
-    
-    if (iteration_count >= max_iterations) {
-        fprintf(stderr, "Conversion stopped after maximum iterations\n");
-        return false;
-    }
     
     return true;
 }
