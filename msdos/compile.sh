@@ -36,7 +36,7 @@ set -e
 cd /src
 echo "Building midiplayer for MSDOS..."
 # Add preprocessor define for MSDOS to handle any platform-specific code
-g++ *.c -o ${DOS_TARGET} -DMSDOS
+g++ -s *.c -o ${DOS_TARGET} -DMSDOS
 
 echo "Build complete!"
 EOF
