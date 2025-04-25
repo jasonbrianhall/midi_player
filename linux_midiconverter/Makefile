@@ -1,11 +1,11 @@
-CXX = g++
+iCXX = g++
 CC = gcc
-CXXFLAGS = -Wall -Wextra -g $(shell sdl2-config --cflags)
+CXXFLAGS = -Wall -Wextra -g $(shell sdl2-config --cflags) -fpermissive
 CFLAGS = -Wall -Wextra -g $(shell sdl2-config --cflags)
 LDFLAGS = $(shell sdl2-config --libs) -lm -pthread -lstdc++
 
-SOURCES_CPP = dbopl.cpp dbopl_wrapper.cpp
-SOURCES_C = main.c midiplayer.c instruments.c virtual_mixer.c wav_converter.c
+SOURCES_CPP = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp instruments.cpp virtual_mixer.cpp wav_converter.cpp
+SOURCES_C = 
 OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)
 OBJECTS_C = $(SOURCES_C:.c=.o)
 OBJECTS = $(OBJECTS_CPP) $(OBJECTS_C)
