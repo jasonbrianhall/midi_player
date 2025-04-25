@@ -165,6 +165,29 @@ All projects support:
     └── title-screen.mid
 ```
 
+## Sound Character: FM Synthesis vs. Sample-Based Synthesis
+
+### OPL3 FM Synthesis Sound
+The OPL3 FM synthesis used in these projects produces a distinctive retro sound characteristic of 1990s PC gaming and demo scene music. Unlike modern sample-based synthesizers, OPL3 generates sounds through mathematical frequency modulation, creating:
+
+- A "chiptune-like" quality reminiscent of classic DOS games
+- Clear, bright tones with distinctive artificial character
+- Unique timbre that's immediately recognizable as "AdLib" or "Sound Blaster"
+- Crisp, digital sound with limited dynamic range
+- Characteristic "metallic" quality for many instruments
+- Simple yet charming percussion sounds
+
+### Comparison with FluidSynth
+In contrast, FluidSynth and other modern sample-based synthesizers:
+- Use recorded audio samples of real instruments
+- Produce more realistic, natural instrument sounds
+- Have greater dynamic range and expressive capabilities
+- Sound more like a professional MIDI orchestra or band
+- Require much more memory (SoundFonts can be hundreds of MB)
+- Lack the nostalgic "retro gaming" character
+
+The OPL3 synthesis in these projects is intentionally designed to recreate the sound of early PC gaming and music production rather than realistic instrument reproduction. This gives MIDI files played through these tools a distinctive retro gaming aesthetic that many find appealing for its nostalgic qualities.
+
 ## Limitations
 
 - FM synthesis is not sample-based, so instruments won't sound exactly like their real counterparts
