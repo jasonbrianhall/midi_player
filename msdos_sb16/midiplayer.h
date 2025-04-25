@@ -60,5 +60,9 @@ void updateVolume(int change);
 void toggleNormalization(void);
 void sbAudioCallback(void* userdata, uint8_t* stream, int len);
 uint32_t getTickCount(void);
+unsigned long readVarLen(FILE* f);
+int readString(FILE* f, int len, char* str);
+unsigned long convertInteger(char* str, int len);
+int readString(FILE* f, int len, char* str);
 
 #endif // MIDIPLAYER_H

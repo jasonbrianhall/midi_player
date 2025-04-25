@@ -2,8 +2,8 @@
 VERSION=1.0
 
 # Source files (C and C++ files)
-C_SRCS = main.c midiplayer.c instruments.c sb_audio.c
-CPP_SRCS = dbopl_wrapper.cpp dbopl.cpp
+C_SRCS = 
+CPP_SRCS = dbopl_wrapper.cpp dbopl.cpp main.cpp midiplayer.cpp instruments.cpp sb_audio.cpp
 SRCS = $(C_SRCS) $(CPP_SRCS)
 
 # Output executable
