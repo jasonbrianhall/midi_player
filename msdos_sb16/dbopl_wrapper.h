@@ -6,10 +6,6 @@
 
 #define MAX_OPL_CHANNELS 36
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // OPL channel structure for tracking state
 typedef struct {
     bool active;
@@ -53,9 +49,5 @@ extern OPLChannel opl_channels[MAX_OPL_CHANNELS];
 
 // Load instrument data from your existing instruments.c
 void OPL_LoadInstruments(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // DBOPL_WRAPPER_H

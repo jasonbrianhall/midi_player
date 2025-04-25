@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // SoundBlaster I/O ports (standard addresses)
 #define SB_BASE_ADDRESS      0x220       // Default base address
 #define SB_MIXER_PORT        0x224       // Mixer port
@@ -60,9 +56,5 @@ void SB_UpdateBuffer(void);
 
 // Renamed to avoid conflicts with DOS.H
 void ms_delay(int milliseconds);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // SB_AUD
