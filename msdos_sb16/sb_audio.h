@@ -54,13 +54,15 @@ void SB_WaitForIRQ(void);
 int SB_GetDSPVersion(void);
 void SB_UpdateBuffer(void);
 
-// DOS-specific port I/O functions
-void outportb(uint16_t port, uint8_t value);
-uint8_t inportb(uint16_t port);
-void delay(int milliseconds);
+// Use DJGPP's built-in functions instead of these
+// void outportb(uint16_t port, uint8_t value);
+// uint8_t inportb(uint16_t port);
+
+// Renamed to avoid conflicts with DOS.H
+void ms_delay(int milliseconds);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // SB_AUDIO_H
+#endif // SB_AUD

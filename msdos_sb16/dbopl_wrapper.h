@@ -52,7 +52,7 @@ uint32_t getTickCount(void);
 extern OPLChannel opl_channels[MAX_OPL_CHANNELS];
 
 // Load instrument data from your existing instruments.c
-extern void OPL_LoadInstruments(void);
+void OPL_LoadInstruments(void);
 
 #ifdef __cplusplus
 }
