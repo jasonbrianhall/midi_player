@@ -104,19 +104,24 @@ int LoadVoice(struct WaveData *Voice, char *FileName) {
 
     // Read and Validate Header
     fread(&Header, sizeof(Header), 1, WAVFile);
+    printf("Header: %x %x %x %x %i %i\n", Header.RIFF, Header.WAVE, Header.fmt, Header.data, Header.Channels,Header.BitRes);
+/*    if (Header.RIFF != 0x46464952 || Header.WAVE != 0x45564157 ||
+        Header.fmt != 0x20746D66 || Header.data != 0x61746164) { */
     if (Header.RIFF != 0x46464952 || Header.WAVE != 0x45564157 ||
-        Header.fmt != 0x20746D66 || Header.data != 0x61746164) {
+        Header.fmt != 0x20746D66) {
+        
         printf("Invalid or unsupported WAV file.\n");
         fclose(WAVFile);
         return 0;
     }
-    if (Header.Channels != 1 || Header.BitRes != 8) {
+    /*if (Header.Channels != 1 || Header.BitRes != 8) {
         printf("Only 8-bit mono WAV files are supported.\n");
         fclose(WAVFile);
         return 0;
-    }
+    }*/
 
     // Load Sample Data
+    printf("%i %i\n", Voice->SoundLength, Voice->Frequency);
     Voice->SoundLength = Header.datasize;
     Voice->Frequency = Header.Frequency;
     Voice->Sample = (char *)malloc(Voice->SoundLength);
