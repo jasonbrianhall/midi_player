@@ -6,11 +6,7 @@
 #include <dos.h>
 #include "dbopl_wrapper.h"
 #include "dbopl.h"
-
-// C linkage to work with the C code
-extern "C" {
 #include "midiplayer.h"
-}
 
 // The DBOPL emulator handler
 static DBOPL::Handler opl_handler;
@@ -36,7 +32,7 @@ static void set_note_frequency(int opl_channel, int note, bool keyon);
 static void set_channel_pan(int opl_channel, int pan);
 
 // Get system ticks (milliseconds) for DOS
-extern "C" uint32_t getTickCount(void) {
+uint32_t getTickCount(void) {
     if (start_time == 0) {
         start_time = clock();
     }
@@ -46,7 +42,7 @@ extern "C" uint32_t getTickCount(void) {
 }
 
 // Set volume for an OPL channel
-extern "C" void set_channel_volume(int opl_channel, int velocity, int volume) {
+void set_channel_volume(int opl_channel, int velocity, int volume) {
     uint32_t reg_offset = (opl_channel % 9);
     uint32_t bank = (opl_channel / 9);
     int instrument = opl_channels[opl_channel].instrument;
@@ -207,7 +203,7 @@ static int allocate_opl_channel(int midi_channel, int note) {
 }
 
 // Initialize the OPL emulator
-extern "C" void OPL_Init(int sample_rate) {
+void OPL_Init(int sample_rate) {
     // Initialize the OPL emulator
     opl_handler.Init(sample_rate);
     
@@ -228,7 +224,7 @@ extern "C" void OPL_Init(int sample_rate) {
 }
 
 // Reset the OPL emulator
-extern "C" void OPL_Reset(void) {
+void OPL_Reset(void) {
     // Turn off all notes
     for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active) {
@@ -244,12 +240,12 @@ extern "C" void OPL_Reset(void) {
 }
 
 // Write to OPL register
-extern "C" void OPL_WriteReg(uint32_t reg, uint8_t value) {
+void OPL_WriteReg(uint32_t reg, uint8_t value) {
     opl_handler.WriteReg(reg, value);
 }
 
 // Generate audio samples
-extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
+void OPL_Generate(int16_t *buffer, int num_samples) {
     // Clear the buffer
     memset(opl_buffer, 0, num_samples * 2 * sizeof(int32_t));
     
@@ -273,13 +269,13 @@ extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
 }
 
 // Clean up OPL resources
-extern "C" void OPL_Shutdown(void) {
+void OPL_Shutdown(void) {
     // Nothing specific to clean up with DBOPL
 }
 
 // Helper functions for MIDI player
 
-extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
+void OPL_NoteOn(int channel, int note, int velocity) {
     // Determine which instrument to use
     int instrument;
     
@@ -324,7 +320,7 @@ extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
     set_note_frequency(opl_channel, note, true);
 }
 
-extern "C" void OPL_NoteOff(int channel, int note) {
+void OPL_NoteOff(int channel, int note) {
     // Find the OPL channel playing this note
     for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
         if (opl_channels[i].active && 
@@ -339,7 +335,7 @@ extern "C" void OPL_NoteOff(int channel, int note) {
     }
 }
 
-extern "C" void OPL_ProgramChange(int channel, int program) {
+void OPL_ProgramChange(int channel, int program) {
     // Store the program number for this MIDI channel
     midi_channel_program[channel] = program;
     
@@ -359,7 +355,7 @@ extern "C" void OPL_ProgramChange(int channel, int program) {
     }
 }
 
-extern "C" void OPL_SetPan(int channel, int pan) {
+void OPL_SetPan(int channel, int pan) {
     // Store the pan setting for this MIDI channel
     midi_channel_pan[channel] = pan;
     
@@ -371,7 +367,7 @@ extern "C" void OPL_SetPan(int channel, int pan) {
     }
 }
 
-extern "C" void OPL_SetVolume(int channel, int volume) {
+void OPL_SetVolume(int channel, int volume) {
     // Store the volume setting for this MIDI channel
     midi_channel_volume[channel] = volume;
     
@@ -384,7 +380,7 @@ extern "C" void OPL_SetVolume(int channel, int volume) {
     }
 }
 
-extern "C" void OPL_SetPitchBend(int channel, int bend) {
+void OPL_SetPitchBend(int channel, int bend) {
     // Pitch bend is more complex with OPL - we'd need to recalculate frequencies
     // This is a simplified implementation
     for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
@@ -404,7 +400,7 @@ extern "C" void OPL_SetPitchBend(int channel, int bend) {
 }
 
 // Load the instrument data
-extern "C" void OPL_LoadInstruments(void) {
+void OPL_LoadInstruments(void) {
     // This function is implemented in instruments.c
     // Just call it to load the instrument data
     initFMInstruments();
