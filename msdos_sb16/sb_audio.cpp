@@ -208,10 +208,69 @@ static void remove_handler(int irq) {
     old_interrupt_handler = NULL;
 }
 
+bool parse_blaster_env(int& base_address, int& irq, int& dma) {
+    const char* blaster_env = getenv("BLASTER");
+    if (!blaster_env) {
+        printf("Warning: BLASTER environment variable not set. Using default settings.\n");
+        return false;
+    }
+
+    char* env_copy = strdup(blaster_env);
+    char* token = strtok(env_copy, " ");
+    
+    while (token) {
+        switch (token[0]) {
+            case 'A': // Base address
+                base_address = strtol(token + 1, NULL, 16);
+                break;
+            case 'I': // IRQ
+                irq = atoi(token + 1);
+                break;
+            case 'D': // DMA channel
+                dma = atoi(token + 1);
+                break;
+        }
+        token = strtok(NULL, " ");
+    }
+    
+    free(env_copy);
+    return true;
+}
+
 // Function to initialize the SoundBlaster card
 bool SB_Init(int base_address, int irq, int dma, int sample_rate, bool stereo, bool use_16bit) {
     if (sb_initialized) {
         return true; // Already initialized
+    }
+    
+    // Try to parse BLASTER environment variable first
+    int env_base = base_address;
+    int env_irq = irq;
+    int env_dma = dma;
+    
+    bool env_parsed = parse_blaster_env(env_base, env_irq, env_dma);
+    
+    // Use parsed values if available, otherwise use passed parameters or defaults
+    sb_base_address = env_parsed ? env_base : base_address;
+    sb_irq = env_parsed ? env_irq : irq;
+    sb_dma = env_parsed ? env_dma : dma;
+    
+    // If no environment or passed parameters, use absolute defaults
+    if (sb_base_address == 0) sb_base_address = SB_BASE_ADDRESS;
+    if (sb_irq == 0) sb_irq = SB_IRQ;
+    if (sb_dma == 0) sb_dma = SB_DMA;
+    
+    // If environment was parsed, print a message indicating which settings were used
+    if (env_parsed) {
+        printf("Using SoundBlaster settings from BLASTER environment variable:\n");
+        printf("  Base Address: 0x%x\n", sb_base_address);
+        printf("  IRQ: %d\n", sb_irq);
+        printf("  DMA Channel: %d\n", sb_dma);
+    } else {
+        printf("Warning: Using default SoundBlaster settings:\n");
+        printf("  Base Address: 0x%x\n", sb_base_address);
+        printf("  IRQ: %d\n", sb_irq);
+        printf("  DMA Channel: %d\n", sb_dma);
     }
     
     // Store parameters

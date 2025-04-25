@@ -12,7 +12,7 @@
 #define SB_READ_PORT         0x22A       // DSP read port
 #define SB_WRITE_PORT        0x22C       // DSP write port
 #define SB_READ_STATUS_PORT  0x22E       // Read status port
-#define SB_IRQ               5           // Default IRQ
+#define SB_IRQ               7           // Default IRQ
 #define SB_DMA               1           // Default DMA channel
 
 // SoundBlaster commands
@@ -49,7 +49,7 @@ void SB_SetCallbackFunction(void (*callback)(void*, uint8_t*, int), void* userda
 void SB_WaitForIRQ(void);
 int SB_GetDSPVersion(void);
 void SB_UpdateBuffer(void);
-
+bool parse_blaster_env(int& base_address, int& irq, int& dma);
 // Use DJGPP's built-in functions instead of these
 // void outportb(uint16_t port, uint8_t value);
 // uint8_t inportb(uint16_t port);
