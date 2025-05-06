@@ -1,0 +1,54 @@
+# Makefile for MS-DOS Sound Blaster MIDI Player
+# For use with DJGPP (DOS port of GCC)
+
+# Compiler settings
+CC = gcc
+CXX = g++
+LD = g++
+
+# Compilation flags
+CFLAGS = -Wall -O2
+CXXFLAGS = -Wall -O2 -fno-exceptions -fno-rtti
+LDFLAGS = -s
+
+# Required libraries for DJGPP DOS programming
+# Removed -ldpmi since it's not available
+LIBS = -lpc -lgcc
+
+# Source files
+CSOURCES = midiplayer_msdos.c   instruments.c
+CPPSOURCES = dbopl.cpp dbopl_wrapper_msdos.cpp
+
+# Object files
+OBJECTS = $(CSOURCES:.c=.o) $(CPPSOURCES:.cpp=.o)
+
+# Target executable
+TARGET = midplay.exe
+
+# Main target
+all: $(TARGET)
+
+# Linking
+$(TARGET): $(OBJECTS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+# C compilation rule
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# C++ compilation rule
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Cleanup
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+# Dependencies
+midiplayer_msdos.o: midiplayer_msdos.c midiplayer_msdos.h dbopl_wrapper_msdos.h
+instruments.o: instruments.c midiplayer_msdos.h
+dbopl.o: dbopl.cpp dbopl.h
+dbopl_wrapper_msdos.o: dbopl_wrapper_msdos.cpp dbopl_wrapper_msdos.h dbopl.h
+
+# Special targets
+.PHONY: all clean

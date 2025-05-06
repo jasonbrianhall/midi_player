@@ -1,24 +1,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <climits>
-#include "dbopl_wrapper.h"
+#include <pc.h>
+#include <time.h>
+#include <sys/farptr.h>
+#include <go32.h>
+#include <dpmi.h>
+#include <limits.h>  // For INT_MAX
+#include "midiplayer_msdos.h"  // Include this first for FMInstrument definition
+#include "dbopl_wrapper_msdos.h"
 #include "dbopl.h"
-
-// C linkage to work with the C code
-extern "C" {
-#ifndef MSDOS
-#include "midiplayer.h"
-#else
-#include "midiplayer_msdos.h"
-#endif
-}
 
 // The DBOPL emulator handler
 static DBOPL::Handler opl_handler;
-
-// Stereo audio buffer for OPL output
-static int32_t opl_buffer[1024 * 2];
 
 // OPL channel allocation and state tracking
 OPLChannel opl_channels[MAX_OPL_CHANNELS];
@@ -27,6 +21,9 @@ OPLChannel opl_channels[MAX_OPL_CHANNELS];
 static int midi_channel_program[16] = {0};
 static int midi_channel_volume[16] = {127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127};
 static int midi_channel_pan[16] = {64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64};
+
+// Temporary buffer for Generate function
+static Bit32s temp_output_buffer[1024 * 2]; // Large enough for stereo output
 
 // Initialize the OPL emulator
 extern "C" void OPL_Init(int sample_rate) {
@@ -69,19 +66,18 @@ extern "C" void OPL_WriteReg(uint32_t reg, uint8_t value) {
 
 // Generate audio samples
 extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
-    // Clear the buffer
-    memset(opl_buffer, 0, num_samples * 2 * sizeof(int32_t));
+    // Clear the temporary buffer
+    memset(temp_output_buffer, 0, num_samples * 2 * sizeof(Bit32s));
     
-    // Generate OPL audio
-    opl_handler.Generate(opl_buffer, num_samples);
+    // Generate OPL audio into temporary buffer
+    opl_handler.Generate(temp_output_buffer, num_samples);
     
-    // Get external global volume (already declared as int in midiplayer.c)
+    // Apply global volume scaling and convert to 16-bit output
     extern int globalVolume;
     
-    // Convert to 16-bit and apply volume scaling
     for (int i = 0; i < num_samples * 2; i++) {
-        // Apply global volume scaling (100 = normal volume)
-        int32_t sample = (int32_t)(opl_buffer[i] * (globalVolume / 100.0));
+        // Apply global volume scaling
+        int32_t sample = (int32_t)(temp_output_buffer[i] * (globalVolume / 100.0));
         
         // Clip to 16-bit range
         if (sample > 32767) sample = 32767;
@@ -94,6 +90,11 @@ extern "C" void OPL_Generate(int16_t *buffer, int num_samples) {
 // Clean up OPL resources
 extern "C" void OPL_Shutdown(void) {
     // Nothing specific to clean up with DBOPL
+}
+
+// Get system time (replacement for SDL_GetTicks)
+static unsigned long GetTickCount() {
+    return (unsigned long)(clock() * 1000 / CLOCKS_PER_SEC);
 }
 
 // Find a free OPL channel for a new note
@@ -115,8 +116,8 @@ static int allocate_opl_channel(int midi_channel, int note) {
     }
     
     // If still no channel, prioritize by velocity and age
-    uint32_t current_time = SDL_GetTicks();
-    int lowest_priority = INT_MAX;
+    unsigned long current_time = GetTickCount();
+    int lowest_priority = 0x7FFFFFFF; // Equivalent to INT_MAX without relying on limits.h
     int lowest_priority_channel = 0;
     
     for (int i = 0; i < MAX_OPL_CHANNELS; i++) {
@@ -142,6 +143,15 @@ static int allocate_opl_channel(int midi_channel, int note) {
 static void load_instrument(int opl_channel, int instrument) {
     uint32_t reg_offset = (opl_channel % 9);
     uint32_t bank = (opl_channel / 9);
+    
+    // Get instrument data from the global array
+    // defined in instruments.c and declared in midiplayer_msdos.h
+    extern struct FMInstrument adl[181];
+    
+    // Check for valid instrument index
+    if (instrument < 0 || instrument >= 181) {
+        instrument = 0;
+    }
     
     // Modulator
     OPL_WriteReg(0x20 + reg_offset + (bank * 0x100), adl[instrument].modChar1);
@@ -199,6 +209,9 @@ extern "C" void set_channel_volume(int opl_channel, int velocity, int volume) {
         instrument = 0;
     }
     
+    // Access the global instrument data
+    extern struct FMInstrument adl[181];
+    
     // Calculate volume scale (0.0 to 1.0)
     // In OPL, volume is inverted: 0x3F (63) is silent, 0x00 is loudest
     double volumeScale = ((double)velocity / 127.0) * ((double)volume / 127.0);
@@ -237,6 +250,9 @@ static void set_channel_pan(int opl_channel, int pan) {
     uint32_t bank = (opl_channel / 9);
     int instrument = opl_channels[opl_channel].instrument;
     
+    // Access the global instrument data
+    extern struct FMInstrument adl[181];
+    
     // Get the base feedback/connection value
     uint8_t fb_conn = adl[instrument].fbConn;
     
@@ -260,9 +276,9 @@ static void set_channel_pan(int opl_channel, int pan) {
 // Helper functions for MIDI player
 
 extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
-    // Determine which instrument to use
     int instrument;
     
+    // Determine which instrument to use
     if (channel == 9) {
         // Get percussion instrument based on note
         instrument = 128 + note - 35; // Standard GM percussion mapping
@@ -293,7 +309,7 @@ extern "C" void OPL_NoteOn(int channel, int note, int velocity) {
     opl_channels[opl_channel].midi_note = note;
     opl_channels[opl_channel].instrument = instrument;
     opl_channels[opl_channel].velocity = velocity;
-    opl_channels[opl_channel].start_time = SDL_GetTicks();
+    opl_channels[opl_channel].start_time = GetTickCount();
     
     // Configure the OPL channel
     load_instrument(opl_channel, instrument);
@@ -383,9 +399,14 @@ extern "C" void OPL_SetPitchBend(int channel, int bend) {
     }
 }
 
-// Load the instrument data
+// Here's the proper way to declare and implement the function
+extern "C" {
+    // External declaration of the function from instruments.c
+    void initFMInstruments(void);
+}
+
+// Now implement OPL_LoadInstruments to call the C function
 extern "C" void OPL_LoadInstruments(void) {
-    // This function is implemented in instruments.c
-    // Just call it to load the instrument data
+    // Just call the C function with proper linkage
     initFMInstruments();
 }

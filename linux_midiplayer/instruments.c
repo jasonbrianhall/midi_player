@@ -1,4 +1,8 @@
+#ifndef MSDOS
 #include "midiplayer.h"
+#else
+#include "midiplayer_msdos.h"
+#endif
 
 // Initialize FM instrument data
 void initFMInstruments() {

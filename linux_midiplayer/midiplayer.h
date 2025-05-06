@@ -3,7 +3,12 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#ifndef MSDOS
 #include <SDL2/SDL.h>
+#else
+#include <stdint.h>
+typedef uint8_t Uint8;
+#endif
 
 // MIDI constants
 #define MAX_TRACKS      100
