@@ -245,26 +245,28 @@ bool loadMidiFile(const char* filename) {
 }
 
 void handle_sigint(int sig) {
-    keep_running = 0;
-    // Restore terminal settings
+    printf("\nReceived signal %d. Cleaning up...\n", sig);
+    
+    // Restore terminal settings if applicable
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
     
-    // Stop audio and perform cleanup
+    // Stop audio
     isPlaying = false;
     SDL_PauseAudioDevice(audioDevice, 1);
     
-    printf("\nPlayback interrupted. Cleaning up...\n");
+    // Perform cleanup
     cleanup();
     
-    // Exit the program
-    exit(0);
+    if (sig == SIGTERM || sig == SIGINT) {
+        keep_running = 0; // Allow proper shutdown
+    }
 }
+
 
 
 // Handle a single MIDI event
 void handleMidiEvent(int tk) {
     unsigned char status, data1, data2;
-    unsigned char buffer[256];
     unsigned char evtype;
     unsigned long len;
     
