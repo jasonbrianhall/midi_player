@@ -8,8 +8,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <pthread.h>
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
+
+volatile int key_pressed = 0;
+volatile int last_key = 0;
+pthread_t input_thread_id;
+
 
 struct termios old_tio;
 volatile sig_atomic_t keep_running = 1;
@@ -59,28 +65,46 @@ SDL_AudioDeviceID audioDevice;
 SDL_AudioSpec audioSpec;
 pthread_mutex_t audioMutex = PTHREAD_MUTEX_INITIALIZER;
 
+void* input_thread(void* arg) {
+    // Set up terminal for raw input
+    struct termios raw;
+    tcgetattr(STDIN_FILENO, &old_tio);
+    raw = old_tio;
+    raw.c_lflag &= ~(ICANON | ECHO);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    
+    while (isPlaying && keep_running) {
+        // Read a character
+        int ch = getchar();
+        if (ch != EOF) {
+            key_pressed = 1;
+            last_key = ch;
+        }
+        // Small delay to avoid consuming too much CPU
+        usleep(5000);
+    }
+    
+    // Thread cleanup
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    return NULL;
+}
+
+
 int kbhit() {
-    struct termios oldt, newt;
     int ch;
-    int oldf;
-
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
+    // We don't need to change terminal settings here - they're already set up in playMidiFile()
+    
+    // Just check if there's input available
     ch = getchar();
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if(ch != EOF) {
+    
+    if (ch != EOF) {
+        // Put it back if we got a character
         ungetc(ch, stdin);
         return 1;
     }
-
+    
     return 0;
 }
 
@@ -247,7 +271,7 @@ bool loadMidiFile(const char* filename) {
 void handle_sigint(int sig) {
     printf("\nReceived signal %d. Cleaning up...\n", sig);
     
-    // Restore terminal settings if applicable
+    // Restore terminal settings
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
     
     // Stop audio
@@ -660,31 +684,31 @@ void playMidiFile() {
     printf("  n - Toggle Volume Normalization\n");
     printf("  Ctrl+C - Stop Playback\n");
     
-    // Disable input buffering
-    struct termios new_tio;
-    tcgetattr(STDIN_FILENO, &old_tio);
-    new_tio = old_tio;
-    new_tio.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
-    
     // Set up signal handler for SIGINT (CTRL+C)
     signal(SIGINT, handle_sigint);
+    
+    // Reset keyboard input state
+    key_pressed = 0;
+    last_key = 0;
+    
+    // Start the keyboard input thread
+    pthread_create(&input_thread_id, NULL, input_thread, NULL);
     
     // Reset keep_running flag
     keep_running = 1;
     
-    // Main loop - handle console input
+    // Main loop - process events and check for key presses
     while (isPlaying && keep_running) {
-        // Check for key press without blocking
-        if (kbhit()) {
-            int ch = getchar();
-            switch (ch) {
+        // Check for key press
+        if (key_pressed) {
+            switch (last_key) {
                 case ' ':
                     paused = !paused;
                     printf("%s\n", paused ? "Paused" : "Resumed");
                     break;
                 case 'q':
                     isPlaying = false;
+                    printf("Quitting playback\n");
                     break;
                 case '+':
                 case '=':
@@ -696,15 +720,21 @@ void playMidiFile() {
                 case 'n':
                     toggleNormalization();
                     break;
+                default:
+                    // Ignore other keys
+                    break;
             }
+            // Reset key_pressed for next key
+            key_pressed = 0;
         }
         
         // Sleep to prevent CPU hogging
         usleep(10000); // 10 milliseconds
     }
     
-    // Restore original terminal settings
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    // Wait for input thread to finish
+    pthread_cancel(input_thread_id);
+    pthread_join(input_thread_id, NULL);
     
     // Stop audio
     SDL_PauseAudioDevice(audioDevice, 1);
@@ -719,8 +749,8 @@ void updateVolume(int change) {
     if (globalVolume < 0) {
          globalVolume = 0;
     }
-    else if (globalVolume > 5000){ 
-         globalVolume = 5000;
+    else if (globalVolume > 10000){ 
+         globalVolume = 10000;
     }
     else
     {
