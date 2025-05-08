@@ -6,8 +6,8 @@ CPP_SRCS =
 C_SRCS = waveplayer.c
 
 # Output executable
-DOS_TARGET = wavplay.exe
-DOS_COFF = wavplay
+DOS_TARGET = waveplay.exe
+DOS_COFF = waveplay
 
 # Docker image for DJGPP
 DJGPP_IMAGE = djfdyuruiry/djgpp
