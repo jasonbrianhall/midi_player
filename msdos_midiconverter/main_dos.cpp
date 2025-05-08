@@ -168,7 +168,7 @@ int main(int argc, char* argv[]) {
     bool result = convertMidiToWav(midi_filename, wav_filename, volume);
     
     /* Restore terminal settings */
-    restore_terminal();
+    //restore_terminal();
     
     if (result) {
         printf("Conversion completed successfully.\n");
