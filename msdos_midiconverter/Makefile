@@ -50,6 +50,7 @@ msdos: pull-djgpp get-csdpmi
 	$(PREFIX)-g++ $(CXXFLAGS) $(INCLUDES) $(CPP_SRCS) $(C_SRCS) -o $(DOS_TARGET) -DMSDOS && \
 	exe2coff $(DOS_TARGET) && \
 	cat csdpmi/bin/CWSDSTUB.EXE $(DOS_COFF) > $(DOS_TARGET)"
+	rm $(DOS_COFF)
 	@echo "Build complete!"
 	@echo "- $(DOS_TARGET)"
 	@echo "- CWSDPMI.EXE"
