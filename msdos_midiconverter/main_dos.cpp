@@ -17,6 +17,7 @@ extern void processEvents(void);
 /* Function to convert MIDI to WAV */
 bool convertMidiToWav(const char* midi_filename, const char* wav_filename, int volume) {
     /* Reset global state variables */
+
     playTime = 0;
     isPlaying = true;
     
@@ -28,6 +29,7 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename, int v
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
     }
+
     
     /* Load MIDI file */
     printf("Loading %s...\n", midi_filename);
@@ -43,6 +45,8 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename, int v
         SAMPLE_RATE, 
         AUDIO_CHANNELS
     );
+    
+
     
     if (!wav_converter) {
         fprintf(stderr, "Failed to create WAV converter\n");
@@ -126,13 +130,13 @@ bool convertMidiToWav(const char* midi_filename, const char* wav_filename, int v
     
     /* Cleanup */
     cleanup();
+
     
     return keep_running; /* If interrupted, return false */
 }
 
 int main(int argc, char* argv[]) {
     /* Setup control-C handler for DOS */
-    init_terminal();
     
     /* Set default volume to 500% */
     extern int globalVolume;
@@ -172,7 +176,6 @@ int main(int argc, char* argv[]) {
     
     if (result) {
         printf("Conversion completed successfully.\n");
-        return 0;
     } else {
         if (!keep_running) {
             fprintf(stderr, "MIDI to WAV conversion cancelled.\n");
@@ -181,4 +184,5 @@ int main(int argc, char* argv[]) {
         }
         return 1;
     }
+    return 0;
 }

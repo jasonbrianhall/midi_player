@@ -60,7 +60,8 @@ SDL_AudioSpec audioSpec;
 
 /* SDL Audio initialization */
 bool initSDL() {
-    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) {
+    // Initialize SDL with AUDIO only - NO TIMER
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         fprintf(stderr, "SDL could not initialize! SDL Error: %s\n", SDL_GetError());
         return false;
     }
