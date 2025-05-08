@@ -146,6 +146,8 @@ int main(int argc, char* argv[]) {
         printf("  input_midi: Input MIDI file path\n");
         printf("  output_wav: Output WAV file path\n");
         printf("  volume: Optional output volume (default: 500%%)\n");
+        
+        /* Important: Always restore terminal before returning */
         restore_terminal();
         return 1;
     }
@@ -167,7 +169,7 @@ int main(int argc, char* argv[]) {
     
     bool result = convertMidiToWav(midi_filename, wav_filename, volume);
     
-    /* Restore terminal settings */
+    /* Restore terminal settings - make sure this happens even on early exit paths */
     restore_terminal();
     
     if (result) {

@@ -651,10 +651,8 @@ void playMidiFile() {
     printf("  n - Toggle Volume Normalization\n");
     printf("  Ctrl+C - Stop Playback\n");
     
-    /* Initialize terminal for keyboard input */
-    init_terminal();
-    
-    /* Reset keep_running flag */
+    /* No need to call init_terminal here as it should be done in main() */
+    /* Let's just make sure keep_running is set to 1 */
     keep_running = 1;
     
     /* Main loop - handle console input */
@@ -690,8 +688,7 @@ void playMidiFile() {
         delay(10); /* 10 milliseconds - DJGPP's delay function */
     }
     
-    /* Restore original terminal settings */
-    restore_terminal();
+    /* No need to call restore_terminal() here as it will be done in main() */
     
     /* Stop audio */
     SDL_PauseAudioDevice(audioDevice, 1);
