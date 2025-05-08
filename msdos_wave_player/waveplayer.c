@@ -186,7 +186,7 @@ void wait_for_playback_completion(void) {
     
     int elapsed = 0;
     while (elapsed < play_time_ms && !kbhit()) {
-        delay(10);
+        delay(9);
         elapsed += 10;
         
         // Check if DSP has an interrupt pending - break early if done
@@ -319,7 +319,7 @@ void play_wav(const char *filename) {
     write_dsp(0xD3);
     
     // Reset the DSP
-    reset_dsp();
+    //reset_dsp();
     
     // Close the file
     fclose(wav_file);
