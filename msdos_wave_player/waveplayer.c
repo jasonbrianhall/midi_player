@@ -91,6 +91,11 @@ void write_dsp(unsigned char value) {
     outportb(SB_WRITE, value);
 }
 
+// Read from the DSP status port
+unsigned char read_dsp_status(void) {
+    return inportb(SB_STATUS);
+}
+
 // Allocate a DMA buffer
 int allocate_dma_buffer(void) {
     // Allocate DOS memory block
@@ -171,6 +176,25 @@ int find_data_chunk(FILE *file) {
     }
     
     return 0;
+}
+
+// Wait for playback to complete - a simplified and reliable approach
+void wait_for_playback_completion(void) {
+    // Calculate time needed to play buffer in milliseconds
+    // This is a slightly conservative estimate to ensure playback is complete
+    int play_time_ms = (DMA_BUFFER_SIZE * 1000) / sample_rate;
+    
+    int elapsed = 0;
+    while (elapsed < play_time_ms && !kbhit()) {
+        delay(10);
+        elapsed += 10;
+        
+        // Check if DSP has an interrupt pending - break early if done
+        if (inportb(SB_STATUS) & 0x80) {
+            inportb(SB_READ);  // Acknowledge
+            break;
+        }
+    }
 }
 
 // Play a WAV file
@@ -261,7 +285,8 @@ void play_wav(const char *filename) {
             bytes_to_read = data_size - bytes_read;
         }
         
-        if (fread(buffer_addr, 1, bytes_to_read, wav_file) != bytes_to_read) {
+        printf("Reading block: %d bytes at position %lu\n", bytes_to_read, bytes_read);
+        if (fread(buffer_addr, 1, bytes_to_read, wav_file) != (size_t)bytes_to_read) {
             printf("Failed to read data\n");
             break;
         }
@@ -275,22 +300,16 @@ void play_wav(const char *filename) {
         program_dma(DMA_BUFFER_SIZE);
         
         // Start playback
+        printf("Starting playback chunk: %lu of %lu bytes\n", bytes_read, data_size);
         write_dsp(0x14);  // 8-bit single cycle playback
         write_dsp((DMA_BUFFER_SIZE - 1) & 0xFF);
         write_dsp((DMA_BUFFER_SIZE - 1) >> 8);
         
         // Wait for playback to complete
-        while (!kbhit()) {
-            // Check if DSP has an interrupt pending
-            if (inportb(SB_STATUS) & 0x80) {
-                // Read the interrupt status
-                inportb(SB_READ);
-                break;
-            }
-            delay(10);  // Small delay to avoid hogging CPU
-        }
+        wait_for_playback_completion();
         
         bytes_read += bytes_to_read;
+        printf("Completed chunk. Total bytes played: %lu of %lu\n", bytes_read, data_size);
     }
     
     // Clear any key press
@@ -312,6 +331,7 @@ void play_wav(const char *filename) {
 int main(int argc, char *argv[]) {
     printf("Simple Sound Blaster WAV Player\n");
     printf("==============================\n\n");
+    printf("Configuration: Address=0x220, IRQ=7, DMA=1\n\n");
     
     // Check command line
     if (argc < 2) {
