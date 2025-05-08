@@ -11,10 +11,6 @@ A command-line tool for converting MIDI files to WAV format on MS-DOS systems, u
 - DJGPP DPMI support for running in protected mode
 - 16-bit stereo output at 44.1kHz
 
-## Note
-
-Code currenty converts once but then the terminal is in an unknown state and is unusable  :-(
-
 ## System Requirements
 
 - 80386 processor or better
