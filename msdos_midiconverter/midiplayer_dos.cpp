@@ -698,8 +698,8 @@ void updateVolume(int change) {
     MUTEX_LOCK();
     
     globalVolume += change;
-    if (globalVolume < 10) globalVolume = 10;
-    if (globalVolume > 300) globalVolume = 300;
+    if (globalVolume <=0) globalVolume = 00;
+    if (globalVolume > 10000) globalVolume = 10000;
     
     MUTEX_UNLOCK();
     
