@@ -25,7 +25,7 @@
 // DMA settings
 #define DMA_CHANNEL 1         // 8-bit DMA channel
 #define DMA_16BIT_CHANNEL 5   // 16-bit DMA channel
-#define DMA_BUFFER_SIZE 32768  // Size per buffer - smaller for more frequent updates
+#define DMA_BUFFER_SIZE 32768  // Size per buffer - smaller for more frequent updates (32k is approximately max size without tearing)
 
 // Exact WAV file header structure from wav_converter.h
 typedef struct {
@@ -355,6 +355,21 @@ void start_buffer_playback(int buffer_index) {
     dma_buffers[buffer_index].active = 1;
 }
 
+void calculate_total_playback_time(unsigned long data_size, unsigned short channels, 
+                                  unsigned short bits_per_sample, unsigned long sample_rate,
+                                  int *minutes, int *seconds) {
+    unsigned long bytes_per_sample = bits_per_sample / 8;
+    unsigned long bytes_per_frame = bytes_per_sample * channels;
+    unsigned long total_frames = data_size / bytes_per_frame;
+    
+    // Calculate total seconds
+    double total_seconds = (double)total_frames / sample_rate;
+    
+    // Convert to minutes and seconds
+    *minutes = (int)(total_seconds / 60.0);
+    *seconds = (int)(total_seconds - (*minutes * 60));
+}
+
 // Calculate milliseconds needed to play a buffer
 int calculate_buffer_time(int buffer_size) {
     int bytes_per_sample = bits_per_sample / 8;
@@ -410,6 +425,10 @@ void play_wav(const char *filename) {
     printf("Sample rate: %lu Hz\n", header.sample_rate);
     printf("Bits per sample: %d\n", header.bits_per_sample);
     printf("Data size: %lu bytes\n", header.data_size);
+    int total_minutes, total_seconds;
+    calculate_total_playback_time(header.data_size, header.num_channels, header.bits_per_sample, header.sample_rate,
+                             &total_minutes, &total_seconds);
+    printf("Total playback time: %d:%02d\n", total_minutes, total_seconds);
     printf("----------------------\n");
     
     // Check if this is a valid WAV file
