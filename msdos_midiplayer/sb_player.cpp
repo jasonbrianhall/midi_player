@@ -291,9 +291,11 @@ static int fill_buffer(int buffer_index) {
         }
     }
     
-    // Read data into buffer
-    if (fread(buffer_addr, 1, bytes_to_read, wav_file) != bytes_to_read) {
-        printf("Error reading WAV data\n");
+    // Read data into buffer - fix for comparison warning
+    size_t bytes_actually_read = fread(buffer_addr, 1, bytes_to_read, wav_file);
+    if (bytes_actually_read != (size_t)bytes_to_read) {
+        printf("Error reading WAV data (expected %d, got %lu bytes)\n", 
+               bytes_to_read, (unsigned long)bytes_actually_read);
         return 0;
     }
     
@@ -369,6 +371,21 @@ static int calculate_buffer_time(int buffer_size) {
     int bytes_per_sample = bits_per_sample / 8;
     int bytes_per_frame = bytes_per_sample * channels;
     return (buffer_size * 1000) / (sample_rate * bytes_per_frame);
+}
+
+// Check keyboard - this function actively polls for key presses
+static int check_keyboard(void) {
+    if (kbhit()) {
+        int ch = getch();
+        if (ch == 'q' || ch == 'Q' || ch == 27) {  // Q, q, or ESC
+            return 1;  // Stop playback
+        } else if (ch == ' ') {  // Space bar for pause
+            printf("\nPlayback paused. Press any key to continue...\n");
+            getch();  // Wait for any key press
+            printf("Resuming playback...\n");
+        }
+    }
+    return 0;  // Continue playback
 }
 
 // Play a WAV file
@@ -503,7 +520,7 @@ bool play_wav_file(const char *filename) {
         return false;
     }
     
-    printf("Playing WAV - press any key to stop...\n");
+    printf("Playing WAV - press Q/ESC to stop, SPACE to pause...\n");
     
     // Start the first buffer
     start_buffer_playback(0);
@@ -512,35 +529,48 @@ bool play_wav_file(const char *filename) {
     playing = 1;
     keep_running = 1;
     
+    // Playback loop
     while (playing && keep_running && !end_of_file) {
-        // Wait for the current buffer to finish
+        // Set up variables for buffer timing
         int elapsed = 0;
         int next_buffer = (current_buffer + 1) % 2;
+        int max_wait = buffer_time_ms * 0.9;  // Reduced wait time for better responsiveness
+        bool buffer_wait_interrupted = false;
         
-        while (elapsed < buffer_time_ms * 0.95 && !kbhit() && keep_running) {
-            delay(10);
-            elapsed += 10;
+        // Check for key press before entering wait loop
+        if (check_keyboard()) {
+            playing = 0;
+            break;
         }
         
-        // Check if playback should be stopped
-        if (kbhit()) {
-            int ch = getch();
-            if (ch == 'q' || ch == 'Q' || ch == 27) {  // Q or ESC
+        // Wait for the current buffer to finish, checking keys more frequently
+        while (elapsed < max_wait && keep_running && !buffer_wait_interrupted) {
+            // Check for key press every 5ms for responsive input
+            if (check_keyboard()) {
                 playing = 0;
-                break;
+                buffer_wait_interrupted = true;
+            }
+            
+            // Only continue waiting if we haven't been interrupted
+            if (!buffer_wait_interrupted) {
+                delay(5);  // Short delay for more frequent checks
+                elapsed += 5;
             }
         }
         
-        // Switch buffers
-        current_buffer = next_buffer;
-        
-        // Start playing the next buffer
-        start_buffer_playback(current_buffer);
-        
-        // Fill the buffer that just finished playing
-        next_buffer = (current_buffer + 1) % 2;
-        if (!fill_buffer(next_buffer)) {
-            end_of_file = 1;
+        // Only continue with next buffer if still playing
+        if (playing) {
+            // Switch buffers
+            current_buffer = next_buffer;
+            
+            // Start playing the next buffer
+            start_buffer_playback(current_buffer);
+            
+            // Fill the buffer that just finished playing
+            next_buffer = (current_buffer + 1) % 2;
+            if (!fill_buffer(next_buffer)) {
+                end_of_file = 1;
+            }
         }
     }
     
@@ -548,8 +578,8 @@ bool play_wav_file(const char *filename) {
     write_dsp(0xD5);  // Stop Sound Blaster output
     delay(50);
     
-    // Clear any key press
-    if (kbhit()) getch();
+    // Clear any key press from buffer
+    while (kbhit()) getch();
     
     // Turn off the speaker
     write_dsp(0xD3);

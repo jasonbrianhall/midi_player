@@ -14,6 +14,10 @@
 #include <sys/farptr.h>
 #include <signal.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Global variable to indicate if Ctrl+C was pressed */
 extern volatile sig_atomic_t keep_running;
 
@@ -25,5 +29,9 @@ void restore_terminal(void);
 
 /* Signal handler for Ctrl+C */
 void handle_sigint(int sig);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOS_UTILS_H */
