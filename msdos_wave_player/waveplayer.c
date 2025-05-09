@@ -25,7 +25,7 @@
 // DMA settings
 #define DMA_CHANNEL 1         // 8-bit DMA channel
 #define DMA_16BIT_CHANNEL 5   // 16-bit DMA channel
-#define DMA_BUFFER_SIZE 32768  // Size per buffer - smaller for more frequent updates (32k is approximately max size without tearing)
+int dma_buffer_size = 4096;  // Size per buffer - smaller for more frequent updates (32k is approximately max size without tearing)
 
 // Exact WAV file header structure from wav_converter.h
 typedef struct {
@@ -80,6 +80,47 @@ _go32_dpmi_seginfo new_irq_handler;
 
 // IRQ handler variables
 volatile int buffer_finished = 0;
+
+int calculate_optimal_buffer_size(unsigned short channels, unsigned short bits_per_sample, 
+                                 unsigned long sample_rate) {
+    // Calculate bytes per second
+    unsigned long bytes_per_sec = sample_rate * channels * (bits_per_sample / 8);
+    
+    // Base buffer sizes for different bit rates
+    int buffer_size;
+    
+    if (bytes_per_sec <= 22050) {
+        // Low quality audio (e.g., 11025 Hz, 8-bit, mono)
+        buffer_size = 4096;  // 8KB is enough
+    } else if (bytes_per_sec <= 88200) {
+        // Medium quality (e.g., 22050 Hz, 16-bit, stereo)
+        buffer_size = 8192;  // 16KB
+    } else if (bytes_per_sec <= 176400) {
+        // CD quality (44100 Hz, 16-bit, stereo)
+        buffer_size = 16384;  // 32KB
+    } else {
+        // High quality (48000+ Hz, 16-bit, stereo)
+        buffer_size = 32768;  // 64KB (maximum safe size)
+    }
+    
+    // Ensure buffer size doesn't exceed maximum safe DMA boundary
+    if (buffer_size > 65536) {
+        buffer_size = 65536;
+    }
+    
+    // For 16-bit samples, ensure buffer size is even
+    if (bits_per_sample == 16) {
+        buffer_size &= ~1;
+    }
+    
+    // For stereo, ensure buffer size is multiple of 2*bytes_per_sample
+    if (channels == 2) {
+        int bytes_per_frame = channels * (bits_per_sample / 8);
+        buffer_size = (buffer_size / bytes_per_frame) * bytes_per_frame;
+    }
+    
+    return buffer_size;
+}
 
 // Reset the Sound Blaster DSP
 int reset_dsp(void) {
@@ -168,8 +209,8 @@ void set_sample_rate(unsigned short rate) {
 int allocate_dma_buffers(void) {
     int i;
     for (i = 0; i < 2; i++) {
-        // Allocate DOS memory block
-        dma_buffers[i].segment.size = (DMA_BUFFER_SIZE + 15) / 16;  // Size in paragraphs
+        // Allocate DOS memory block based on dynamic buffer size
+        dma_buffers[i].segment.size = (dma_buffer_size + 15) / 16;  // Size in paragraphs
         
         if (_go32_dpmi_allocate_dos_memory(&dma_buffers[i].segment) != 0) {
             // Fail - free any allocated buffers
@@ -182,7 +223,7 @@ int allocate_dma_buffers(void) {
         
         // Calculate the linear address
         dma_buffers[i].address = (void *)((dma_buffers[i].segment.rm_segment << 4) + __djgpp_conventional_base);
-        dma_buffers[i].size = DMA_BUFFER_SIZE;
+        dma_buffers[i].size = dma_buffer_size;
         dma_buffers[i].active = 0;
     }
     
@@ -457,11 +498,22 @@ void play_wav(const char *filename) {
     // Determine playback mode
     using_16bit = (bits_per_sample == 16) && (dsp_version.major >= 4);
     
-    // Calculate buffer playback time
-    buffer_time_ms = calculate_buffer_time(DMA_BUFFER_SIZE);
+// Calculate optimal buffer size based on audio format
+dma_buffer_size = calculate_optimal_buffer_size(channels, bits_per_sample, sample_rate);
+
+// Calculate buffer playback time
+buffer_time_ms = calculate_buffer_time(dma_buffer_size);
     
-    printf("Buffer size: %d bytes, playback time: %d ms\n", 
-           DMA_BUFFER_SIZE, buffer_time_ms);
+printf("Optimal buffer size: %d bytes, playback time: %d ms\n", 
+       dma_buffer_size, buffer_time_ms);
+
+    // Allocate DMA buffers
+    if (!allocate_dma_buffers()) {
+        printf("Failed to allocate DMA buffers\n");
+        __djgpp_nearptr_disable();
+        return 1;
+    }
+
     
     // Reset the Sound Blaster
     if (!reset_dsp()) {
@@ -564,14 +616,7 @@ int main(int argc, char *argv[]) {
         printf("Failed to enable near pointers\n");
         return 1;
     }
-    
-    // Allocate DMA buffers
-    if (!allocate_dma_buffers()) {
-        printf("Failed to allocate DMA buffers\n");
-        __djgpp_nearptr_disable();
-        return 1;
-    }
-    
+        
     // Play the WAV file
     play_wav(argv[1]);
     
