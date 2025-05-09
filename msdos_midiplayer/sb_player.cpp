@@ -1,6 +1,7 @@
 /*
  * Sound Blaster WAV Player Implementation
  * Adapted for integration with the MIDI player
+ * With BLASTER environment variable support
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,18 +15,19 @@
 #include "sb_player.h"
 #include "dos_utils.h"
 
-// Sound Blaster settings
-#define SB_BASE 0x220           // Default Sound Blaster port
-#define SB_RESET (SB_BASE + 0x6)
-#define SB_READ (SB_BASE + 0xA)
-#define SB_WRITE (SB_BASE + 0xC)
-#define SB_STATUS (SB_BASE + 0xE)
-#define SB_MIXER_ADDR (SB_BASE + 0x4)
-#define SB_MIXER_DATA (SB_BASE + 0x5)
+// Sound Blaster settings - defaults that can be overridden by BLASTER env var
+static int sb_base = 0x220;     // Default I/O port 
+static int sb_irq = 7;          // Default IRQ
+static int sb_dma = 1;          // Default 8-bit DMA channel
+static int sb_hdma = 5;         // Default 16-bit DMA channel
 
-// DMA settings
-#define DMA_CHANNEL 1           // 8-bit DMA channel
-#define DMA_16BIT_CHANNEL 5     // 16-bit DMA channel
+// Define I/O port addresses based on base port
+#define SB_RESET (sb_base + 0x6)
+#define SB_READ (sb_base + 0xA)
+#define SB_WRITE (sb_base + 0xC)
+#define SB_STATUS (sb_base + 0xE)
+#define SB_MIXER_ADDR (sb_base + 0x4)
+#define SB_MIXER_DATA (sb_base + 0x5)
 
 // Default DMA buffer size - will be adjusted based on audio format
 static int dma_buffer_size = 8192;
@@ -50,6 +52,62 @@ static unsigned short bits_per_sample = 8;
 static DSP_VERSION dsp_version = {0, 0};
 static int using_16bit = 0;
 static volatile int current_buffer = 0;
+
+// Parse BLASTER environment variable
+static int parse_blaster_env(void) {
+    char *blaster = getenv("BLASTER");
+    if (!blaster) {
+        // No BLASTER environment variable, use defaults
+        return 1;
+    }
+    
+    printf("BLASTER environment: %s\n", blaster);
+    
+    // Parse BLASTER environment variable
+    // Format is typically: A220 I7 D1 H5 P330 T6
+    char *p = blaster;
+    while (*p) {
+        switch (*p) {
+            case 'A': case 'a':
+                // I/O port address
+                p++;
+                sb_base = strtol(p, &p, 16);
+                break;
+            
+            case 'I': case 'i':
+                // IRQ number
+                p++;
+                sb_irq = strtol(p, &p, 10);
+                break;
+            
+            case 'D': case 'd':
+                // 8-bit DMA channel
+                p++;
+                sb_dma = strtol(p, &p, 10);
+                break;
+            
+            case 'H': case 'h':
+                // 16-bit DMA channel
+                p++;
+                sb_hdma = strtol(p, &p, 10);
+                break;
+            
+            default:
+                // Skip other parameters
+                p++;
+                while (*p && *p != ' ') p++;
+                break;
+        }
+        
+        // Skip spaces
+        while (*p == ' ') p++;
+    }
+    
+    printf("Sound Blaster config: Port 0x%x, IRQ %d, DMA %d, HDMA %d\n", 
+           sb_base, sb_irq, sb_dma, sb_hdma);
+    
+    return 1;
+}
 
 // Reset the Sound Blaster DSP
 static int reset_dsp(void) {
@@ -221,20 +279,20 @@ static void program_dma(int buffer_index) {
         offset = (phys_addr >> 1) & 0xFFFF;  // 16-bit DMA uses word count
         
         // Disable DMA channel
-        outportb(0xD4, (DMA_16BIT_CHANNEL & 3) | 4);
+        outportb(0xD4, (sb_hdma & 3) | 4);
         
         // Clear flip-flop
         outportb(0xD8, 0);
         
         // Set mode (single cycle, write, channel)
-        outportb(0xD6, 0x48 | (DMA_16BIT_CHANNEL & 3));
+        outportb(0xD6, 0x48 | (sb_hdma & 3));
         
         // Set DMA address
-        outportb(0xC0 + ((DMA_16BIT_CHANNEL & 3) << 2), offset & 0xFF);
-        outportb(0xC0 + ((DMA_16BIT_CHANNEL & 3) << 2), offset >> 8);
+        outportb(0xC0 + ((sb_hdma & 3) << 2), offset & 0xFF);
+        outportb(0xC0 + ((sb_hdma & 3) << 2), offset >> 8);
         
         // Set DMA page
-        switch (DMA_16BIT_CHANNEL & 3) {
+        switch (sb_hdma & 3) {
             case 0: outportb(0x87, page); break;  // DMA 4
             case 1: outportb(0x83, page); break;  // DMA 5
             case 2: outportb(0x81, page); break;  // DMA 6
@@ -243,38 +301,43 @@ static void program_dma(int buffer_index) {
         
         // Set DMA count (bytes - 1) for 16-bit DMA
         count = count / 2;  // Convert to 16-bit word count
-        outportb(0xC2 + ((DMA_16BIT_CHANNEL & 3) << 2), (count - 1) & 0xFF);
-        outportb(0xC2 + ((DMA_16BIT_CHANNEL & 3) << 2), (count - 1) >> 8);
+        outportb(0xC2 + ((sb_hdma & 3) << 2), (count - 1) & 0xFF);
+        outportb(0xC2 + ((sb_hdma & 3) << 2), (count - 1) >> 8);
         
         // Enable DMA channel
-        outportb(0xD4, DMA_16BIT_CHANNEL & 3);
+        outportb(0xD4, sb_hdma & 3);
     } else {
         // For 8-bit DMA
         page = phys_addr >> 16;
         offset = phys_addr & 0xFFFF;
         
         // Disable DMA channel
-        outportb(0x0A, DMA_CHANNEL | 4);
+        outportb(0x0A, sb_dma | 4);
         
         // Clear flip-flop
         outportb(0x0C, 0);
         
         // Set mode (single cycle, write, channel)
-        outportb(0x0B, 0x48 | DMA_CHANNEL);
+        outportb(0x0B, 0x48 | sb_dma);
         
         // Set DMA address
-        outportb(DMA_CHANNEL << 1, offset & 0xFF);
-        outportb(DMA_CHANNEL << 1, offset >> 8);
+        outportb(sb_dma << 1, offset & 0xFF);
+        outportb(sb_dma << 1, offset >> 8);
         
-        // Set DMA page
-        outportb(0x83, page);  // Page register for DMA 1
+        // Set DMA page - pages for 8-bit DMA channels
+        switch (sb_dma) {
+            case 0: outportb(0x87, page); break;  // DMA 0
+            case 1: outportb(0x83, page); break;  // DMA 1
+            case 2: outportb(0x81, page); break;  // DMA 2
+            case 3: outportb(0x82, page); break;  // DMA 3
+        }
         
         // Set DMA count (bytes - 1)
-        outportb((DMA_CHANNEL << 1) + 1, (count - 1) & 0xFF);
-        outportb((DMA_CHANNEL << 1) + 1, (count - 1) >> 8);
+        outportb((sb_dma << 1) + 1, (count - 1) & 0xFF);
+        outportb((sb_dma << 1) + 1, (count - 1) >> 8);
         
         // Enable DMA channel
-        outportb(0x0A, DMA_CHANNEL);
+        outportb(0x0A, sb_dma);
     }
 }
 
@@ -396,6 +459,11 @@ bool play_wav_file(const char *filename) {
     
     printf("Playing %s...\n", filename);
     
+    // Parse BLASTER environment variable
+    if (!parse_blaster_env()) {
+        printf("Warning: Failed to parse BLASTER environment, using defaults\n");
+    }
+    
     // Enable near pointers
     if (__djgpp_nearptr_enable() == 0) {
         printf("Failed to enable near pointers\n");
@@ -404,9 +472,17 @@ bool play_wav_file(const char *filename) {
     
     // Check SB version
     if (!reset_dsp() || !get_dsp_version(&dsp_version)) {
-        printf("Failed to detect Sound Blaster\n");
-        __djgpp_nearptr_disable();
-        return false;
+        printf("Failed to detect Sound Blaster at address 0x%x\n", sb_base);
+        
+        // Try the default address as a fallback
+        sb_base = 0x220;
+        if (!reset_dsp() || !get_dsp_version(&dsp_version)) {
+            printf("Failed to detect Sound Blaster at fallback address 0x220\n");
+            __djgpp_nearptr_disable();
+            return false;
+        }
+        
+        printf("Detected Sound Blaster at fallback address 0x220\n");
     }
     
     // Sound Blaster 16 and above supports 16-bit audio
@@ -603,8 +679,15 @@ bool play_wav_file(const char *filename) {
 
 // Check if Sound Blaster is present and get version
 bool detect_sound_blaster(DSP_VERSION *version) {
+    // Parse BLASTER environment variable first
+    parse_blaster_env();
+    
     if (!reset_dsp()) {
-        return false;
+        // Try default address as fallback
+        sb_base = 0x220;
+        if (!reset_dsp()) {
+            return false;
+        }
     }
     
     return get_dsp_version(version);
