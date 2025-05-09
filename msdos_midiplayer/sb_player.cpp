@@ -149,9 +149,6 @@ static int calculate_optimal_buffer_size(unsigned short channels,
     } else if (bytes_per_sec <= 88200) {
         // Medium quality (e.g., 22050 Hz, 16-bit, stereo)
         buffer_size = 8192;  // ~0.1 seconds
-    } else if (bytes_per_sec <= 176400) {
-        // CD quality (44100 Hz, 16-bit, stereo)
-        buffer_size = 16384;  // ~0.1 seconds
     } else {
         // High quality (48000+ Hz, 16-bit, stereo)
         buffer_size = 32768;  // ~0.1 seconds

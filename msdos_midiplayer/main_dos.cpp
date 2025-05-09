@@ -31,8 +31,8 @@ bool direct_play_midi(const char* midi_filename, int volume);
 void display_help(void);
 
 int main(int argc, char* argv[]) {
-    /* Set default volume to 100% (lower than converter-only default) */
-    globalVolume = 100;
+    /* Set default volume to 1000% (lower than converter-only default) */
+    globalVolume = 1000;
     
     /* Setup terminal settings */
     init_terminal();
@@ -52,9 +52,7 @@ int main(int argc, char* argv[]) {
     int volume = globalVolume;
     
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--direct") == 0) {
-            direct_mode = true;
-        } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--convert") == 0) {
+        if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--convert") == 0) {
             convert_only = true;
             if (i + 1 < argc) {
                 wav_filename = argv[++i];
@@ -68,8 +66,8 @@ int main(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 volume = atoi(argv[++i]);
                 if (volume <= 0) {
-                    fprintf(stderr, "Warning: Invalid volume. Using default (100%%)\n");
-                    volume = 100;
+                    fprintf(stderr, "Warning: Invalid volume. Using default (1000%%)\n");
+                    volume = 1000;
                 }
             } else {
                 fprintf(stderr, "Warning: Missing volume after -v/--volume option\n");
@@ -154,9 +152,8 @@ void display_help(void) {
     printf("DOS MIDI Player - Plays MIDI files using OPL3 emulation\n");
     printf("Usage: MIDPLAY [options] <midi_file>\n\n");
     printf("Options:\n");
-    printf("  -d, --direct       Direct playback (no WAV conversion)\n");
     printf("  -c, --convert WAV  Convert to WAV file and exit\n");
-    printf("  -v, --volume N     Set volume (default: 100%%)\n");
+    printf("  -v, --volume N     Set volume (default: 1000%%)\n");
     printf("  -h, --help         Display this help and exit\n\n");
     printf("Controls during playback:\n");
     printf("  Space              Pause/Resume\n");
