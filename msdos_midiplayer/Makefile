@@ -25,7 +25,7 @@ PREFIX = i586-pc-msdosdjgpp
 
 # Compiler flags
 CFLAGS = -Wall -O2
-CXXFLAGS = -Wall -O2 -fpermissive
+CXXFLAGS = -Wall -O2 -fpermissive -s
 INCLUDES = -I.
 
 # Default target
