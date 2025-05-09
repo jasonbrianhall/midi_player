@@ -103,4 +103,4 @@ The player supports standard PCM WAV files with the following characteristics:
 
 ## License
 
-This program is provided as-is, free for educational and personal use.
+This project is licensed under the MIT License.
