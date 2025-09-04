@@ -277,11 +277,17 @@ static bool init_audio(AudioPlayer *player) {
 }
 
 static bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
-    char *basename = g_path_get_basename(filename);
-    char *dot = strrchr(basename, '.');
-    if (dot) *dot = '\0';
-    snprintf(player->temp_wav_file, sizeof(player->temp_wav_file), "/tmp/%s_converted.wav", basename);
-    g_free(basename);
+    // Create secure temporary file
+    char temp_template[] = "/tmp/midi_convert_XXXXXX.wav";
+    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
+    if (temp_fd == -1) {
+        printf("Failed to create temporary file for MIDI conversion\n");
+        return false;
+    }
+    close(temp_fd); // We just need the filename, will reopen later
+    
+    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
     printf("Converting MIDI: %s -> %s\n", filename, player->temp_wav_file);
     
@@ -360,11 +366,17 @@ static bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
 }
 
 static bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
-    char *basename = g_path_get_basename(filename);
-    char *dot = strrchr(basename, '.');
-    if (dot) *dot = '\0';
-    snprintf(player->temp_wav_file, sizeof(player->temp_wav_file), "/tmp/%s_converted.wav", basename);
-    g_free(basename);
+    // Create secure temporary file
+    char temp_template[] = "/tmp/mp3_convert_XXXXXX.wav";
+    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
+    if (temp_fd == -1) {
+        printf("Failed to create temporary file for MP3 conversion\n");
+        return false;
+    }
+    close(temp_fd); // We just need the filename, will reopen later
+    
+    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
     printf("Converting MP3: %s -> %s\n", filename, player->temp_wav_file);
     
@@ -413,11 +425,17 @@ static bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
 }
 
 static bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
-    char *basename = g_path_get_basename(filename);
-    char *dot = strrchr(basename, '.');
-    if (dot) *dot = '\0';
-    snprintf(player->temp_wav_file, sizeof(player->temp_wav_file), "/tmp/%s_converted.wav", basename);
-    g_free(basename);
+    // Create secure temporary file
+    char temp_template[] = "/tmp/ogg_convert_XXXXXX.wav";
+    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
+    if (temp_fd == -1) {
+        printf("Failed to create temporary file for OGG conversion\n");
+        return false;
+    }
+    close(temp_fd); // We just need the filename, will reopen later
+    
+    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
     printf("Converting OGG: %s -> %s\n", filename, player->temp_wav_file);
     
