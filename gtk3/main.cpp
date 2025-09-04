@@ -653,7 +653,7 @@ static void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
                                                      GTK_DIALOG_DESTROY_WITH_PARENT,
                                                      GTK_MESSAGE_INFO,
                                                      GTK_BUTTONS_CLOSE,
-                                                     "GTK Media Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), and MP3 (.mp3) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 files are decoded using SDL2_mixer.\n\nDrag the progress slider to seek.\nUse << and >> buttons for 5-second rewind/fast-forward.");
+                                                     "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), and MP3 (.mp3) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 files are decoded using SDL2_mixer.\n\nDrag the progress slider to seek.\nUse << and >> buttons for 5-second rewind/fast-forward.");
     gtk_dialog_run(GTK_DIALOG(about_dialog));
     gtk_widget_destroy(about_dialog);
 }
@@ -701,7 +701,7 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 
 static void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(player->window), "GTK Media Player");
+    gtk_window_set_title(GTK_WINDOW(player->window), "GTK Music Player");
     gtk_window_set_default_size(GTK_WINDOW(player->window), 600, 250);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
