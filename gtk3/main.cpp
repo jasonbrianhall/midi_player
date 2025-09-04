@@ -25,7 +25,9 @@ typedef struct {
     GtkWidget *play_button;
     GtkWidget *pause_button;
     GtkWidget *stop_button;
-    GtkWidget *progress_bar;
+    GtkWidget *rewind_button;
+    GtkWidget *fast_forward_button;
+    GtkWidget *progress_scale;  // Changed from progress_bar to scale
     GtkWidget *time_label;
     GtkWidget *volume_scale;
     GtkWidget *file_label;
@@ -383,6 +385,11 @@ static bool load_file(AudioPlayer *player, const char *filename) {
         player->is_playing = false;
         player->is_paused = false;
         playTime = 0;
+        
+        // Update the progress scale range
+        gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
+        gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
+        
         printf("File successfully loaded and ready for playback\n");
     }
     
@@ -413,8 +420,6 @@ static void seek_to_position(AudioPlayer *player, double position_seconds) {
     playTime = position_seconds;
     
     pthread_mutex_unlock(&player->audio_mutex);
-    
-    printf("Seeked to %.2f seconds (sample %zu)\n", position_seconds, new_position);
 }
 
 static void start_playback(AudioPlayer *player) {
@@ -452,11 +457,9 @@ static void start_playback(AudioPlayer *player) {
             }
             pthread_mutex_unlock(&p->audio_mutex);
             
-            // Update progress bar (only if not currently seeking)
+            // Update progress scale (only if not currently seeking)
             if (!p->seeking) {
-                double progress = (p->song_duration > 0) ? playTime / p->song_duration : 0.0;
-                if (progress > 1.0) progress = 1.0;
-                gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(p->progress_bar), progress);
+                gtk_range_set_value(GTK_RANGE(p->progress_scale), playTime);
             }
             
             // Update time label
@@ -505,15 +508,44 @@ static void stop_playback(AudioPlayer *player) {
         player->update_timer_id = 0;
     }
     
-    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), 0.0);
+    gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
     gtk_label_set_text(GTK_LABEL(player->time_label), "00:00 / 00:00");
     gtk_button_set_label(GTK_BUTTON(player->pause_button), "⏸");
+}
+
+static void rewind_5_seconds(AudioPlayer *player) {
+    if (!player->is_loaded) return;
+    
+    double current_time = playTime;
+    double new_time = current_time - 5.0;
+    if (new_time < 0) new_time = 0;
+    
+    seek_to_position(player, new_time);
+    gtk_range_set_value(GTK_RANGE(player->progress_scale), new_time);
+    
+    printf("Rewinded 5 seconds to %.2f\n", new_time);
+}
+
+static void fast_forward_5_seconds(AudioPlayer *player) {
+    if (!player->is_loaded) return;
+    
+    double current_time = playTime;
+    double new_time = current_time + 5.0;
+    if (new_time > player->song_duration) new_time = player->song_duration;
+    
+    seek_to_position(player, new_time);
+    gtk_range_set_value(GTK_RANGE(player->progress_scale), new_time);
+    
+    printf("Fast forwarded 5 seconds to %.2f\n", new_time);
 }
 
 static void update_gui_state(AudioPlayer *player) {
     gtk_widget_set_sensitive(player->play_button, player->is_loaded && !player->is_playing);
     gtk_widget_set_sensitive(player->pause_button, player->is_playing);
     gtk_widget_set_sensitive(player->stop_button, player->is_playing || player->is_paused);
+    gtk_widget_set_sensitive(player->rewind_button, player->is_loaded);
+    gtk_widget_set_sensitive(player->fast_forward_button, player->is_loaded);
+    gtk_widget_set_sensitive(player->progress_scale, player->is_loaded);
     
     if (player->is_loaded) {
         char *basename = g_path_get_basename(player->current_file);
@@ -526,47 +558,30 @@ static void update_gui_state(AudioPlayer *player) {
     }
 }
 
-// Progress bar click handler for seeking
-static gboolean on_progress_bar_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+// Progress scale value changed handler for seeking
+static void on_progress_scale_value_changed(GtkRange *range, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    if (!player->is_loaded || player->song_duration <= 0) {
-        return FALSE;
+    if (!player->is_loaded || player->seeking) {
+        return;
     }
     
-    if (event->button == 1) { // Left mouse button
-        GtkAllocation allocation;
-        gtk_widget_get_allocation(widget, &allocation);
-        
-        // Calculate the clicked position as a fraction of the progress bar width
-        double click_fraction = event->x / allocation.width;
-        if (click_fraction < 0.0) click_fraction = 0.0;
-        if (click_fraction > 1.0) click_fraction = 1.0;
-        
-        // Convert to time position
-        double new_position = click_fraction * player->song_duration;
-        
-        // Set seeking flag to prevent feedback
-        player->seeking = true;
-        
-        // Update progress bar immediately
-        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), click_fraction);
-        
-        // Seek to the new position
-        seek_to_position(player, new_position);
-        
-        // Clear seeking flag after a short delay
-        g_timeout_add(100, [](gpointer data) -> gboolean {
-            AudioPlayer *p = (AudioPlayer*)data;
-            p->seeking = false;
-            return FALSE; // Don't repeat
-        }, player);
-        
-        printf("Clicked at position %.2f seconds\n", new_position);
-        return TRUE;
-    }
+    double new_position = gtk_range_get_value(range);
     
-    return FALSE;
+    // Set seeking flag to prevent feedback
+    player->seeking = true;
+    
+    // Seek to the new position
+    seek_to_position(player, new_position);
+    
+    // Clear seeking flag after a short delay
+    g_timeout_add(50, [](gpointer data) -> gboolean {
+        AudioPlayer *p = (AudioPlayer*)data;
+        p->seeking = false;
+        return FALSE; // Don't repeat
+    }, player);
+    
+    printf("Seeked via scale to position %.2f seconds\n", new_position);
 }
 
 // Menu callbacks
@@ -638,7 +653,7 @@ static void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
                                                      GTK_DIALOG_DESTROY_WITH_PARENT,
                                                      GTK_MESSAGE_INFO,
                                                      GTK_BUTTONS_CLOSE,
-                                                     "GTK Media Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), and MP3 (.mp3) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 files are decoded using SDL2_mixer.\n\nClick on the progress bar to seek.");
+                                                     "GTK Media Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), and MP3 (.mp3) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 files are decoded using SDL2_mixer.\n\nDrag the progress slider to seek.\nUse << and >> buttons for 5-second rewind/fast-forward.");
     gtk_dialog_run(GTK_DIALOG(about_dialog));
     gtk_widget_destroy(about_dialog);
 }
@@ -657,6 +672,14 @@ static void on_pause_clicked(GtkButton *button, gpointer user_data) {
 static void on_stop_clicked(GtkButton *button, gpointer user_data) {
     stop_playback((AudioPlayer*)user_data);
     update_gui_state((AudioPlayer*)user_data);
+}
+
+static void on_rewind_clicked(GtkButton *button, gpointer user_data) {
+    rewind_5_seconds((AudioPlayer*)user_data);
+}
+
+static void on_fast_forward_clicked(GtkButton *button, gpointer user_data) {
+    fast_forward_5_seconds((AudioPlayer*)user_data);
 }
 
 static void on_volume_changed(GtkRange *range, gpointer user_data) {
@@ -679,7 +702,7 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 static void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "GTK Media Player");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 500, 250);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 600, 250);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
     // Main vbox
@@ -725,12 +748,12 @@ static void create_main_window(AudioPlayer *player) {
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
-    player->progress_bar = gtk_progress_bar_new();
-    // Make progress bar clickable for seeking
-    gtk_widget_set_can_focus(player->progress_bar, FALSE);
-    gtk_widget_add_events(player->progress_bar, GDK_BUTTON_PRESS_MASK);
-    g_signal_connect(player->progress_bar, "button-press-event", G_CALLBACK(on_progress_bar_button_press), player);
-    gtk_box_pack_start(GTK_BOX(content_vbox), player->progress_bar, FALSE, FALSE, 0);
+    // Progress scale (replaces progress bar for seeking functionality)
+    player->progress_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 0.1);
+    gtk_scale_set_draw_value(GTK_SCALE(player->progress_scale), FALSE);
+    gtk_widget_set_sensitive(player->progress_scale, FALSE);
+    g_signal_connect(player->progress_scale, "value-changed", G_CALLBACK(on_progress_scale_value_changed), player);
+    gtk_box_pack_start(GTK_BOX(content_vbox), player->progress_scale, FALSE, FALSE, 0);
     
     player->time_label = gtk_label_new("00:00 / 00:00");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->time_label, FALSE, FALSE, 0);
@@ -739,13 +762,18 @@ static void create_main_window(AudioPlayer *player) {
     gtk_box_set_homogeneous(GTK_BOX(button_box), TRUE);
     gtk_box_pack_start(GTK_BOX(content_vbox), button_box, FALSE, FALSE, 0);
     
+    // Control buttons with rewind and fast forward
+    player->rewind_button = gtk_button_new_with_label("⏪ 5s");
     player->play_button = gtk_button_new_with_label("▶");
     player->pause_button = gtk_button_new_with_label("⏸");
     player->stop_button = gtk_button_new_with_label("⏹");
+    player->fast_forward_button = gtk_button_new_with_label("5s ⏩");
     
+    gtk_box_pack_start(GTK_BOX(button_box), player->rewind_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->play_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->pause_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->stop_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(button_box), player->fast_forward_button, TRUE, TRUE, 0);
     
     GtkWidget *volume_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(content_vbox), volume_box, FALSE, FALSE, 0);
@@ -762,6 +790,8 @@ static void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
     g_signal_connect(player->pause_button, "clicked", G_CALLBACK(on_pause_clicked), player);
     g_signal_connect(player->stop_button, "clicked", G_CALLBACK(on_stop_clicked), player);
+    g_signal_connect(player->rewind_button, "clicked", G_CALLBACK(on_rewind_clicked), player);
+    g_signal_connect(player->fast_forward_button, "clicked", G_CALLBACK(on_fast_forward_clicked), player);
     g_signal_connect(player->volume_scale, "value-changed", G_CALLBACK(on_volume_changed), player);
 }
 
