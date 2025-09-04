@@ -6,8 +6,20 @@
 #include <stdbool.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
+#include <unistd.h>
+#include <SDL2/SDL.h>
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
+#include "wav_converter.h"
+
+// Audio buffer for WAV playback
+typedef struct {
+    int16_t *data;
+    size_t length;
+    size_t position;
+    bool loop;
+} AudioBuffer;
 
 // Global variables for GUI
 typedef struct {
@@ -26,8 +38,14 @@ typedef struct {
     bool is_playing;
     bool is_paused;
     char current_file[512];
+    char temp_wav_file[512];
     double song_duration;
     guint update_timer_id;
+    
+    // Audio data
+    AudioBuffer audio_buffer;
+    SDL_AudioDeviceID audio_device;
+    SDL_AudioSpec audio_spec;
     
     // Synchronization
     pthread_mutex_t state_mutex;
@@ -40,15 +58,6 @@ extern bool paused;
 extern int globalVolume;
 extern void processEvents(void);
 extern double playwait;
-extern SDL_AudioDeviceID audioDevice;
-extern int TrackCount;
-extern int ChPatch[16];
-extern double ChBend[16];
-extern int ChVolume[16];
-extern int ChPanning[16];
-extern int ChVibrato[16];
-extern double tkDelay[];
-extern int tkStatus[];
 
 MidiPlayer *player = NULL;
 
@@ -56,19 +65,200 @@ MidiPlayer *player = NULL;
 static void update_gui_state(MidiPlayer *player);
 static gboolean update_progress(gpointer user_data);
 
+// SDL Audio callback for WAV playback
+void wav_audio_callback(void* userdata, Uint8* stream, int len) {
+    MidiPlayer* player = (MidiPlayer*)userdata;
+    
+    // Clear the buffer
+    memset(stream, 0, len);
+    
+    if (!player->is_playing || player->is_paused || !player->audio_buffer.data) {
+        return;
+    }
+    
+    pthread_mutex_lock(&player->state_mutex);
+    
+    int16_t* output = (int16_t*)stream;
+    int samples_requested = len / sizeof(int16_t);
+    size_t samples_remaining = player->audio_buffer.length - player->audio_buffer.position;
+    int samples_to_copy = (samples_requested < (int)samples_remaining) ? samples_requested : (int)samples_remaining;
+    
+    if (samples_to_copy > 0) {
+        // Apply volume scaling
+        for (int i = 0; i < samples_to_copy; i++) {
+            int32_t sample = player->audio_buffer.data[player->audio_buffer.position + i];
+            sample = (sample * globalVolume) / 100;
+            
+            // Clamp to 16-bit range
+            if (sample > 32767) sample = 32767;
+            else if (sample < -32768) sample = -32768;
+            
+            output[i] = (int16_t)sample;
+        }
+        
+        player->audio_buffer.position += samples_to_copy;
+        
+        // Update play time based on actual audio format
+        double samples_per_second = (double)(player->audio_spec.freq * player->audio_spec.channels);
+        playTime = (double)player->audio_buffer.position / samples_per_second;
+    }
+    
+    // Check if we've reached the end
+    if (player->audio_buffer.position >= player->audio_buffer.length) {
+        player->is_playing = false;
+    }
+    
+    pthread_mutex_unlock(&player->state_mutex);
+}
+
 // Initialize MIDI player
 static bool init_midi_player(MidiPlayer *player_ctx) {
-    (void)player_ctx; // Suppress unused parameter warning
-    
-    if (!initSDL()) {
-        g_print("Failed to initialize SDL\n");
+    // Initialize SDL Audio
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+        printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
         return false;
     }
     
-    // Initialize OPL
+    // Setup audio spec for WAV playback
+    SDL_AudioSpec want;
+    SDL_zero(want);
+    want.freq = SAMPLE_RATE;
+    want.format = AUDIO_S16;
+    want.channels = AUDIO_CHANNELS;
+    want.samples = AUDIO_BUFFER;
+    want.callback = wav_audio_callback;
+    want.userdata = player_ctx;
+    
+    player_ctx->audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &player_ctx->audio_spec, 0);
+    if (player_ctx->audio_device == 0) {
+        printf("Failed to open audio: %s\n", SDL_GetError());
+        return false;
+    }
+    
+    // Initialize OPL for conversion
     OPL_Init(SAMPLE_RATE);
     OPL_LoadInstruments();
     
+    // Initialize audio buffer
+    player_ctx->audio_buffer.data = NULL;
+    player_ctx->audio_buffer.length = 0;
+    player_ctx->audio_buffer.position = 0;
+    player_ctx->audio_buffer.loop = false;
+    
+    return true;
+}
+
+// Convert MIDI to WAV file and load it
+static bool convert_and_load_midi(MidiPlayer *player, const char* filename) {
+    // Create WAV file path in /tmp
+    char *basename = g_path_get_basename(filename);
+    char *dot = strrchr(basename, '.');
+    if (dot) *dot = '\0';
+    snprintf(player->temp_wav_file, sizeof(player->temp_wav_file), "/tmp/%s_converted.wav", basename);
+    g_free(basename);
+    
+    printf("\n========================================\n");
+    printf("CONVERTING MIDI TO WAV\n");
+    printf("Input:  %s\n", filename);
+    printf("Output: %s\n", player->temp_wav_file);
+    printf("========================================\n");
+    
+    // Convert MIDI to WAV using original working code
+    playTime = 0;
+    isPlaying = true;
+    
+    if (!initSDL()) {
+        printf("Failed to initialize SDL for conversion\n");
+        return false;
+    }
+    
+    if (!loadMidiFile(filename)) {
+        printf("Failed to load MIDI file\n");
+        cleanup();
+        return false;
+    }
+    
+    WAVConverter* wav_converter = wav_converter_init(player->temp_wav_file, SAMPLE_RATE, AUDIO_CHANNELS);
+    if (!wav_converter) {
+        printf("Failed to create WAV converter\n");
+        cleanup();
+        return false;
+    }
+    
+    int16_t audio_buffer[AUDIO_BUFFER * AUDIO_CHANNELS];
+    double buffer_duration = (double)AUDIO_BUFFER / SAMPLE_RATE;
+    
+    processEvents();
+    
+    while (isPlaying) {
+        memset(audio_buffer, 0, sizeof(audio_buffer));
+        OPL_Generate(audio_buffer, AUDIO_BUFFER);
+        
+        if (!wav_converter_write(wav_converter, audio_buffer, AUDIO_BUFFER * AUDIO_CHANNELS)) {
+            printf("Failed to write audio data\n");
+            break;
+        }
+        
+        playTime += buffer_duration;
+        playwait -= buffer_duration;
+        
+        while (playwait <= 0 && isPlaying) {
+            processEvents();
+        }
+        
+        if (((int)playTime) % 5 == 0) {
+            static int last_reported = -1;
+            if ((int)playTime != last_reported) {
+                printf("Converting... %d seconds\n", (int)playTime);
+                last_reported = (int)playTime;
+            }
+        }
+    }
+    
+    wav_converter_finish(wav_converter);
+    wav_converter_free(wav_converter);
+    cleanup();
+    
+    printf("\n========================================\n");
+    printf("CONVERSION COMPLETE!\n");
+    printf("WAV file: %s\n", player->temp_wav_file);
+    printf("Duration: %.2f seconds\n", playTime);
+    printf("Test with: aplay %s\n", player->temp_wav_file);
+    printf("========================================\n");
+    
+    // Load WAV file into memory
+    FILE* wav_file = fopen(player->temp_wav_file, "rb");
+    if (!wav_file) {
+        printf("Failed to open WAV file: %s\n", player->temp_wav_file);
+        return false;
+    }
+    
+    fseek(wav_file, 0, SEEK_END);
+    long file_size = ftell(wav_file);
+    fseek(wav_file, 44, SEEK_SET); // Skip WAV header
+    
+    long data_size = file_size - 44;
+    int16_t* wav_data = malloc(data_size);
+    if (!wav_data) {
+        printf("Failed to allocate memory for WAV data\n");
+        fclose(wav_file);
+        return false;
+    }
+    
+    fread(wav_data, 1, data_size, wav_file);
+    fclose(wav_file);
+    
+    // Store in audio buffer
+    if (player->audio_buffer.data) {
+        free(player->audio_buffer.data);
+    }
+    
+    player->audio_buffer.data = wav_data;
+    player->audio_buffer.length = data_size / sizeof(int16_t);
+    player->audio_buffer.position = 0;
+    player->song_duration = playTime;
+    
+    printf("Loaded %zu samples into memory\n", player->audio_buffer.length);
     return true;
 }
 
@@ -78,13 +268,12 @@ static bool load_midi_file(MidiPlayer *player, const char *filename) {
     
     // Stop current playback
     if (player->is_playing) {
-        isPlaying = false;
         player->is_playing = false;
-        SDL_PauseAudioDevice(audioDevice, 1);
+        SDL_PauseAudioDevice(player->audio_device, 1);
     }
     
-    // Load new file
-    if (!loadMidiFile(filename)) {
+    // Convert and load
+    if (!convert_and_load_midi(player, filename)) {
         pthread_mutex_unlock(&player->state_mutex);
         return false;
     }
@@ -95,52 +284,23 @@ static bool load_midi_file(MidiPlayer *player, const char *filename) {
     player->is_paused = false;
     playTime = 0;
     
-    // Estimate song duration (this is approximate)
-    player->song_duration = 180.0; // Default 3 minutes, could be improved with MIDI analysis
-    
     pthread_mutex_unlock(&player->state_mutex);
-    
     return true;
 }
 
 // Start playback
 static void start_playback(MidiPlayer *player) {
-    if (!player->is_loaded) return;
+    if (!player->is_loaded || !player->audio_buffer.data) return;
     
     pthread_mutex_lock(&player->state_mutex);
     
-    // Initialize playback variables
-    playTime = 0;
-    isPlaying = true;
-    paused = false;
+    player->audio_buffer.position = 0;
     player->is_playing = true;
     player->is_paused = false;
+    playTime = 0;
     
-    // Reset OPL
-    OPL_Reset();
+    SDL_PauseAudioDevice(player->audio_device, 0);
     
-    // Initialize MIDI channels
-    for (int i = 0; i < 16; i++) {
-        ChPatch[i] = 0;
-        ChBend[i] = 0;
-        ChVolume[i] = 127;
-        ChPanning[i] = 64;
-        ChVibrato[i] = 0;
-    }
-    
-    // Reset track state
-    for (int tk = 0; tk < TrackCount; tk++) {
-        // Reset to beginning positions (this would need proper MIDI file reset)
-        tkDelay[tk] = 0;
-        tkStatus[tk] = 0;
-    }
-    
-    playwait = 0;
-    
-    // Start audio
-    SDL_PauseAudioDevice(audioDevice, 0);
-    
-    // Start progress updates
     if (player->update_timer_id == 0) {
         player->update_timer_id = g_timeout_add(100, update_progress, player);
     }
@@ -154,13 +314,12 @@ static void toggle_pause(MidiPlayer *player) {
     
     pthread_mutex_lock(&player->state_mutex);
     
-    paused = !paused;
-    player->is_paused = paused;
+    player->is_paused = !player->is_paused;
     
-    if (paused) {
-        SDL_PauseAudioDevice(audioDevice, 1);
+    if (player->is_paused) {
+        SDL_PauseAudioDevice(player->audio_device, 1);
     } else {
-        SDL_PauseAudioDevice(audioDevice, 0);
+        SDL_PauseAudioDevice(player->audio_device, 0);
     }
     
     pthread_mutex_unlock(&player->state_mutex);
@@ -170,16 +329,13 @@ static void toggle_pause(MidiPlayer *player) {
 static void stop_playback(MidiPlayer *player) {
     pthread_mutex_lock(&player->state_mutex);
     
-    isPlaying = false;
-    paused = false;
     player->is_playing = false;
     player->is_paused = false;
+    player->audio_buffer.position = 0;
     playTime = 0;
     
-    SDL_PauseAudioDevice(audioDevice, 1);
-    OPL_Reset();
+    SDL_PauseAudioDevice(player->audio_device, 1);
     
-    // Remove progress timer
     if (player->update_timer_id > 0) {
         g_source_remove(player->update_timer_id);
         player->update_timer_id = 0;
@@ -194,34 +350,32 @@ static void seek_to_position(MidiPlayer *player, double position) {
     
     pthread_mutex_lock(&player->state_mutex);
     
-    // This is a simplified seek - in a real implementation,
-    // you'd need to parse through the MIDI file to the correct time position
-    double target_time = position * player->song_duration;
+    size_t new_position = (size_t)(position * player->audio_buffer.length);
+    player->audio_buffer.position = new_position;
     
-    // For now, we'll just restart from the beginning if seeking backwards
-    // or continue if seeking forward (very basic implementation)
-    if (target_time < playTime) {
-        // Restart from beginning
-        playTime = 0;
-        // Reset MIDI state (simplified)
-        OPL_Reset();
-    }
+    double samples_per_second = (double)(player->audio_spec.freq * player->audio_spec.channels);
+    playTime = (double)player->audio_buffer.position / samples_per_second;
     
     pthread_mutex_unlock(&player->state_mutex);
 }
 
 // Update GUI state
 static void update_gui_state(MidiPlayer *player) {
-    // Update button sensitivity
     gtk_widget_set_sensitive(player->play_button, player->is_loaded && !player->is_playing);
-    gtk_widget_set_sensitive(player->pause_button, player->is_playing);
+    gtk_widget_set_sensitive(player->pause_button, player->is_playing && !player->is_paused);
     gtk_widget_set_sensitive(player->stop_button, player->is_playing || player->is_paused);
     
-    // Update file label
+    if (player->is_paused) {
+        gtk_button_set_label(GTK_BUTTON(player->pause_button), "Resume");
+    } else {
+        gtk_button_set_label(GTK_BUTTON(player->pause_button), "Pause");
+    }
+    
     if (player->is_loaded) {
         char *basename = g_path_get_basename(player->current_file);
-        char label_text[256];
-        snprintf(label_text, sizeof(label_text), "File: %s", basename);
+        char label_text[512];
+        snprintf(label_text, sizeof(label_text), "File: %s (%.1f sec)\nWAV: %s", 
+                 basename, player->song_duration, player->temp_wav_file);
         gtk_label_set_text(GTK_LABEL(player->file_label), label_text);
         g_free(basename);
     } else {
@@ -236,11 +390,12 @@ static gboolean update_progress(gpointer user_data) {
     pthread_mutex_lock(&player->state_mutex);
     
     if (!player->is_playing) {
+        update_gui_state(player);
         pthread_mutex_unlock(&player->state_mutex);
-        return FALSE; // Remove timer
+        player->update_timer_id = 0;
+        return FALSE;
     }
     
-    // Update progress bar
     double progress = 0.0;
     if (player->song_duration > 0) {
         progress = playTime / player->song_duration;
@@ -248,7 +403,6 @@ static gboolean update_progress(gpointer user_data) {
     }
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), progress);
     
-    // Update time label
     int minutes = (int)(playTime / 60);
     int seconds = (int)playTime % 60;
     int total_minutes = (int)(player->song_duration / 60);
@@ -259,43 +413,36 @@ static gboolean update_progress(gpointer user_data) {
              minutes, seconds, total_minutes, total_seconds);
     gtk_label_set_text(GTK_LABEL(player->time_label), time_text);
     
-    // Check if song ended
-    if (!isPlaying) {
-        player->is_playing = false;
-        player->is_paused = false;
-        update_gui_state(player);
-        pthread_mutex_unlock(&player->state_mutex);
-        return FALSE; // Remove timer
-    }
+    update_gui_state(player);
     
     pthread_mutex_unlock(&player->state_mutex);
-    return TRUE; // Continue timer
+    return TRUE;
 }
 
-// Button callback functions
+// Button callbacks
 static void on_play_clicked(GtkButton *button, gpointer user_data) {
-    (void)button; // Suppress unused parameter warning
+    (void)button;
     MidiPlayer *player = (MidiPlayer*)user_data;
     start_playback(player);
     update_gui_state(player);
 }
 
 static void on_pause_clicked(GtkButton *button, gpointer user_data) {
-    (void)button; // Suppress unused parameter warning
+    (void)button;
     MidiPlayer *player = (MidiPlayer*)user_data;
     toggle_pause(player);
     update_gui_state(player);
 }
 
 static void on_stop_clicked(GtkButton *button, gpointer user_data) {
-    (void)button; // Suppress unused parameter warning
+    (void)button;
     MidiPlayer *player = (MidiPlayer*)user_data;
     stop_playback(player);
     update_gui_state(player);
 }
 
 static void on_open_clicked(GtkButton *button, gpointer user_data) {
-    (void)button; // Suppress unused parameter warning
+    (void)button;
     MidiPlayer *player = (MidiPlayer*)user_data;
     
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Open MIDI File",
@@ -305,7 +452,6 @@ static void on_open_clicked(GtkButton *button, gpointer user_data) {
                                                     "_Open", GTK_RESPONSE_ACCEPT,
                                                     NULL);
     
-    // Add MIDI file filter
     GtkFileFilter *filter = gtk_file_filter_new();
     gtk_file_filter_set_name(filter, "MIDI Files");
     gtk_file_filter_add_pattern(filter, "*.mid");
@@ -317,18 +463,31 @@ static void on_open_clicked(GtkButton *button, gpointer user_data) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         
+        GtkWidget *loading_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
+                                                          GTK_DIALOG_MODAL,
+                                                          GTK_MESSAGE_INFO,
+                                                          GTK_BUTTONS_NONE,
+                                                          "Converting MIDI file to WAV...\nCheck console for progress.");
+        gtk_widget_show_all(loading_dialog);
+        
+        while (gtk_events_pending()) {
+            gtk_main_iteration();
+        }
+        
         if (load_midi_file(player, filename)) {
-            g_print("Loaded: %s\n", filename);
+            printf("Successfully loaded and converted: %s\n", filename);
         } else {
+            gtk_widget_destroy(loading_dialog);
             GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
                                                              GTK_DIALOG_DESTROY_WITH_PARENT,
                                                              GTK_MESSAGE_ERROR,
                                                              GTK_BUTTONS_CLOSE,
-                                                             "Failed to load MIDI file:\n%s", filename);
+                                                             "Failed to convert MIDI file:\n%s", filename);
             gtk_dialog_run(GTK_DIALOG(error_dialog));
             gtk_widget_destroy(error_dialog);
         }
         
+        gtk_widget_destroy(loading_dialog);
         g_free(filename);
         update_gui_state(player);
     }
@@ -337,7 +496,7 @@ static void on_open_clicked(GtkButton *button, gpointer user_data) {
 }
 
 static void on_volume_changed(GtkRange *range, gpointer user_data) {
-    (void)user_data; // Suppress unused parameter warning
+    (void)user_data;
     double value = gtk_range_get_value(range);
     globalVolume = (int)(value * 100);
 }
@@ -354,47 +513,45 @@ static void on_progress_seek(GtkWidget *widget, GdkEventButton *event, gpointer 
     seek_to_position(player, position);
 }
 
-// Window destroy callback
 static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
-    (void)widget; // Suppress unused parameter warning
+    (void)widget;
     MidiPlayer *player = (MidiPlayer*)user_data;
     
-    // Stop playback
     stop_playback(player);
     
-    // Cleanup
-    cleanup();
+    if (player->audio_buffer.data) {
+        free(player->audio_buffer.data);
+    }
     
+    if (player->audio_device) {
+        SDL_CloseAudioDevice(player->audio_device);
+    }
+    
+    SDL_Quit();
     gtk_main_quit();
 }
 
-// Create the main window
 static GtkWidget* create_main_window(MidiPlayer *player) {
-    // Main window
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "GTK MIDI Player");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 600, 200);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 600, 250);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
-    // Main vertical box
     GtkWidget *main_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_add(GTK_CONTAINER(player->window), main_vbox);
     
-    // File info
     player->file_label = gtk_label_new("No file loaded");
+    gtk_label_set_justify(GTK_LABEL(player->file_label), GTK_JUSTIFY_LEFT);
     gtk_box_pack_start(GTK_BOX(main_vbox), player->file_label, FALSE, FALSE, 0);
     
-    // Progress bar
     player->progress_bar = gtk_progress_bar_new();
     gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(player->progress_bar), FALSE);
     g_signal_connect(player->progress_bar, "button-press-event", G_CALLBACK(on_progress_seek), player);
     gtk_box_pack_start(GTK_BOX(main_vbox), player->progress_bar, FALSE, FALSE, 0);
     
-    // Time label
     player->time_label = gtk_label_new("00:00 / 00:00");
     gtk_box_pack_start(GTK_BOX(main_vbox), player->time_label, FALSE, FALSE, 0);
     
-    // Control buttons
     GtkWidget *button_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_set_homogeneous(GTK_BOX(button_hbox), TRUE);
     gtk_box_pack_start(GTK_BOX(main_vbox), button_hbox, FALSE, FALSE, 0);
@@ -409,19 +566,17 @@ static GtkWidget* create_main_window(MidiPlayer *player) {
     gtk_box_pack_start(GTK_BOX(button_hbox), player->pause_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_hbox), player->stop_button, TRUE, TRUE, 0);
     
-    // Volume control
     GtkWidget *volume_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(main_vbox), volume_hbox, FALSE, FALSE, 0);
     
     GtkWidget *volume_label = gtk_label_new("Volume:");
-    player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 3.0, 0.1);
-    gtk_range_set_value(GTK_RANGE(player->volume_scale), 1.0);
+    player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 5.0, 0.1);
+    gtk_range_set_value(GTK_RANGE(player->volume_scale), (double)globalVolume / 100.0);
     gtk_scale_set_value_pos(GTK_SCALE(player->volume_scale), GTK_POS_RIGHT);
     
     gtk_box_pack_start(GTK_BOX(volume_hbox), volume_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(volume_hbox), player->volume_scale, TRUE, TRUE, 0);
     
-    // Connect signals
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
     g_signal_connect(player->open_button, "clicked", G_CALLBACK(on_open_clicked), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
@@ -432,40 +587,31 @@ static GtkWidget* create_main_window(MidiPlayer *player) {
     return player->window;
 }
 
-// Main function
 int main(int argc, char *argv[]) {
-    // Initialize GTK
     gtk_init(&argc, &argv);
     
-    // Create player structure
     player = g_malloc0(sizeof(MidiPlayer));
     pthread_mutex_init(&player->state_mutex, NULL);
     
-    // Initialize MIDI player
     if (!init_midi_player(player)) {
-        g_print("Failed to initialize MIDI player\n");
+        printf("Failed to initialize MIDI player\n");
         return 1;
     }
     
-    // Create GUI
     create_main_window(player);
     update_gui_state(player);
     
-    // Show window
     gtk_widget_show_all(player->window);
     
-    // Load file from command line if provided
     if (argc > 1) {
         if (load_midi_file(player, argv[1])) {
-            g_print("Loaded: %s\n", argv[1]);
+            printf("Loaded: %s\n", argv[1]);
             update_gui_state(player);
         }
     }
     
-    // Run main loop
     gtk_main();
     
-    // Cleanup
     pthread_mutex_destroy(&player->state_mutex);
     g_free(player);
     
