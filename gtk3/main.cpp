@@ -13,6 +13,7 @@
 #include "dbopl_wrapper.h"
 #include "wav_converter.h"
 #include "audioconverter.h"
+#include "convertoggtowav.h"
 
 typedef struct {
     int16_t *data;
@@ -21,21 +22,40 @@ typedef struct {
 } AudioBuffer;
 
 typedef struct {
+    char **files;           // Array of file paths
+    int count;              // Number of files in queue
+    int capacity;           // Allocated capacity
+    int current_index;      // Currently playing file index
+    bool repeat_queue;      // Whether to repeat the entire queue
+} PlayQueue;
+
+typedef struct {
     GtkWidget *window;
     GtkWidget *play_button;
     GtkWidget *pause_button;
     GtkWidget *stop_button;
     GtkWidget *rewind_button;
     GtkWidget *fast_forward_button;
-    GtkWidget *progress_scale;  // Changed from progress_bar to scale
+    GtkWidget *progress_scale;
     GtkWidget *time_label;
     GtkWidget *volume_scale;
     GtkWidget *file_label;
     
+    // Queue widgets
+    GtkWidget *queue_scrolled_window;
+    GtkWidget *queue_listbox;
+    GtkWidget *add_to_queue_button;
+    GtkWidget *clear_queue_button;
+    GtkWidget *repeat_queue_button;
+    GtkWidget *next_button;
+    GtkWidget *prev_button;
+    
+    PlayQueue queue;
+    
     bool is_loaded;
     bool is_playing;
     bool is_paused;
-    bool seeking; // Flag to prevent feedback during seek
+    bool seeking;
     char current_file[512];
     char temp_wav_file[512];
     double song_duration;
@@ -60,6 +80,125 @@ extern void processEvents(void);
 extern double playwait;
 
 AudioPlayer *player = NULL;
+
+// Forward declarations
+static void start_playback(AudioPlayer *player);
+static void update_gui_state(AudioPlayer *player);
+
+// Queue management functions
+static void init_queue(PlayQueue *queue) {
+    queue->files = NULL;
+    queue->count = 0;
+    queue->capacity = 0;
+    queue->current_index = -1;
+    queue->repeat_queue = true;
+}
+
+static void clear_queue(PlayQueue *queue) {
+    for (int i = 0; i < queue->count; i++) {
+        g_free(queue->files[i]);
+    }
+    g_free(queue->files);
+    queue->files = NULL;
+    queue->count = 0;
+    queue->capacity = 0;
+    queue->current_index = -1;
+}
+
+static bool add_to_queue(PlayQueue *queue, const char *filename) {
+    if (queue->count >= queue->capacity) {
+        int new_capacity = queue->capacity == 0 ? 10 : queue->capacity * 2;
+        char **new_files = g_realloc(queue->files, new_capacity * sizeof(char*));
+        if (!new_files) return false;
+        
+        queue->files = new_files;
+        queue->capacity = new_capacity;
+    }
+    
+    queue->files[queue->count] = g_strdup(filename);
+    queue->count++;
+    
+    if (queue->current_index == -1) {
+        queue->current_index = 0;
+    }
+    
+    return true;
+}
+
+static const char* get_current_queue_file(PlayQueue *queue) {
+    if (queue->count == 0 || queue->current_index < 0 || queue->current_index >= queue->count) {
+        return NULL;
+    }
+    return queue->files[queue->current_index];
+}
+
+static bool advance_queue(PlayQueue *queue) {
+    if (queue->count == 0) return false;
+    
+    queue->current_index++;
+    
+    if (queue->current_index >= queue->count) {
+        if (queue->repeat_queue) {
+            queue->current_index = 0;
+            return true;
+        } else {
+            queue->current_index = queue->count - 1;
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+static bool previous_queue(PlayQueue *queue) {
+    if (queue->count == 0) return false;
+    
+    queue->current_index--;
+    
+    if (queue->current_index < 0) {
+        if (queue->repeat_queue) {
+            queue->current_index = queue->count - 1;
+            return true;
+        } else {
+            queue->current_index = 0;
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+static void update_queue_display(AudioPlayer *player) {
+    // Clear existing items
+    GList *children = gtk_container_get_children(GTK_CONTAINER(player->queue_listbox));
+    for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
+        gtk_widget_destroy(GTK_WIDGET(iter->data));
+    }
+    g_list_free(children);
+    
+    // Add queue items
+    for (int i = 0; i < player->queue.count; i++) {
+        char *basename = g_path_get_basename(player->queue.files[i]);
+        
+        GtkWidget *row = gtk_list_box_row_new();
+        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+        gtk_container_add(GTK_CONTAINER(row), box);
+        
+        // Current playing indicator
+        const char *indicator = (i == player->queue.current_index) ? "▶ " : "  ";
+        GtkWidget *indicator_label = gtk_label_new(indicator);
+        gtk_box_pack_start(GTK_BOX(box), indicator_label, FALSE, FALSE, 0);
+        
+        GtkWidget *filename_label = gtk_label_new(basename);
+        gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
+        
+        gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
+        
+        g_free(basename);
+    }
+    
+    gtk_widget_show_all(player->queue_listbox);
+}
 
 void audio_callback(void* userdata, Uint8* stream, int len) {
     AudioPlayer* player = (AudioPlayer*)userdata;
@@ -257,6 +396,18 @@ static bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
     return true;
 }
 
+static bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
+    char *basename = g_path_get_basename(filename);
+    char *dot = strrchr(basename, '.');
+    if (dot) *dot = '\0';
+    snprintf(player->temp_wav_file, sizeof(player->temp_wav_file), "/tmp/%s_converted.wav", basename);
+    g_free(basename);
+    
+    printf("Converting OGG: %s -> %s\n", filename, player->temp_wav_file);
+    
+    return convertOggToWav(filename, player->temp_wav_file);
+}
+
 static bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     FILE* wav_file = fopen(wav_path, "rb");
     if (!wav_file) {
@@ -357,20 +508,23 @@ static bool load_file(AudioPlayer *player, const char *filename) {
     bool success = false;
     
     if (strcmp(ext_lower, ".wav") == 0) {
-        // Load WAV file directly
         printf("Loading WAV file: %s\n", filename);
         success = load_wav_file(player, filename);
     } else if (strcmp(ext_lower, ".mid") == 0 || strcmp(ext_lower, ".midi") == 0) {
-        // Convert MIDI to WAV, then load the converted WAV
         printf("Loading MIDI file: %s\n", filename);
         if (convert_midi_to_wav(player, filename)) {
             printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
             success = load_wav_file(player, player->temp_wav_file);
         }
     } else if (strcmp(ext_lower, ".mp3") == 0) {
-        // Convert MP3 to WAV, then load the converted WAV
         printf("Loading MP3 file: %s\n", filename);
         if (convert_mp3_to_wav(player, filename)) {
+            printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
+            success = load_wav_file(player, player->temp_wav_file);
+        }
+    } else if (strcmp(ext_lower, ".ogg") == 0) {
+        printf("Loading OGG file: %s\n", filename);
+        if (convert_ogg_to_wav(player, filename)) {
             printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
             success = load_wav_file(player, player->temp_wav_file);
         }
@@ -394,6 +548,13 @@ static bool load_file(AudioPlayer *player, const char *filename) {
     }
     
     return success;
+}
+
+static bool load_file_from_queue(AudioPlayer *player) {
+    const char *filename = get_current_queue_file(&player->queue);
+    if (!filename) return false;
+    
+    return load_file(player, filename);
 }
 
 static void seek_to_position(AudioPlayer *player, double position_seconds) {
@@ -422,6 +583,19 @@ static void seek_to_position(AudioPlayer *player, double position_seconds) {
     pthread_mutex_unlock(&player->audio_mutex);
 }
 
+static void check_and_advance_queue(AudioPlayer *player) {
+    if (player->queue.count > 0 && !player->is_playing) {
+        if (advance_queue(&player->queue)) {
+            printf("Auto-advancing to next song in queue\n");
+            if (load_file_from_queue(player)) {
+                update_queue_display(player);
+                start_playback(player);
+                update_gui_state(player);
+            }
+        }
+    }
+}
+
 static void start_playback(AudioPlayer *player) {
     if (!player->is_loaded || !player->audio_buffer.data) {
         printf("Cannot start playback - no audio data loaded\n");
@@ -447,8 +621,14 @@ static void start_playback(AudioPlayer *player) {
             AudioPlayer *p = (AudioPlayer*)data;
             
             pthread_mutex_lock(&p->audio_mutex);
+            bool was_playing = p->is_playing;
+            
             if (!p->is_playing) {
                 pthread_mutex_unlock(&p->audio_mutex);
+                // Check if we should advance to next song
+                if (was_playing) {
+                    check_and_advance_queue(p);
+                }
                 p->update_timer_id = 0;
                 return FALSE;
             }
@@ -541,6 +721,34 @@ static void fast_forward_5_seconds(AudioPlayer *player) {
     printf("Fast forwarded 5 seconds to %.2f\n", new_time);
 }
 
+static void next_song(AudioPlayer *player) {
+    if (player->queue.count <= 1) return;
+    
+    stop_playback(player);
+    
+    if (advance_queue(&player->queue)) {
+        if (load_file_from_queue(player)) {
+            update_queue_display(player);
+            update_gui_state(player);
+            start_playback(player);
+        }
+    }
+}
+
+static void previous_song(AudioPlayer *player) {
+    if (player->queue.count <= 1) return;
+    
+    stop_playback(player);
+    
+    if (previous_queue(&player->queue)) {
+        if (load_file_from_queue(player)) {
+            update_queue_display(player);
+            update_gui_state(player);
+            start_playback(player);
+        }
+    }
+}
+
 static void update_gui_state(AudioPlayer *player) {
     gtk_widget_set_sensitive(player->play_button, player->is_loaded && !player->is_playing);
     gtk_widget_set_sensitive(player->pause_button, player->is_playing);
@@ -548,11 +756,14 @@ static void update_gui_state(AudioPlayer *player) {
     gtk_widget_set_sensitive(player->rewind_button, player->is_loaded);
     gtk_widget_set_sensitive(player->fast_forward_button, player->is_loaded);
     gtk_widget_set_sensitive(player->progress_scale, player->is_loaded);
+    gtk_widget_set_sensitive(player->next_button, player->queue.count > 1);
+    gtk_widget_set_sensitive(player->prev_button, player->queue.count > 1);
     
     if (player->is_loaded) {
         char *basename = g_path_get_basename(player->current_file);
         char label_text[512];
-        snprintf(label_text, sizeof(label_text), "File: %s (%.1f sec)", basename, player->song_duration);
+        snprintf(label_text, sizeof(label_text), "File: %s (%.1f sec) [%d/%d]", 
+                basename, player->song_duration, player->queue.current_index + 1, player->queue.count);
         gtk_label_set_text(GTK_LABEL(player->file_label), label_text);
         g_free(basename);
     } else {
@@ -582,27 +793,30 @@ static void on_progress_scale_value_changed(GtkRange *range, gpointer user_data)
         p->seeking = false;
         return FALSE; // Don't repeat
     }, player);
-    
 }
 
-// Menu callbacks
-static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
+// Queue button callbacks
+static void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    GtkWidget *dialog = gtk_file_chooser_dialog_new("Open Audio File",
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Add to Queue",
                                                     GTK_WINDOW(player->window),
                                                     GTK_FILE_CHOOSER_ACTION_OPEN,
                                                     "_Cancel", GTK_RESPONSE_CANCEL,
-                                                    "_Open", GTK_RESPONSE_ACCEPT,
+                                                    "_Add", GTK_RESPONSE_ACCEPT,
                                                     NULL);
     
-    // File filters
+    gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(dialog), TRUE);
+    
+    // Add file filters
     GtkFileFilter *all_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(all_filter, "All Supported Files");
     gtk_file_filter_add_pattern(all_filter, "*.mid");
     gtk_file_filter_add_pattern(all_filter, "*.midi");
     gtk_file_filter_add_pattern(all_filter, "*.wav");
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
+    gtk_file_filter_add_pattern(all_filter, "*.ogg");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -621,11 +835,109 @@ static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_add_pattern(mp3_filter, "*.mp3");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), mp3_filter);
     
+    GtkFileFilter *ogg_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(ogg_filter, "OGG Files (*.ogg)");
+    gtk_file_filter_add_pattern(ogg_filter, "*.ogg");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), ogg_filter);
+    
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        GSList *filenames = gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(dialog));
+        
+        for (GSList *iter = filenames; iter != NULL; iter = g_slist_next(iter)) {
+            char *filename = (char*)iter->data;
+            add_to_queue(&player->queue, filename);
+            g_free(filename);
+        }
+        
+        g_slist_free(filenames);
+        
+        // If this is the first file, load it
+        if (player->queue.count == 1) {
+            if (load_file_from_queue(player)) {
+                update_gui_state(player);
+            }
+        }
+        
+        update_queue_display(player);
+        update_gui_state(player);
+    }
+    
+    gtk_widget_destroy(dialog);
+}
+
+static void on_clear_queue_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    stop_playback(player);
+    clear_queue(&player->queue);
+    update_queue_display(player);
+    update_gui_state(player);
+    player->is_loaded = false;
+    
+    gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+}
+
+static void on_repeat_queue_toggled(GtkToggleButton *button, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    player->queue.repeat_queue = gtk_toggle_button_get_active(button);
+    
+    printf("Queue repeat: %s\n", player->queue.repeat_queue ? "ON" : "OFF");
+}
+
+// Menu callbacks
+static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Open Audio File",
+                                                    GTK_WINDOW(player->window),
+                                                    GTK_FILE_CHOOSER_ACTION_OPEN,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Open", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    
+    // File filters
+    GtkFileFilter *all_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(all_filter, "All Supported Files");
+    gtk_file_filter_add_pattern(all_filter, "*.mid");
+    gtk_file_filter_add_pattern(all_filter, "*.midi");
+    gtk_file_filter_add_pattern(all_filter, "*.wav");
+    gtk_file_filter_add_pattern(all_filter, "*.mp3");
+    gtk_file_filter_add_pattern(all_filter, "*.ogg");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
+    
+    GtkFileFilter *midi_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(midi_filter, "MIDI Files (*.mid, *.midi)");
+    gtk_file_filter_add_pattern(midi_filter, "*.mid");
+    gtk_file_filter_add_pattern(midi_filter, "*.midi");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), midi_filter);
+    
+    GtkFileFilter *wav_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(wav_filter, "WAV Files (*.wav)");
+    gtk_file_filter_add_pattern(wav_filter, "*.wav");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wav_filter);
+    
+    GtkFileFilter *mp3_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(mp3_filter, "MP3 Files (*.mp3)");
+    gtk_file_filter_add_pattern(mp3_filter, "*.mp3");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), mp3_filter);
+    
+    GtkFileFilter *ogg_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(ogg_filter, "OGG Files (*.ogg)");
+    gtk_file_filter_add_pattern(ogg_filter, "*.ogg");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), ogg_filter);
+    
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         
-        if (load_file(player, filename)) {
+        // Clear queue and add this single file
+        clear_queue(&player->queue);
+        add_to_queue(&player->queue, filename);
+        
+        if (load_file_from_queue(player)) {
             printf("Successfully loaded: %s\n", filename);
+            update_queue_display(player);
             update_gui_state(player);
         } else {
             GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
@@ -644,54 +956,75 @@ static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
 }
 
 static void on_menu_quit(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    (void)user_data;
     gtk_main_quit();
 }
 
 static void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
     GtkWidget *about_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
                                                      GTK_DIALOG_DESTROY_WITH_PARENT,
                                                      GTK_MESSAGE_INFO,
                                                      GTK_BUTTONS_CLOSE,
-                                                     "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), and MP3 (.mp3) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 files are decoded using SDL2_mixer.\n\nDrag the progress slider to seek.\nUse << and >> buttons for 5-second rewind/fast-forward.");
+                                                     "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), MP3 (.mp3), and OGG (.ogg) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 and OGG files are decoded and converted to WAV.\n\nFeatures:\n- Playlist queue with repeat\n- Drag the progress slider to seek\n- Use << and >> buttons for 5-second rewind/fast-forward\n- Use |< and >| buttons for previous/next song");
     gtk_dialog_run(GTK_DIALOG(about_dialog));
     gtk_widget_destroy(about_dialog);
 }
 
 // Button callbacks
 static void on_play_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     start_playback((AudioPlayer*)user_data);
     update_gui_state((AudioPlayer*)user_data);
 }
 
 static void on_pause_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     toggle_pause((AudioPlayer*)user_data);
     update_gui_state((AudioPlayer*)user_data);
 }
 
 static void on_stop_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     stop_playback((AudioPlayer*)user_data);
     update_gui_state((AudioPlayer*)user_data);
 }
 
 static void on_rewind_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     rewind_5_seconds((AudioPlayer*)user_data);
 }
 
 static void on_fast_forward_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
     fast_forward_5_seconds((AudioPlayer*)user_data);
 }
 
+static void on_next_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
+    next_song((AudioPlayer*)user_data);
+}
+
+static void on_previous_clicked(GtkButton *button, gpointer user_data) {
+    (void)button;
+    previous_song((AudioPlayer*)user_data);
+}
+
 static void on_volume_changed(GtkRange *range, gpointer user_data) {
+    (void)user_data;
     double value = gtk_range_get_value(range);
     globalVolume = (int)(value * 100);
 }
 
 static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
     stop_playback(player);
+    clear_queue(&player->queue);
     
     if (player->audio_buffer.data) free(player->audio_buffer.data);
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
@@ -703,12 +1036,17 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 static void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "GTK Music Player");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 600, 250);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 800, 600);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
-    // Main vbox
-    GtkWidget *main_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    gtk_container_add(GTK_CONTAINER(player->window), main_vbox);
+    // Main hbox to split player controls and queue
+    GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_container_add(GTK_CONTAINER(player->window), main_hbox);
+    
+    // Player controls vbox (left side)
+    GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_widget_set_size_request(player_vbox, 400, -1);
+    gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);
     
     // Menu bar
     GtkWidget *menubar = gtk_menu_bar_new();
@@ -739,17 +1077,17 @@ static void create_main_window(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
     g_signal_connect(about_item, "activate", G_CALLBACK(on_menu_about), player);
     
-    gtk_box_pack_start(GTK_BOX(main_vbox), menubar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(player_vbox), menubar, FALSE, FALSE, 0);
     
     // Content area
     GtkWidget *content_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(content_vbox), 10);
-    gtk_box_pack_start(GTK_BOX(main_vbox), content_vbox, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(player_vbox), content_vbox, TRUE, TRUE, 0);
     
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
-    // Progress scale (replaces progress bar for seeking functionality)
+    // Progress scale
     player->progress_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 0.1);
     gtk_scale_set_draw_value(GTK_SCALE(player->progress_scale), FALSE);
     gtk_widget_set_sensitive(player->progress_scale, FALSE);
@@ -759,22 +1097,26 @@ static void create_main_window(AudioPlayer *player) {
     player->time_label = gtk_label_new("00:00 / 00:00");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->time_label, FALSE, FALSE, 0);
     
-    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_set_homogeneous(GTK_BOX(button_box), TRUE);
-    gtk_box_pack_start(GTK_BOX(content_vbox), button_box, FALSE, FALSE, 0);
+    // Navigation buttons
+    GtkWidget *nav_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_box_set_homogeneous(GTK_BOX(nav_button_box), TRUE);
+    gtk_box_pack_start(GTK_BOX(content_vbox), nav_button_box, FALSE, FALSE, 0);
     
-    // Control buttons with rewind and fast forward
-    player->rewind_button = gtk_button_new_with_label("⏪ 5s");
+    player->prev_button = gtk_button_new_with_label("|◀");
+    player->rewind_button = gtk_button_new_with_label("◀◀ 5s");
     player->play_button = gtk_button_new_with_label("▶");
     player->pause_button = gtk_button_new_with_label("⏸");
     player->stop_button = gtk_button_new_with_label("⏹");
-    player->fast_forward_button = gtk_button_new_with_label("5s ⏩");
+    player->fast_forward_button = gtk_button_new_with_label("5s ▶▶");
+    player->next_button = gtk_button_new_with_label("▶|");
     
-    gtk_box_pack_start(GTK_BOX(button_box), player->rewind_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(button_box), player->play_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(button_box), player->pause_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(button_box), player->stop_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(button_box), player->fast_forward_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->prev_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->rewind_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->play_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->pause_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->stop_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->fast_forward_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(nav_button_box), player->next_button, TRUE, TRUE, 0);
     
     GtkWidget *volume_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(content_vbox), volume_box, FALSE, FALSE, 0);
@@ -786,6 +1128,36 @@ static void create_main_window(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(volume_box), volume_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(volume_box), player->volume_scale, TRUE, TRUE, 0);
     
+    // Queue control buttons
+    GtkWidget *queue_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_box_pack_start(GTK_BOX(content_vbox), queue_button_box, FALSE, FALSE, 0);
+    
+    player->add_to_queue_button = gtk_button_new_with_label("Add to Queue");
+    player->clear_queue_button = gtk_button_new_with_label("Clear Queue");
+    player->repeat_queue_button = gtk_check_button_new_with_label("Repeat Queue");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
+    
+    gtk_box_pack_start(GTK_BOX(queue_button_box), player->add_to_queue_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(queue_button_box), player->clear_queue_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
+    
+    // Queue display (right side)
+    GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_box_pack_start(GTK_BOX(main_hbox), queue_vbox, TRUE, TRUE, 0);
+    
+    GtkWidget *queue_label = gtk_label_new("Queue:");
+    gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(queue_vbox), queue_label, FALSE, FALSE, 0);
+    
+    player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_size_request(player->queue_scrolled_window, 300, 400);
+    
+    player->queue_listbox = gtk_list_box_new();
+    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
+    gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
+    
     // Connect signals
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
@@ -793,7 +1165,12 @@ static void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->stop_button, "clicked", G_CALLBACK(on_stop_clicked), player);
     g_signal_connect(player->rewind_button, "clicked", G_CALLBACK(on_rewind_clicked), player);
     g_signal_connect(player->fast_forward_button, "clicked", G_CALLBACK(on_fast_forward_clicked), player);
+    g_signal_connect(player->next_button, "clicked", G_CALLBACK(on_next_clicked), player);
+    g_signal_connect(player->prev_button, "clicked", G_CALLBACK(on_previous_clicked), player);
     g_signal_connect(player->volume_scale, "value-changed", G_CALLBACK(on_volume_changed), player);
+    g_signal_connect(player->add_to_queue_button, "clicked", G_CALLBACK(on_add_to_queue_clicked), player);
+    g_signal_connect(player->clear_queue_button, "clicked", G_CALLBACK(on_clear_queue_clicked), player);
+    g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
 }
 
 int main(int argc, char *argv[]) {
@@ -801,6 +1178,9 @@ int main(int argc, char *argv[]) {
     
     player = (AudioPlayer*)g_malloc0(sizeof(AudioPlayer));
     pthread_mutex_init(&player->audio_mutex, NULL);
+    
+    // Initialize queue
+    init_queue(&player->queue);
     
     if (!init_audio(player)) {
         printf("Audio initialization failed\n");
@@ -816,14 +1196,21 @@ int main(int argc, char *argv[]) {
     gtk_widget_show_all(player->window);
     
     if (argc > 1) {
-        if (load_file(player, argv[1])) {
+        // Add all command line arguments to queue
+        for (int i = 1; i < argc; i++) {
+            add_to_queue(&player->queue, argv[i]);
+        }
+        
+        if (load_file_from_queue(player)) {
             printf("Loaded: %s\n", argv[1]);
+            update_queue_display(player);
             update_gui_state(player);
         }
     }
     
     gtk_main();
     
+    clear_queue(&player->queue);
     pthread_mutex_destroy(&player->audio_mutex);
     g_free(player);
     return 0;
