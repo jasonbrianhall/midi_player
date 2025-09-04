@@ -23,7 +23,6 @@ typedef struct {
     GtkWidget *play_button;
     GtkWidget *pause_button;
     GtkWidget *stop_button;
-    GtkWidget *open_button;
     GtkWidget *progress_bar;
     GtkWidget *time_label;
     GtkWidget *volume_scale;
@@ -177,7 +176,6 @@ static bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
     cleanup();
     
     printf("Conversion complete: %.2f seconds\n", playTime);
-    player->song_duration = playTime;
     return true;
 }
 
@@ -282,11 +280,13 @@ static bool load_file(AudioPlayer *player, const char *filename) {
     
     if (strcmp(ext_lower, ".wav") == 0) {
         // Load WAV file directly
-        strcpy(player->temp_wav_file, filename);
+        printf("Loading WAV file: %s\n", filename);
         success = load_wav_file(player, filename);
     } else if (strcmp(ext_lower, ".mid") == 0 || strcmp(ext_lower, ".midi") == 0) {
-        // Convert MIDI to WAV then load
+        // Convert MIDI to WAV, then load the converted WAV
+        printf("Loading MIDI file: %s\n", filename);
         if (convert_midi_to_wav(player, filename)) {
+            printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
             success = load_wav_file(player, player->temp_wav_file);
         }
     } else {
@@ -300,15 +300,19 @@ static bool load_file(AudioPlayer *player, const char *filename) {
         player->is_playing = false;
         player->is_paused = false;
         playTime = 0;
+        printf("File successfully loaded and ready for playback\n");
     }
     
     return success;
 }
 
 static void start_playback(AudioPlayer *player) {
-    if (!player->is_loaded || !player->audio_buffer.data) return;
+    if (!player->is_loaded || !player->audio_buffer.data) {
+        printf("Cannot start playback - no audio data loaded\n");
+        return;
+    }
     
-    printf("Starting playback\n");
+    printf("Starting WAV playback\n");
     
     pthread_mutex_lock(&player->audio_mutex);
     if (player->audio_buffer.position >= player->audio_buffer.length) {
@@ -390,6 +394,7 @@ static void stop_playback(AudioPlayer *player) {
     
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), 0.0);
     gtk_label_set_text(GTK_LABEL(player->time_label), "00:00 / 00:00");
+    gtk_button_set_label(GTK_BUTTON(player->pause_button), "Pause");
 }
 
 static void update_gui_state(AudioPlayer *player) {
@@ -408,23 +413,8 @@ static void update_gui_state(AudioPlayer *player) {
     }
 }
 
-// Button callbacks
-static void on_play_clicked(GtkButton *button, gpointer user_data) {
-    start_playback((AudioPlayer*)user_data);
-    update_gui_state((AudioPlayer*)user_data);
-}
-
-static void on_pause_clicked(GtkButton *button, gpointer user_data) {
-    toggle_pause((AudioPlayer*)user_data);
-    update_gui_state((AudioPlayer*)user_data);
-}
-
-static void on_stop_clicked(GtkButton *button, gpointer user_data) {
-    stop_playback((AudioPlayer*)user_data);
-    update_gui_state((AudioPlayer*)user_data);
-}
-
-static void on_open_clicked(GtkButton *button, gpointer user_data) {
+// Menu callbacks
+static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Open Audio File",
@@ -443,13 +433,13 @@ static void on_open_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(midi_filter, "MIDI Files");
+    gtk_file_filter_set_name(midi_filter, "MIDI Files (*.mid, *.midi)");
     gtk_file_filter_add_pattern(midi_filter, "*.mid");
     gtk_file_filter_add_pattern(midi_filter, "*.midi");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), midi_filter);
     
     GtkFileFilter *wav_filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(wav_filter, "WAV Files");
+    gtk_file_filter_set_name(wav_filter, "WAV Files (*.wav)");
     gtk_file_filter_add_pattern(wav_filter, "*.wav");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wav_filter);
     
@@ -475,6 +465,38 @@ static void on_open_clicked(GtkButton *button, gpointer user_data) {
     gtk_widget_destroy(dialog);
 }
 
+static void on_menu_quit(GtkMenuItem *menuitem, gpointer user_data) {
+    gtk_main_quit();
+}
+
+static void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkWidget *about_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
+                                                     GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                     GTK_MESSAGE_INFO,
+                                                     GTK_BUTTONS_CLOSE,
+                                                     "Audio Player\n\nSupports MIDI (.mid, .midi) and WAV (.wav) files.\nMIDI files are converted to WAV using OPL3 synthesis.");
+    gtk_dialog_run(GTK_DIALOG(about_dialog));
+    gtk_widget_destroy(about_dialog);
+}
+
+// Button callbacks
+static void on_play_clicked(GtkButton *button, gpointer user_data) {
+    start_playback((AudioPlayer*)user_data);
+    update_gui_state((AudioPlayer*)user_data);
+}
+
+static void on_pause_clicked(GtkButton *button, gpointer user_data) {
+    toggle_pause((AudioPlayer*)user_data);
+    update_gui_state((AudioPlayer*)user_data);
+}
+
+static void on_stop_clicked(GtkButton *button, gpointer user_data) {
+    stop_playback((AudioPlayer*)user_data);
+    update_gui_state((AudioPlayer*)user_data);
+}
+
 static void on_volume_changed(GtkRange *range, gpointer user_data) {
     double value = gtk_range_get_value(range);
     globalVolume = (int)(value * 100);
@@ -495,37 +517,72 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 static void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "Audio Player");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 500, 200);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 500, 250);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_add(GTK_CONTAINER(player->window), vbox);
+    // Main vbox
+    GtkWidget *main_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_container_add(GTK_CONTAINER(player->window), main_vbox);
+    
+    // Menu bar
+    GtkWidget *menubar = gtk_menu_bar_new();
+    
+    // File menu
+    GtkWidget *file_menu = gtk_menu_new();
+    GtkWidget *file_item = gtk_menu_item_new_with_label("File");
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(file_item), file_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menubar), file_item);
+    
+    GtkWidget *open_item = gtk_menu_item_new_with_label("Open...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), open_item);
+    g_signal_connect(open_item, "activate", G_CALLBACK(on_menu_open), player);
+    
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), gtk_separator_menu_item_new());
+    
+    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
+    g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
+    
+    // Help menu
+    GtkWidget *help_menu = gtk_menu_new();
+    GtkWidget *help_item = gtk_menu_item_new_with_label("Help");
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menubar), help_item);
+    
+    GtkWidget *about_item = gtk_menu_item_new_with_label("About");
+    gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
+    g_signal_connect(about_item, "activate", G_CALLBACK(on_menu_about), player);
+    
+    gtk_box_pack_start(GTK_BOX(main_vbox), menubar, FALSE, FALSE, 0);
+    
+    // Content area
+    GtkWidget *content_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(content_vbox), 10);
+    gtk_box_pack_start(GTK_BOX(main_vbox), content_vbox, TRUE, TRUE, 0);
     
     player->file_label = gtk_label_new("No file loaded");
-    gtk_box_pack_start(GTK_BOX(vbox), player->file_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
     player->progress_bar = gtk_progress_bar_new();
-    gtk_box_pack_start(GTK_BOX(vbox), player->progress_bar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content_vbox), player->progress_bar, FALSE, FALSE, 0);
     
     player->time_label = gtk_label_new("00:00 / 00:00");
-    gtk_box_pack_start(GTK_BOX(vbox), player->time_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content_vbox), player->time_label, FALSE, FALSE, 0);
     
     GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_set_homogeneous(GTK_BOX(button_box), TRUE);
-    gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content_vbox), button_box, FALSE, FALSE, 0);
     
-    player->open_button = gtk_button_new_with_label("Open");
     player->play_button = gtk_button_new_with_label("Play");
     player->pause_button = gtk_button_new_with_label("Pause");
     player->stop_button = gtk_button_new_with_label("Stop");
     
-    gtk_box_pack_start(GTK_BOX(button_box), player->open_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->play_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->pause_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->stop_button, TRUE, TRUE, 0);
     
     GtkWidget *volume_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(vbox), volume_box, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content_vbox), volume_box, FALSE, FALSE, 0);
     
     GtkWidget *volume_label = gtk_label_new("Volume:");
     player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 3.0, 0.1);
@@ -536,7 +593,6 @@ static void create_main_window(AudioPlayer *player) {
     
     // Connect signals
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
-    g_signal_connect(player->open_button, "clicked", G_CALLBACK(on_open_clicked), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
     g_signal_connect(player->pause_button, "clicked", G_CALLBACK(on_pause_clicked), player);
     g_signal_connect(player->stop_button, "clicked", G_CALLBACK(on_stop_clicked), player);
