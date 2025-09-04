@@ -788,7 +788,7 @@ static void toggle_pause(AudioPlayer *player) {
     }
     pthread_mutex_unlock(&player->audio_mutex);
     
-    gtk_button_set_label(GTK_BUTTON(player->pause_button), player->is_paused ? "Resume" : "⏸");
+    gtk_button_set_label(GTK_BUTTON(player->pause_button), player->is_paused ? "⏯" : "⏸");
 }
 
 static void stop_playback(AudioPlayer *player) {
