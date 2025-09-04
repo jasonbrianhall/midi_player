@@ -84,6 +84,7 @@ AudioPlayer *player = NULL;
 // Forward declarations
 static void start_playback(AudioPlayer *player);
 static void update_gui_state(AudioPlayer *player);
+static bool load_file_from_queue(AudioPlayer *player);
 
 // Queue management functions
 static void init_queue(PlayQueue *queue) {
@@ -138,6 +139,18 @@ static bool advance_queue(PlayQueue *queue) {
         return false;
     }
     
+    if (queue->count == 1) {
+        printf("advance_queue: Single song queue - %s repeat\n", 
+               queue->repeat_queue ? "restarting (repeat on)" : "stopping (repeat off)");
+        if (queue->repeat_queue) {
+            // For single song, just stay at index 0
+            queue->current_index = 0;
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
     printf("advance_queue: Before - index %d of %d\n", queue->current_index, queue->count);
     
     queue->current_index++;
@@ -148,7 +161,7 @@ static bool advance_queue(PlayQueue *queue) {
             printf("advance_queue: Wrapped to beginning (repeat on)\n");
             return true;
         } else {
-            queue->current_index = queue->count - 1;
+            queue->current_index = queue->count - 1; // Stay at last song
             printf("advance_queue: At end, no repeat\n");
             return false;
         }
@@ -510,8 +523,11 @@ static bool load_wav_file(AudioPlayer *player, const char* wav_path) {
 }
 
 static bool load_file(AudioPlayer *player, const char *filename) {
-    // Stop current playback
-    if (player->is_playing) {
+    printf("load_file called for: %s\n", filename);
+    
+    // Stop current playback and clean up timer
+    if (player->is_playing || player->update_timer_id > 0) {
+        printf("Stopping current playback...\n");
         pthread_mutex_lock(&player->audio_mutex);
         player->is_playing = false;
         player->is_paused = false;
@@ -521,6 +537,7 @@ static bool load_file(AudioPlayer *player, const char *filename) {
         if (player->update_timer_id > 0) {
             g_source_remove(player->update_timer_id);
             player->update_timer_id = 0;
+            printf("Removed existing timer\n");
         }
     }
     
@@ -578,15 +595,46 @@ static bool load_file(AudioPlayer *player, const char *filename) {
         gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
         gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
         
-        printf("File successfully loaded, auto-starting playback\n");
+        // Check if the loaded file has valid audio data
+        if (player->audio_buffer.length == 0 || player->song_duration <= 0.1) {
+            printf("Warning: File loaded but has no/minimal audio data (duration: %.2f, samples: %zu)\n", 
+                   player->song_duration, player->audio_buffer.length);
+            printf("Skipping this file and advancing to next...\n");
+            
+            // Don't auto-start playback for invalid files, let the timer logic handle advancing
+            update_gui_state(player);
+            
+            // Trigger immediate advance for invalid files
+            if (player->queue.count > 1) {
+                g_timeout_add(100, [](gpointer data) -> gboolean {
+                    AudioPlayer *p = (AudioPlayer*)data;
+                    printf("Auto-advancing from invalid file...\n");
+                    if (advance_queue(&p->queue)) {
+                        if (load_file_from_queue(p)) {
+                            update_queue_display(p);
+                            update_gui_state(p);
+                        }
+                    }
+                    return FALSE; // Don't repeat
+                }, player);
+            }
+            
+            return true; // Return true since file was "loaded" even if invalid
+        }
         
-        // AUTO-START PLAYBACK
+        printf("File successfully loaded (duration: %.2f, samples: %zu), auto-starting playback\n", 
+               player->song_duration, player->audio_buffer.length);
+        
+        // AUTO-START PLAYBACK for valid files
         start_playback(player);
         update_gui_state(player);
+    } else {
+        printf("Failed to load file: %s\n", filename);
     }
     
     return success;
 }
+
 static bool load_file_from_queue(AudioPlayer *player) {
     const char *filename = get_current_queue_file(&player->queue);
     if (!filename) return false;
@@ -646,67 +694,83 @@ static void start_playback(AudioPlayer *player) {
             
             pthread_mutex_lock(&p->audio_mutex);
             bool song_finished = false;
+            bool currently_playing = p->is_playing;
             
-            // Check if song has finished
-            if (p->is_playing && p->audio_buffer.data && 
-                p->audio_buffer.position >= p->audio_buffer.length) {
-                p->is_playing = false;
-                song_finished = true;
-                printf("Song finished naturally\n");
+            // Only check for song completion if we were actually playing
+            if (currently_playing && p->audio_buffer.data && p->audio_buffer.length > 0) {
+                if (p->audio_buffer.position >= p->audio_buffer.length) {
+                    p->is_playing = false;
+                    song_finished = true;
+                    printf("Song finished naturally (pos: %zu, len: %zu)\n", 
+                           p->audio_buffer.position, p->audio_buffer.length);
+                }
             }
             
-            if (!p->is_playing) {
-                pthread_mutex_unlock(&p->audio_mutex);
+            // Update playback position if playing
+            if (p->is_playing && p->audio_buffer.data && p->sample_rate > 0) {
+                double samples_per_second = (double)(p->sample_rate * p->channels);
+                playTime = (double)p->audio_buffer.position / samples_per_second;
+            }
+            
+            pthread_mutex_unlock(&p->audio_mutex);
+            
+            // Handle song completion OUTSIDE the mutex lock
+            if (song_finished && p->queue.count > 0) {
+                printf("Song completed. Attempting to advance queue (current: %d/%d, repeat: %s)\n", 
+                       p->queue.current_index + 1, p->queue.count, 
+                       p->queue.repeat_queue ? "ON" : "OFF");
                 
-                // If song finished naturally, handle auto-advance
-                if (song_finished && p->queue.count > 0) {
-                    printf("Attempting to advance queue (current: %d/%d, repeat: %s)\n", 
-                           p->queue.current_index + 1, p->queue.count, 
-                           p->queue.repeat_queue ? "ON" : "OFF");
-                           
-                    // Try to advance to next song
-                    if (advance_queue(&p->queue)) {
-                        printf("Advanced to next song, loading...\n");
-                        if (load_file_from_queue(p)) {
-                            update_queue_display(p);
-                            // Note: load_file now calls start_playback and update_gui_state automatically
-                            return TRUE; // Continue the timer
-                        } else {
-                            printf("Failed to load next song\n");
-                        }
+                // Stop the current timer to prevent race conditions
+                p->update_timer_id = 0;
+                
+                // Try to advance to next song
+                if (advance_queue(&p->queue)) {
+                    printf("Advanced to next song (now at %d/%d), loading...\n", 
+                           p->queue.current_index + 1, p->queue.count);
+                    if (load_file_from_queue(p)) {
+                        update_queue_display(p);
+                        update_gui_state(p);
+                        // load_file_from_queue calls load_file which calls start_playback
+                        // which will create a new timer, so we return FALSE here
+                        return FALSE;
                     } else {
-                        printf("Queue advance failed - at end with no repeat\n");
+                        printf("Failed to load next song\n");
+                        update_gui_state(p);
+                        return FALSE;
                     }
+                } else {
+                    printf("Queue advance failed - at end with no repeat\n");
+                    update_gui_state(p);
+                    return FALSE;
                 }
-                
-                // Update GUI to show stopped state
+            }
+            
+            // If not playing anymore (but not due to song completion), stop timer
+            if (!currently_playing && !song_finished) {
                 update_gui_state(p);
                 p->update_timer_id = 0;
                 return FALSE;
             }
             
-            if (p->audio_buffer.data && p->sample_rate > 0) {
-                double samples_per_second = (double)(p->sample_rate * p->channels);
-                playTime = (double)p->audio_buffer.position / samples_per_second;
+            // Update GUI elements (only if still playing)
+            if (currently_playing) {
+                // Update progress scale (only if not currently seeking)
+                if (!p->seeking) {
+                    gtk_range_set_value(GTK_RANGE(p->progress_scale), playTime);
+                }
+                
+                // Update time label
+                int min = (int)(playTime / 60);
+                int sec = (int)playTime % 60;
+                int total_min = (int)(p->song_duration / 60);
+                int total_sec = (int)p->song_duration % 60;
+                
+                char time_text[64];
+                snprintf(time_text, sizeof(time_text), "%02d:%02d / %02d:%02d", min, sec, total_min, total_sec);
+                gtk_label_set_text(GTK_LABEL(p->time_label), time_text);
             }
-            pthread_mutex_unlock(&p->audio_mutex);
             
-            // Update progress scale (only if not currently seeking)
-            if (!p->seeking) {
-                gtk_range_set_value(GTK_RANGE(p->progress_scale), playTime);
-            }
-            
-            // Update time label
-            int min = (int)(playTime / 60);
-            int sec = (int)playTime % 60;
-            int total_min = (int)(p->song_duration / 60);
-            int total_sec = (int)p->song_duration % 60;
-            
-            char time_text[64];
-            snprintf(time_text, sizeof(time_text), "%02d:%02d / %02d:%02d", min, sec, total_min, total_sec);
-            gtk_label_set_text(GTK_LABEL(p->time_label), time_text);
-            
-            return TRUE;
+            return TRUE; // Continue timer
         }), player);
     }
 }
