@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 #include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -389,7 +390,7 @@ static void toggle_pause(AudioPlayer *player) {
     }
     pthread_mutex_unlock(&player->audio_mutex);
     
-    gtk_button_set_label(GTK_BUTTON(player->pause_button), player->is_paused ? "Resume" : "Pause");
+    gtk_button_set_label(GTK_BUTTON(player->pause_button), player->is_paused ? "Resume" : "⏸");
 }
 
 static void stop_playback(AudioPlayer *player) {
@@ -409,7 +410,7 @@ static void stop_playback(AudioPlayer *player) {
     
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), 0.0);
     gtk_label_set_text(GTK_LABEL(player->time_label), "00:00 / 00:00");
-    gtk_button_set_label(GTK_BUTTON(player->pause_button), "Pause");
+    gtk_button_set_label(GTK_BUTTON(player->pause_button), "⏸");
 }
 
 static void update_gui_state(AudioPlayer *player) {
@@ -491,7 +492,7 @@ static void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
                                                      GTK_DIALOG_DESTROY_WITH_PARENT,
                                                      GTK_MESSAGE_INFO,
                                                      GTK_BUTTONS_CLOSE,
-                                                     "Audio Player\n\nSupports MIDI (.mid, .midi) and WAV (.wav) files.\nMIDI files are converted to WAV using OPL3 synthesis.");
+                                                     "GTK Media Player\n\nSupports MIDI (.mid, .midi) and WAV (.wav) files.\nMIDI files are converted to WAV using OPL3 synthesis.");
     gtk_dialog_run(GTK_DIALOG(about_dialog));
     gtk_widget_destroy(about_dialog);
 }
@@ -531,7 +532,7 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 
 static void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(player->window), "Audio Player");
+    gtk_window_set_title(GTK_WINDOW(player->window), "GTK Media Player");
     gtk_window_set_default_size(GTK_WINDOW(player->window), 500, 250);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
@@ -588,9 +589,9 @@ static void create_main_window(AudioPlayer *player) {
     gtk_box_set_homogeneous(GTK_BOX(button_box), TRUE);
     gtk_box_pack_start(GTK_BOX(content_vbox), button_box, FALSE, FALSE, 0);
     
-    player->play_button = gtk_button_new_with_label("Play");
-    player->pause_button = gtk_button_new_with_label("Pause");
-    player->stop_button = gtk_button_new_with_label("Stop");
+    player->play_button = gtk_button_new_with_label("▶");
+    player->pause_button = gtk_button_new_with_label("⏸");
+    player->stop_button = gtk_button_new_with_label("⏹");
     
     gtk_box_pack_start(GTK_BOX(button_box), player->play_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(button_box), player->pause_button, TRUE, TRUE, 0);
