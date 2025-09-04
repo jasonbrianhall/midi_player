@@ -120,6 +120,13 @@ static bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
     
     printf("Converting MIDI: %s -> %s\n", filename, player->temp_wav_file);
     
+    // Temporarily shut down the main SDL audio system
+    if (player->audio_device) {
+        SDL_CloseAudioDevice(player->audio_device);
+        player->audio_device = 0;
+    }
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    
     playTime = 0;
     isPlaying = true;
     
@@ -173,9 +180,17 @@ static bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
     
     wav_converter_finish(wav_converter);
     wav_converter_free(wav_converter);
-    cleanup();
+    cleanup(); // This closes the conversion SDL context
     
     printf("Conversion complete: %.2f seconds\n", playTime);
+    
+    // Reinitialize the main SDL audio system for playback
+    printf("Reinitializing SDL audio for playback...\n");
+    if (!init_audio(player)) {
+        printf("Failed to reinitialize audio for playback\n");
+        return false;
+    }
+    
     return true;
 }
 
