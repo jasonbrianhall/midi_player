@@ -578,12 +578,15 @@ static bool load_file(AudioPlayer *player, const char *filename) {
         gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
         gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
         
-        printf("File successfully loaded and ready for playback\n");
+        printf("File successfully loaded, auto-starting playback\n");
+        
+        // AUTO-START PLAYBACK
+        start_playback(player);
+        update_gui_state(player);
     }
     
     return success;
 }
-
 static bool load_file_from_queue(AudioPlayer *player) {
     const char *filename = get_current_queue_file(&player->queue);
     if (!filename) return false;
@@ -615,19 +618,6 @@ static void seek_to_position(AudioPlayer *player, double position_seconds) {
     playTime = position_seconds;
     
     pthread_mutex_unlock(&player->audio_mutex);
-}
-
-static void check_and_advance_queue(AudioPlayer *player) {
-    if (player->queue.count > 0 && !player->is_playing) {
-        if (advance_queue(&player->queue)) {
-            printf("Auto-advancing to next song in queue\n");
-            if (load_file_from_queue(player)) {
-                update_queue_display(player);
-                start_playback(player);
-                update_gui_state(player);
-            }
-        }
-    }
 }
 
 static void start_playback(AudioPlayer *player) {
@@ -662,31 +652,30 @@ static void start_playback(AudioPlayer *player) {
                 p->audio_buffer.position >= p->audio_buffer.length) {
                 p->is_playing = false;
                 song_finished = true;
+                printf("Song finished naturally\n");
             }
             
             if (!p->is_playing) {
                 pthread_mutex_unlock(&p->audio_mutex);
                 
-                // If song finished naturally, handle auto-advance/repeat
+                // If song finished naturally, handle auto-advance
                 if (song_finished && p->queue.count > 0) {
-                    if (p->queue.count == 1) {
-                        // Single song - just restart it
-                        printf("Song finished, restarting same song...\n");
+                    printf("Attempting to advance queue (current: %d/%d, repeat: %s)\n", 
+                           p->queue.current_index + 1, p->queue.count, 
+                           p->queue.repeat_queue ? "ON" : "OFF");
+                           
+                    // Try to advance to next song
+                    if (advance_queue(&p->queue)) {
+                        printf("Advanced to next song, loading...\n");
                         if (load_file_from_queue(p)) {
-                            start_playback(p);
+                            update_queue_display(p);
+                            // Note: load_file now calls start_playback and update_gui_state automatically
                             return TRUE; // Continue the timer
+                        } else {
+                            printf("Failed to load next song\n");
                         }
                     } else {
-                        // Multiple songs - advance to next
-                        printf("Song finished, advancing to next...\n");
-                        if (advance_queue(&p->queue)) {
-                            if (load_file_from_queue(p)) {
-                                update_queue_display(p);
-                                update_gui_state(p);
-                                start_playback(p);
-                                return TRUE; // Continue the timer
-                            }
-                        }
+                        printf("Queue advance failed - at end with no repeat\n");
                     }
                 }
                 
@@ -906,6 +895,8 @@ static void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         GSList *filenames = gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(dialog));
         
+        bool was_empty_queue = (player->queue.count == 0);
+        
         for (GSList *iter = filenames; iter != NULL; iter = g_slist_next(iter)) {
             char *filename = (char*)iter->data;
             add_to_queue(&player->queue, filename);
@@ -914,10 +905,11 @@ static void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
         
         g_slist_free(filenames);
         
-        // If this is the first file, load it
-        if (player->queue.count == 1) {
+        // If this was the first file(s) added to an empty queue, load and start playing
+        if (was_empty_queue && player->queue.count > 0) {
             if (load_file_from_queue(player)) {
                 update_gui_state(player);
+                // load_file now auto-starts playback
             }
         }
         
@@ -927,6 +919,7 @@ static void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     
     gtk_widget_destroy(dialog);
 }
+
 
 static void on_clear_queue_clicked(GtkButton *button, gpointer user_data) {
     (void)button;
@@ -1002,6 +995,7 @@ static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
             printf("Successfully loaded: %s\n", filename);
             update_queue_display(player);
             update_gui_state(player);
+            // load_file now auto-starts playback
         } else {
             GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
                                                              GTK_DIALOG_DESTROY_WITH_PARENT,
@@ -1017,6 +1011,7 @@ static void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     
     gtk_widget_destroy(dialog);
 }
+
 
 static void on_menu_quit(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
@@ -1272,9 +1267,10 @@ int main(int argc, char *argv[]) {
         }
         
         if (load_file_from_queue(player)) {
-            printf("Loaded: %s\n", argv[1]);
+            printf("Loaded and auto-starting: %s\n", argv[1]);
             update_queue_display(player);
             update_gui_state(player);
+            // load_file now auto-starts playback
         }
     }
     
