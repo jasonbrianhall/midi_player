@@ -8,18 +8,10 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
-#include <SDL2/SDL.h>
+#include <sys/wait.h>
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
 #include "wav_converter.h"
-
-// Audio buffer for WAV playback
-typedef struct {
-    int16_t *data;
-    size_t length;
-    size_t position;
-    bool loop;
-} AudioBuffer;
 
 // Global variables for GUI
 typedef struct {
@@ -42,10 +34,8 @@ typedef struct {
     double song_duration;
     guint update_timer_id;
     
-    // Audio data
-    AudioBuffer audio_buffer;
-    SDL_AudioDeviceID audio_device;
-    SDL_AudioSpec audio_spec;
+    // Audio playback
+    pid_t audio_player_pid;
     
     // Synchronization
     pthread_mutex_t state_mutex;
@@ -64,92 +54,10 @@ MidiPlayer *player = NULL;
 // Forward declarations
 static void update_gui_state(MidiPlayer *player);
 static gboolean update_progress(gpointer user_data);
+static void stop_playback(MidiPlayer *player);
 
-// SDL Audio callback for WAV playback
-void wav_audio_callback(void* userdata, Uint8* stream, int len) {
-    MidiPlayer* player = (MidiPlayer*)userdata;
-    
-    // Clear the buffer
-    memset(stream, 0, len);
-    
-    if (!player->is_playing || player->is_paused || !player->audio_buffer.data) {
-        return;
-    }
-    
-    pthread_mutex_lock(&player->state_mutex);
-    
-    int16_t* output = (int16_t*)stream;
-    int samples_requested = len / sizeof(int16_t);
-    size_t samples_remaining = player->audio_buffer.length - player->audio_buffer.position;
-    int samples_to_copy = (samples_requested < (int)samples_remaining) ? samples_requested : (int)samples_remaining;
-    
-    if (samples_to_copy > 0) {
-        // Apply volume scaling
-        for (int i = 0; i < samples_to_copy; i++) {
-            int32_t sample = player->audio_buffer.data[player->audio_buffer.position + i];
-            sample = (sample * globalVolume) / 100;
-            
-            // Clamp to 16-bit range
-            if (sample > 32767) sample = 32767;
-            else if (sample < -32768) sample = -32768;
-            
-            output[i] = (int16_t)sample;
-        }
-        
-        player->audio_buffer.position += samples_to_copy;
-        
-        // Update play time based on actual audio format
-        double samples_per_second = (double)(player->audio_spec.freq * player->audio_spec.channels);
-        playTime = (double)player->audio_buffer.position / samples_per_second;
-    }
-    
-    // Check if we've reached the end
-    if (player->audio_buffer.position >= player->audio_buffer.length) {
-        player->is_playing = false;
-    }
-    
-    pthread_mutex_unlock(&player->state_mutex);
-}
-
-// Initialize MIDI player
-static bool init_midi_player(MidiPlayer *player_ctx) {
-    // Initialize SDL Audio
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
-        return false;
-    }
-    
-    // Setup audio spec for WAV playback
-    SDL_AudioSpec want;
-    SDL_zero(want);
-    want.freq = SAMPLE_RATE;
-    want.format = AUDIO_S16;
-    want.channels = AUDIO_CHANNELS;
-    want.samples = AUDIO_BUFFER;
-    want.callback = wav_audio_callback;
-    want.userdata = player_ctx;
-    
-    player_ctx->audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &player_ctx->audio_spec, 0);
-    if (player_ctx->audio_device == 0) {
-        printf("Failed to open audio: %s\n", SDL_GetError());
-        return false;
-    }
-    
-    // Initialize OPL for conversion
-    OPL_Init(SAMPLE_RATE);
-    OPL_LoadInstruments();
-    
-    // Initialize audio buffer
-    player_ctx->audio_buffer.data = NULL;
-    player_ctx->audio_buffer.length = 0;
-    player_ctx->audio_buffer.position = 0;
-    player_ctx->audio_buffer.loop = false;
-    
-    return true;
-}
-
-// Convert MIDI to WAV file and load it
-static bool convert_and_load_midi(MidiPlayer *player, const char* filename) {
+// Convert MIDI to WAV file
+static bool convert_midi_to_wav(MidiPlayer *player, const char* filename) {
     // Create WAV file path in /tmp
     char *basename = g_path_get_basename(filename);
     char *dot = strrchr(basename, '.');
@@ -226,54 +134,21 @@ static bool convert_and_load_midi(MidiPlayer *player, const char* filename) {
     printf("Test with: aplay %s\n", player->temp_wav_file);
     printf("========================================\n");
     
-    // Load WAV file into memory
-    FILE* wav_file = fopen(player->temp_wav_file, "rb");
-    if (!wav_file) {
-        printf("Failed to open WAV file: %s\n", player->temp_wav_file);
-        return false;
-    }
-    
-    fseek(wav_file, 0, SEEK_END);
-    long file_size = ftell(wav_file);
-    fseek(wav_file, 44, SEEK_SET); // Skip WAV header
-    
-    long data_size = file_size - 44;
-    int16_t* wav_data = malloc(data_size);
-    if (!wav_data) {
-        printf("Failed to allocate memory for WAV data\n");
-        fclose(wav_file);
-        return false;
-    }
-    
-    fread(wav_data, 1, data_size, wav_file);
-    fclose(wav_file);
-    
-    // Store in audio buffer
-    if (player->audio_buffer.data) {
-        free(player->audio_buffer.data);
-    }
-    
-    player->audio_buffer.data = wav_data;
-    player->audio_buffer.length = data_size / sizeof(int16_t);
-    player->audio_buffer.position = 0;
     player->song_duration = playTime;
-    
-    printf("Loaded %zu samples into memory\n", player->audio_buffer.length);
     return true;
 }
 
-// Load MIDI file
+// Load MIDI file and convert
 static bool load_midi_file(MidiPlayer *player, const char *filename) {
     pthread_mutex_lock(&player->state_mutex);
     
     // Stop current playback
     if (player->is_playing) {
-        player->is_playing = false;
-        SDL_PauseAudioDevice(player->audio_device, 1);
+        stop_playback(player);
     }
     
-    // Convert and load
-    if (!convert_and_load_midi(player, filename)) {
+    // Convert MIDI to WAV
+    if (!convert_midi_to_wav(player, filename)) {
         pthread_mutex_unlock(&player->state_mutex);
         return false;
     }
@@ -288,38 +163,40 @@ static bool load_midi_file(MidiPlayer *player, const char *filename) {
     return true;
 }
 
-// Start playback
+// Start playback using aplay
 static void start_playback(MidiPlayer *player) {
-    if (!player->is_loaded || !player->audio_buffer.data) return;
+    if (!player->is_loaded) return;
+    
+    printf("Starting playback with aplay: %s\n", player->temp_wav_file);
     
     pthread_mutex_lock(&player->state_mutex);
     
-    player->audio_buffer.position = 0;
-    player->is_playing = true;
-    player->is_paused = false;
-    playTime = 0;
-    
-    SDL_PauseAudioDevice(player->audio_device, 0);
-    
-    if (player->update_timer_id == 0) {
-        player->update_timer_id = g_timeout_add(100, update_progress, player);
+    // Kill any existing audio player
+    if (player->audio_player_pid > 0) {
+        kill(player->audio_player_pid, SIGTERM);
+        waitpid(player->audio_player_pid, NULL, 0);
     }
     
-    pthread_mutex_unlock(&player->state_mutex);
-}
-
-// Pause/resume playback
-static void toggle_pause(MidiPlayer *player) {
-    if (!player->is_playing) return;
-    
-    pthread_mutex_lock(&player->state_mutex);
-    
-    player->is_paused = !player->is_paused;
-    
-    if (player->is_paused) {
-        SDL_PauseAudioDevice(player->audio_device, 1);
+    // Start aplay in background
+    player->audio_player_pid = fork();
+    if (player->audio_player_pid == 0) {
+        // Child process - run aplay
+        execlp("aplay", "aplay", player->temp_wav_file, NULL);
+        exit(1); // If execlp fails
+    } else if (player->audio_player_pid > 0) {
+        // Parent process
+        player->is_playing = true;
+        player->is_paused = false;
+        playTime = 0;
+        
+        // Start progress updates
+        if (player->update_timer_id == 0) {
+            player->update_timer_id = g_timeout_add(100, update_progress, player);
+        }
+        
+        printf("Started aplay with PID %d\n", player->audio_player_pid);
     } else {
-        SDL_PauseAudioDevice(player->audio_device, 0);
+        printf("Failed to fork audio player process\n");
     }
     
     pthread_mutex_unlock(&player->state_mutex);
@@ -329,13 +206,21 @@ static void toggle_pause(MidiPlayer *player) {
 static void stop_playback(MidiPlayer *player) {
     pthread_mutex_lock(&player->state_mutex);
     
+    printf("Stopping playback\n");
+    
+    // Kill audio player process
+    if (player->audio_player_pid > 0) {
+        printf("Killing aplay process %d\n", player->audio_player_pid);
+        kill(player->audio_player_pid, SIGTERM);
+        waitpid(player->audio_player_pid, NULL, 0);
+        player->audio_player_pid = 0;
+    }
+    
     player->is_playing = false;
     player->is_paused = false;
-    player->audio_buffer.position = 0;
     playTime = 0;
     
-    SDL_PauseAudioDevice(player->audio_device, 1);
-    
+    // Remove progress timer
     if (player->update_timer_id > 0) {
         g_source_remove(player->update_timer_id);
         player->update_timer_id = 0;
@@ -344,19 +229,27 @@ static void stop_playback(MidiPlayer *player) {
     pthread_mutex_unlock(&player->state_mutex);
 }
 
-// Seek to position (0.0 to 1.0)
-static void seek_to_position(MidiPlayer *player, double position) {
-    if (!player->is_loaded || position < 0.0 || position > 1.0) return;
+// Pause/resume playback (simplified - just stop/start)
+static void toggle_pause(MidiPlayer *player) {
+    if (!player->is_playing) return;
     
     pthread_mutex_lock(&player->state_mutex);
     
-    size_t new_position = (size_t)(position * player->audio_buffer.length);
-    player->audio_buffer.position = new_position;
-    
-    double samples_per_second = (double)(player->audio_spec.freq * player->audio_spec.channels);
-    playTime = (double)player->audio_buffer.position / samples_per_second;
-    
-    pthread_mutex_unlock(&player->state_mutex);
+    if (player->is_paused) {
+        // Resume - restart from current position (simplified)
+        player->is_paused = false;
+        printf("Resume not fully implemented - restarting from beginning\n");
+        pthread_mutex_unlock(&player->state_mutex);
+        start_playback(player);
+    } else {
+        // Pause - stop playback
+        player->is_paused = true;
+        if (player->audio_player_pid > 0) {
+            kill(player->audio_player_pid, SIGSTOP);
+            printf("Paused aplay process\n");
+        }
+        pthread_mutex_unlock(&player->state_mutex);
+    }
 }
 
 // Update GUI state
@@ -389,6 +282,25 @@ static gboolean update_progress(gpointer user_data) {
     
     pthread_mutex_lock(&player->state_mutex);
     
+    // Check if aplay process is still running
+    if (player->audio_player_pid > 0) {
+        int status;
+        pid_t result = waitpid(player->audio_player_pid, &status, WNOHANG);
+        if (result != 0) {
+            // Process has ended
+            printf("aplay process finished\n");
+            player->is_playing = false;
+            player->audio_player_pid = 0;
+            playTime = player->song_duration; // Jump to end
+        } else {
+            // Process still running, estimate progress
+            playTime += 0.1; // Rough estimate (100ms timer)
+            if (playTime > player->song_duration) {
+                playTime = player->song_duration;
+            }
+        }
+    }
+    
     if (!player->is_playing) {
         update_gui_state(player);
         pthread_mutex_unlock(&player->state_mutex);
@@ -396,6 +308,7 @@ static gboolean update_progress(gpointer user_data) {
         return FALSE;
     }
     
+    // Update progress bar
     double progress = 0.0;
     if (player->song_duration > 0) {
         progress = playTime / player->song_duration;
@@ -403,6 +316,7 @@ static gboolean update_progress(gpointer user_data) {
     }
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(player->progress_bar), progress);
     
+    // Update time label
     int minutes = (int)(playTime / 60);
     int seconds = (int)playTime % 60;
     int total_minutes = (int)(player->song_duration / 60);
@@ -499,18 +413,8 @@ static void on_volume_changed(GtkRange *range, gpointer user_data) {
     (void)user_data;
     double value = gtk_range_get_value(range);
     globalVolume = (int)(value * 100);
-}
-
-static void on_progress_seek(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    MidiPlayer *player = (MidiPlayer*)user_data;
-    
-    if (!player->is_loaded) return;
-    
-    GtkAllocation allocation;
-    gtk_widget_get_allocation(widget, &allocation);
-    
-    double position = event->x / allocation.width;
-    seek_to_position(player, position);
+    printf("Volume changed to %d%%\n", globalVolume);
+    // Note: Volume control would need to be implemented differently with external player
 }
 
 static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
@@ -518,16 +422,6 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     MidiPlayer *player = (MidiPlayer*)user_data;
     
     stop_playback(player);
-    
-    if (player->audio_buffer.data) {
-        free(player->audio_buffer.data);
-    }
-    
-    if (player->audio_device) {
-        SDL_CloseAudioDevice(player->audio_device);
-    }
-    
-    SDL_Quit();
     gtk_main_quit();
 }
 
@@ -546,7 +440,6 @@ static GtkWidget* create_main_window(MidiPlayer *player) {
     
     player->progress_bar = gtk_progress_bar_new();
     gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(player->progress_bar), FALSE);
-    g_signal_connect(player->progress_bar, "button-press-event", G_CALLBACK(on_progress_seek), player);
     gtk_box_pack_start(GTK_BOX(main_vbox), player->progress_bar, FALSE, FALSE, 0);
     
     player->time_label = gtk_label_new("00:00 / 00:00");
@@ -593,10 +486,9 @@ int main(int argc, char *argv[]) {
     player = g_malloc0(sizeof(MidiPlayer));
     pthread_mutex_init(&player->state_mutex, NULL);
     
-    if (!init_midi_player(player)) {
-        printf("Failed to initialize MIDI player\n");
-        return 1;
-    }
+    // Initialize OPL for conversion (no SDL audio device needed)
+    OPL_Init(SAMPLE_RATE);
+    OPL_LoadInstruments();
     
     create_main_window(player);
     update_gui_state(player);
