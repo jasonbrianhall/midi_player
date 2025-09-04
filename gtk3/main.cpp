@@ -431,8 +431,10 @@ static void start_playback(AudioPlayer *player) {
     printf("Starting WAV playback\n");
     
     pthread_mutex_lock(&player->audio_mutex);
+    // If we're at the end, restart from beginning
     if (player->audio_buffer.position >= player->audio_buffer.length) {
         player->audio_buffer.position = 0;
+        playTime = 0;
     }
     player->is_playing = true;
     player->is_paused = false;
@@ -581,7 +583,6 @@ static void on_progress_scale_value_changed(GtkRange *range, gpointer user_data)
         return FALSE; // Don't repeat
     }, player);
     
-    printf("Seeked via scale to position %.2f seconds\n", new_position);
 }
 
 // Menu callbacks
