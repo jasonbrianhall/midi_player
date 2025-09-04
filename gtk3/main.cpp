@@ -133,38 +133,54 @@ static const char* get_current_queue_file(PlayQueue *queue) {
 }
 
 static bool advance_queue(PlayQueue *queue) {
-    if (queue->count == 0) return false;
+    if (queue->count == 0) {
+        printf("advance_queue: Empty queue\n");
+        return false;
+    }
+    
+    printf("advance_queue: Before - index %d of %d\n", queue->current_index, queue->count);
     
     queue->current_index++;
     
     if (queue->current_index >= queue->count) {
         if (queue->repeat_queue) {
             queue->current_index = 0;
+            printf("advance_queue: Wrapped to beginning (repeat on)\n");
             return true;
         } else {
             queue->current_index = queue->count - 1;
+            printf("advance_queue: At end, no repeat\n");
             return false;
         }
     }
     
+    printf("advance_queue: After - index %d of %d\n", queue->current_index, queue->count);
     return true;
 }
 
 static bool previous_queue(PlayQueue *queue) {
-    if (queue->count == 0) return false;
+    if (queue->count == 0) {
+        printf("previous_queue: Empty queue\n");
+        return false;
+    }
+    
+    printf("previous_queue: Before - index %d of %d\n", queue->current_index, queue->count);
     
     queue->current_index--;
     
     if (queue->current_index < 0) {
         if (queue->repeat_queue) {
             queue->current_index = queue->count - 1;
+            printf("previous_queue: Wrapped to end (repeat on)\n");
             return true;
         } else {
             queue->current_index = 0;
+            printf("previous_queue: At beginning, no repeat\n");
             return false;
         }
     }
     
+    printf("previous_queue: After - index %d of %d\n", queue->current_index, queue->count);
     return true;
 }
 
@@ -621,14 +637,43 @@ static void start_playback(AudioPlayer *player) {
             AudioPlayer *p = (AudioPlayer*)data;
             
             pthread_mutex_lock(&p->audio_mutex);
-            bool was_playing = p->is_playing;
+            bool song_finished = false;
+            
+            // Check if song has finished
+            if (p->is_playing && p->audio_buffer.data && 
+                p->audio_buffer.position >= p->audio_buffer.length) {
+                p->is_playing = false;
+                song_finished = true;
+            }
             
             if (!p->is_playing) {
                 pthread_mutex_unlock(&p->audio_mutex);
-                // Check if we should advance to next song
-                if (was_playing) {
-                    check_and_advance_queue(p);
+                
+                // If song finished naturally, handle auto-advance/repeat
+                if (song_finished && p->queue.count > 0) {
+                    if (p->queue.count == 1) {
+                        // Single song - just restart it
+                        printf("Song finished, restarting same song...\n");
+                        if (load_file_from_queue(p)) {
+                            start_playback(p);
+                            return TRUE; // Continue the timer
+                        }
+                    } else {
+                        // Multiple songs - advance to next
+                        printf("Song finished, advancing to next...\n");
+                        if (advance_queue(&p->queue)) {
+                            if (load_file_from_queue(p)) {
+                                update_queue_display(p);
+                                update_gui_state(p);
+                                start_playback(p);
+                                return TRUE; // Continue the timer
+                            }
+                        }
+                    }
                 }
+                
+                // Update GUI to show stopped state
+                update_gui_state(p);
                 p->update_timer_id = 0;
                 return FALSE;
             }
@@ -1025,6 +1070,13 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     
     stop_playback(player);
     clear_queue(&player->queue);
+    
+    // Clean up temporary file if it exists
+    if (strlen(player->temp_wav_file) > 0) {
+        if (unlink(player->temp_wav_file) == 0) {
+            printf("Cleaned up temporary file: %s\n", player->temp_wav_file);
+        }
+    }
     
     if (player->audio_buffer.data) free(player->audio_buffer.data);
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
