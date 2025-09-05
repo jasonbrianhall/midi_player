@@ -30,7 +30,7 @@ Just run:
 
 ```
 make
-./musicplayer
+build/linux/musicplayer
 ```
 
 Requires 
