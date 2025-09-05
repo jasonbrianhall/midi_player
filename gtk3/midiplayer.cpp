@@ -4,10 +4,17 @@
 #include <stdbool.h>
 #include <math.h>
 #include <pthread.h>
+#include <signal.h>
+
+#ifndef _WIN32
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <signal.h>
+#else
+#include <windows.h>
+#include <conio.h>
+#endif
+
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
 #include "virtual_mixer.h"
@@ -15,7 +22,9 @@
 VirtualMixer* g_midi_mixer = NULL;
 int g_midi_mixer_channel = -1;
 
+#ifndef _WIN32
 struct termios old_tio;
+#endif
 volatile sig_atomic_t keep_running = 1;
 
 #ifndef M_PI
@@ -64,6 +73,9 @@ SDL_AudioSpec audioSpec;
 pthread_mutex_t audioMutex = PTHREAD_MUTEX_INITIALIZER;
 
 int kbhit() {
+#ifdef _WIN32
+    return _kbhit();
+#else
     struct termios oldt, newt;
     int ch;
     int oldf;
@@ -86,6 +98,7 @@ int kbhit() {
     }
 
     return 0;
+#endif
 }
 
 // SDL Audio initialization
@@ -269,8 +282,11 @@ bool loadMidiFile(const char* filename) {
 
 void handle_sigint(int sig) {
     keep_running = 0;
+    
+#ifndef _WIN32
     // Restore terminal settings
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+#endif
     
     // Stop audio and perform cleanup
     isPlaying = false;
@@ -698,12 +714,14 @@ void playMidiFile() {
     printf("  n - Toggle Volume Normalization\n");
     printf("  Ctrl+C - Stop Playback\n");
     
-    // Disable input buffering
+#ifndef _WIN32
+    // Disable input buffering on Unix-like systems
     struct termios new_tio;
     tcgetattr(STDIN_FILENO, &old_tio);
     new_tio = old_tio;
     new_tio.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+#endif
     
     // Set up signal handler for SIGINT (CTRL+C)
     signal(SIGINT, handle_sigint);
@@ -715,7 +733,11 @@ void playMidiFile() {
     while (isPlaying && keep_running) {
         // Check for key press without blocking
         if (kbhit()) {
+#ifdef _WIN32
+            int ch = _getch();
+#else
             int ch = getchar();
+#endif
             switch (ch) {
                 case ' ':
                     paused = !paused;
@@ -738,11 +760,17 @@ void playMidiFile() {
         }
         
         // Sleep to prevent CPU hogging
+#ifdef _WIN32
+        Sleep(10); // 10 milliseconds
+#else
         usleep(10000); // 10 milliseconds
+#endif
     }
     
+#ifndef _WIN32
     // Restore original terminal settings
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+#endif
     
     // Stop audio
     SDL_PauseAudioDevice(audioDevice, 1);
