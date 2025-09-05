@@ -1,8 +1,148 @@
-#include "convertoggtowav.h"
 #include <vorbis/vorbisfile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
+#include "convertoggtowav.h"
+
+
+// Memory-based OGG reading callbacks
+struct MemoryOggData {
+    const uint8_t* data;
+    size_t size;
+    size_t pos;
+};
+
+static size_t memory_read_func(void* ptr, size_t size, size_t nmemb, void* datasource) {
+    MemoryOggData* mem_data = (MemoryOggData*)datasource;
+    size_t bytes_to_read = size * nmemb;
+    size_t bytes_available = mem_data->size - mem_data->pos;
+    
+    if (bytes_to_read > bytes_available) {
+        bytes_to_read = bytes_available;
+    }
+    
+    if (bytes_to_read > 0) {
+        memcpy(ptr, mem_data->data + mem_data->pos, bytes_to_read);
+        mem_data->pos += bytes_to_read;
+    }
+    
+    return bytes_to_read / size;
+}
+
+static int memory_seek_func(void* datasource, ogg_int64_t offset, int whence) {
+    MemoryOggData* mem_data = (MemoryOggData*)datasource;
+    
+    switch (whence) {
+        case SEEK_SET:
+            mem_data->pos = offset;
+            break;
+        case SEEK_CUR:
+            mem_data->pos += offset;
+            break;
+        case SEEK_END:
+            mem_data->pos = mem_data->size + offset;
+            break;
+        default:
+            return -1;
+    }
+    
+    if (mem_data->pos > mem_data->size) {
+        mem_data->pos = mem_data->size;
+    }
+    
+    return 0;
+}
+
+static int memory_close_func(void* datasource) {
+    (void)datasource;
+    return 0;
+}
+
+static long memory_tell_func(void* datasource) {
+    MemoryOggData* mem_data = (MemoryOggData*)datasource;
+    return mem_data->pos;
+}
+
+bool convertOggToWavInMemory(const std::vector<uint8_t>& ogg_data, std::vector<uint8_t>& wav_data) {
+    // Set up memory-based OGG reading
+    MemoryOggData mem_data;
+    mem_data.data = ogg_data.data();
+    mem_data.size = ogg_data.size();
+    mem_data.pos = 0;
+    
+    ov_callbacks callbacks;
+    callbacks.read_func = memory_read_func;
+    callbacks.seek_func = memory_seek_func;
+    callbacks.close_func = memory_close_func;
+    callbacks.tell_func = memory_tell_func;
+    
+    OggVorbis_File vf;
+    if (ov_open_callbacks(&mem_data, &vf, NULL, 0, callbacks) < 0) {
+        printf("Invalid OGG Vorbis data in memory\n");
+        return false;
+    }
+    
+    vorbis_info* vi = ov_info(&vf, -1);
+    long total_samples = ov_pcm_total(&vf, -1);
+    
+    printf("OGG (memory): %ld Hz, %d channels, %ld samples\n", vi->rate, vi->channels, total_samples);
+    
+    // Calculate WAV file size
+    int sample_rate = vi->rate;
+    int channels = vi->channels;
+    int bits_per_sample = 16;
+    long data_size = total_samples * channels * (bits_per_sample / 8);
+    long file_size = data_size + 36;
+    
+    // Prepare WAV data vector
+    wav_data.clear();
+    wav_data.reserve(44 + data_size); // WAV header + audio data
+    
+    // Helper function to append data to vector
+    auto append_bytes = [&wav_data](const void* data, size_t size) {
+        const uint8_t* bytes = (const uint8_t*)data;
+        wav_data.insert(wav_data.end(), bytes, bytes + size);
+    };
+    
+    // Write WAV header to memory
+    append_bytes("RIFF", 4);
+    append_bytes(&file_size, 4);
+    append_bytes("WAVE", 4);
+    
+    // fmt chunk
+    append_bytes("fmt ", 4);
+    int fmt_chunk_size = 16;
+    short audio_format = 1; // PCM
+    int byte_rate = sample_rate * channels * bits_per_sample / 8;
+    short block_align = channels * bits_per_sample / 8;
+    
+    append_bytes(&fmt_chunk_size, 4);
+    append_bytes(&audio_format, 2);
+    append_bytes(&channels, 2);
+    append_bytes(&sample_rate, 4);
+    append_bytes(&byte_rate, 4);
+    append_bytes(&block_align, 2);
+    append_bytes(&bits_per_sample, 2);
+    
+    // data chunk
+    append_bytes("data", 4);
+    append_bytes(&data_size, 4);
+    
+    // Convert audio data
+    char buffer[4096];
+    int current_section;
+    long bytes_read;
+    
+    while ((bytes_read = ov_read(&vf, buffer, sizeof(buffer), 0, 2, 1, &current_section)) > 0) {
+        append_bytes(buffer, bytes_read);
+    }
+    
+    ov_clear(&vf);
+    
+    printf("OGG to WAV memory conversion complete (%zu bytes)\n", wav_data.size());
+    return true;
+}
 
 bool convertOggToWav(const char* ogg_filename, const char* wav_filename) {
     FILE* ogg_file = fopen(ogg_filename, "rb");
