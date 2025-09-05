@@ -1575,7 +1575,6 @@ void create_main_window(AudioPlayer *player) {
     gtk_window_set_default_size(GTK_WINDOW(player->window), 800, 600);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
-    // ADD THIS LINE to set the window icon
     set_window_icon_from_base64(GTK_WINDOW(player->window));
     
     // Main hbox to split player controls and queue
