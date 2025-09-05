@@ -298,6 +298,26 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
 }
 
 bool init_audio(AudioPlayer *player) {
+#ifdef _WIN32
+// Try different audio drivers in order of preference
+const char* drivers[] = {"wasapi", "directsound", "winmm", NULL};
+for (int i = 0; drivers[i]; i++) {
+    if (SDL_SetHint(SDL_HINT_AUDIODRIVER, drivers[i])) {
+        printf("Trying SDL audio driver: %s\n", drivers[i]);
+        if (SDL_Init(SDL_INIT_AUDIO) == 0) {
+            printf("Successfully initialized with driver: %s\n", drivers[i]);
+            break;
+        } else {
+            printf("Failed with driver %s: %s\n", drivers[i], SDL_GetError());
+            SDL_Quit();
+        }
+    }
+}
+#else
+SDL_Init(SDL_INIT_AUDIO);
+#endif
+
+
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         printf("SDL initialization failed: %s\n", SDL_GetError());
         return false;
