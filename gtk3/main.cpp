@@ -139,6 +139,37 @@ bool previous_queue(PlayQueue *queue) {
     return true;
 }
 
+void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
+    (void)user_data;
+    
+    int index = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "queue_index"));
+    AudioPlayer *player = (AudioPlayer*)g_object_get_data(G_OBJECT(button), "player");
+    
+    printf("Removing item %d from queue\n", index);
+    
+    bool was_current_playing = (index == player->queue.current_index && player->is_playing);
+    bool queue_will_be_empty = (player->queue.count <= 1);
+    
+    if (remove_from_queue(&player->queue, index)) {
+        if (queue_will_be_empty) {
+            // Queue is now empty, stop playback and clear everything
+            stop_playback(player);
+            player->is_loaded = false;
+            gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+        } else if (was_current_playing) {
+            // We removed the currently playing song, load the next one
+            stop_playback(player);
+            if (load_file_from_queue(player)) {
+                update_gui_state(player);
+                start_playback(player);
+            }
+        }
+        
+        update_queue_display(player);
+        update_gui_state(player);
+    }
+}
+
 void update_queue_display(AudioPlayer *player) {
     // Clear existing items
     GList *children = gtk_container_get_children(GTK_CONTAINER(player->queue_listbox));
@@ -162,6 +193,18 @@ void update_queue_display(AudioPlayer *player) {
         
         GtkWidget *filename_label = gtk_label_new(basename);
         gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
+        
+        // Add remove button
+        GtkWidget *remove_button = gtk_button_new_with_label("✗");
+        gtk_widget_set_size_request(remove_button, 30, 30);
+        
+        // Store the index in the button data
+        g_object_set_data(G_OBJECT(remove_button), "queue_index", GINT_TO_POINTER(i));
+        g_object_set_data(G_OBJECT(remove_button), "player", player);
+        
+        g_signal_connect(remove_button, "clicked", G_CALLBACK(on_remove_from_queue_clicked), NULL);
+        
+        gtk_box_pack_end(GTK_BOX(box), remove_button, FALSE, FALSE, 0);
         
         gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
         
@@ -982,6 +1025,40 @@ void start_playback(AudioPlayer *player) {
     }
 }
 
+bool remove_from_queue(PlayQueue *queue, int index) {
+    if (index < 0 || index >= queue->count) {
+        return false;
+    }
+    
+    // Free the filename at this index
+    g_free(queue->files[index]);
+    
+    // Shift all items after this index down by one
+    for (int i = index; i < queue->count - 1; i++) {
+        queue->files[i] = queue->files[i + 1];
+    }
+    
+    queue->count--;
+    
+    // Adjust current_index if necessary
+    if (index < queue->current_index) {
+        // Removed item was before current, so decrease current index
+        queue->current_index--;
+    } else if (index == queue->current_index) {
+        // Removed the currently playing item
+        if (queue->count == 0) {
+            // Queue is now empty
+            queue->current_index = -1;
+        } else if (queue->current_index >= queue->count) {
+            // Current index is now beyond the end, wrap to beginning
+            queue->current_index = 0;
+        }
+        // If current_index < queue->count, it stays the same (next song takes its place)
+    }
+    // If index > current_index, current_index stays the same
+    
+    return true;
+}
 
 void toggle_pause(AudioPlayer *player) {
     if (!player->is_playing) return;
@@ -1351,19 +1428,10 @@ void on_volume_changed(GtkRange *range, gpointer user_data) {
 
 void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
-    AudioPlayer *player = (AudioPlayer*)user_data;
+    (void)user_data;
     
-    stop_playback(player);
-    clear_queue(&player->queue);
-    cleanup_conversion_cache(&player->conversion_cache);
-    
-    // Clean up virtual filesystem instead of temporary files
-    cleanup_virtual_filesystem();
-    
-    if (player->audio_buffer.data) free(player->audio_buffer.data);
-    if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
-    
-    SDL_Quit();
+    // This will be called after delete-event, so just quit
+    gtk_main_quit();
 }
 
 void create_main_window(AudioPlayer *player) {
@@ -1492,6 +1560,7 @@ void create_main_window(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
     
     // Connect signals
+    g_signal_connect(player->window, "delete-event", G_CALLBACK(on_window_delete_event), player);
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
     g_signal_connect(player->pause_button, "clicked", G_CALLBACK(on_pause_clicked), player);
@@ -1504,6 +1573,27 @@ void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->add_to_queue_button, "clicked", G_CALLBACK(on_add_to_queue_clicked), player);
     g_signal_connect(player->clear_queue_button, "clicked", G_CALLBACK(on_clear_queue_clicked), player);
     g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
+}
+
+gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
+    (void)widget;
+    (void)event;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    printf("Window close button pressed, cleaning up...\n");
+    
+    stop_playback(player);
+    clear_queue(&player->queue);
+    cleanup_conversion_cache(&player->conversion_cache);
+    cleanup_virtual_filesystem();
+    
+    if (player->audio_buffer.data) free(player->audio_buffer.data);
+    if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
+    
+    SDL_Quit();
+    
+    gtk_main_quit();
+    return FALSE; // Allow the window to be destroyed
 }
 
 int main(int argc, char *argv[]) {
