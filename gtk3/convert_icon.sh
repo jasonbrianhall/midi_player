@@ -44,6 +44,7 @@ cat > "$OUTPUT_FILE" << EOF
 // Generated on: $(date)
 
 #include <glib.h>
+#include <gtk/gtk.h>
 
 // Base64 encoded PNG data
 static const char icon_base64_data[] = 
@@ -51,6 +52,7 @@ static const char icon_base64_data[] =
 
 // Function to decode base64 and create GdkPixbuf
 GdkPixbuf* load_icon_from_base64(void);
+void set_window_icon_from_base64(GtkWindow *window);
 
 #endif // ICON_H
 EOF

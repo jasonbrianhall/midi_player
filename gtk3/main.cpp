@@ -16,6 +16,7 @@
 #include "convertoggtowav.h"
 #include "audio_player.h"
 #include "vfs.h"
+#include "icon.h"
 
 extern double playTime;
 extern bool isPlaying;
@@ -1457,11 +1458,61 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    GtkWidget *about_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
-                                                 GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                 GTK_MESSAGE_INFO,
-                                                 GTK_BUTTONS_CLOSE,
-                                                 "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), MP3 (.mp3), OGG (.ogg), and FLAC (.flac) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3, OGG, and FLAC files are decoded and converted to WAV.\n\nFeatures:\n- Playlist queue with repeat\n- Drag the progress slider to seek\n- Use << and >> buttons for 5-second rewind/fast-forward\n- Use |< and >| buttons for previous/next song");
+    GtkWidget *about_dialog = gtk_about_dialog_new();
+    
+    // Set window properties
+    gtk_window_set_transient_for(GTK_WINDOW(about_dialog), GTK_WINDOW(player->window));
+    gtk_window_set_modal(GTK_WINDOW(about_dialog), TRUE);
+    
+    // ADD THIS to set the about dialog icon
+    GdkPixbuf *logo = load_icon_from_base64();
+    if (logo) {
+        gtk_about_dialog_set_logo(GTK_ABOUT_DIALOG(about_dialog), logo);
+        g_object_unref(logo);
+    }
+    
+    // Set about dialog properties
+    gtk_about_dialog_set_program_name(GTK_ABOUT_DIALOG(about_dialog), "GTK Music Player");
+    gtk_about_dialog_set_version(GTK_ABOUT_DIALOG(about_dialog), "1.0");
+    
+    // Beautiful description
+    const char *description = 
+        "A multi-format music player\n\n"
+        "Supports MIDI (.mid, .midi) with OPL3 synthesis\n"
+        "Supports WAV (.wav) files\n"
+        "Supports MP3 (.mp3) files\n"
+        "Supports OGG (.ogg) files\n"
+        "Supports FLAC (.flac) files\n\n"
+        "Features:\n"
+        "• Playlist queue with repeat mode\n"
+        "• Drag progress slider to seek\n"
+        "• << and >> buttons for 5-second rewind/fast-forward\n"
+        "• |< and >| buttons for previous/next song\n"
+        "• Volume control\n"
+        "• GTK interface";
+    
+    gtk_about_dialog_set_comments(GTK_ABOUT_DIALOG(about_dialog), description);
+    
+    // Author information
+    const char *authors[] = {
+        "Jason Hall",
+        NULL
+    };
+    gtk_about_dialog_set_authors(GTK_ABOUT_DIALOG(about_dialog), authors);
+    
+    // License information
+    gtk_about_dialog_set_license_type(GTK_ABOUT_DIALOG(about_dialog), GTK_LICENSE_MIT_X11);
+    gtk_about_dialog_set_copyright(GTK_ABOUT_DIALOG(about_dialog), 
+                                   "© 2025 Jason Hall\nReleased under MIT License");
+    
+    // Website
+    gtk_about_dialog_set_website(GTK_ABOUT_DIALOG(about_dialog), 
+                                 "https://github.com/jasonbrianhall/midi_msdos");
+    gtk_about_dialog_set_website_label(GTK_ABOUT_DIALOG(about_dialog), 
+                                       "Visit GitHub Repository");
+        
+    // Show the dialog
+    gtk_dialog_run(GTK_DIALOG(about_dialog));
     gtk_widget_destroy(about_dialog);
 }
 
@@ -1523,6 +1574,9 @@ void create_main_window(AudioPlayer *player) {
     gtk_window_set_title(GTK_WINDOW(player->window), "GTK Music Player");
     gtk_window_set_default_size(GTK_WINDOW(player->window), 800, 600);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
+    
+    // ADD THIS LINE to set the window icon
+    set_window_icon_from_base64(GTK_WINDOW(player->window));
     
     // Main hbox to split player controls and queue
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -1590,8 +1644,8 @@ void create_main_window(AudioPlayer *player) {
     player->prev_button = gtk_button_new_with_label("|◀");
     player->rewind_button = gtk_button_new_with_label("◀◀ 5s");
     player->play_button = gtk_button_new_with_label("▶");
-    player->pause_button = gtk_button_new_with_label("⏸");
-    player->stop_button = gtk_button_new_with_label("⏹");
+    player->pause_button = gtk_button_new_with_label("⸸");
+    player->stop_button = gtk_button_new_with_label("■");
     player->fast_forward_button = gtk_button_new_with_label("5s ▶▶");
     player->next_button = gtk_button_new_with_label("▶|");
     

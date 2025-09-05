@@ -16,7 +16,8 @@ SOURCES_CPP = dbopl.cpp \
 	convertoggtowav.cpp \
 	vfs.cpp \
 	cache.cpp \
-	convertflactowav.cpp
+	convertflactowav.cpp \
+	icon.cpp
 	
 SOURCES_C = 
 OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)
