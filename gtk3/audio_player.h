@@ -156,6 +156,9 @@ void on_next_clicked(GtkButton *button, gpointer user_data);
 void on_previous_clicked(GtkButton *button, gpointer user_data);
 void on_volume_changed(GtkRange *range, gpointer user_data);
 void on_window_destroy(GtkWidget *widget, gpointer user_data);
+gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data);
+bool remove_from_queue(PlayQueue *queue, int index);
+
 
 // Caching
 void init_conversion_cache(ConversionCache *cache);
@@ -163,7 +166,6 @@ void cleanup_conversion_cache(ConversionCache *cache);
 const char* get_cached_conversion(ConversionCache *cache, const char* original_path);
 void add_to_conversion_cache(ConversionCache *cache, const char* original_path, const char* virtual_filename);
 bool is_file_modified(const char* filepath, time_t cached_time, off_t cached_size);
-
 
 // GUI creation function
 void create_main_window(AudioPlayer *player);
