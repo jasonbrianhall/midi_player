@@ -161,7 +161,7 @@ void on_volume_changed(GtkRange *range, gpointer user_data);
 void on_window_destroy(GtkWidget *widget, gpointer user_data);
 gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data);
 bool remove_from_queue(PlayQueue *queue, int index);
-
+void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data);
 
 // Caching
 void init_conversion_cache(ConversionCache *cache);

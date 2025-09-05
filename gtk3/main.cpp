@@ -212,6 +212,16 @@ void update_queue_display(AudioPlayer *player) {
         g_free(basename);
     }
     
+    // IMPORTANT: Connect the row-activated signal to handle clicks
+    // Disconnect any existing signal first to avoid multiple connections
+    g_signal_handlers_disconnect_by_func(player->queue_listbox, 
+                                         G_CALLBACK(on_queue_item_clicked), 
+                                         player);
+    
+    // Connect the signal for row activation (when user clicks on a row)
+    g_signal_connect(player->queue_listbox, "row-activated", 
+                     G_CALLBACK(on_queue_item_clicked), player);
+    
     gtk_widget_show_all(player->queue_listbox);
 }
 
@@ -1710,6 +1720,37 @@ void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->add_to_queue_button, "clicked", G_CALLBACK(on_add_to_queue_clicked), player);
     g_signal_connect(player->clear_queue_button, "clicked", G_CALLBACK(on_clear_queue_clicked), player);
     g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
+}
+
+void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (!row) return;
+    
+    // Get the index of the clicked row
+    int clicked_index = gtk_list_box_row_get_index(row);
+    
+    printf("Queue item clicked: index %d\n", clicked_index);
+    
+    // If this is already the current song and it's playing, do nothing
+    if (clicked_index == player->queue.current_index && player->is_playing) {
+        printf("Already playing this song\n");
+        return;
+    }
+    
+    // Stop current playback
+    stop_playback(player);
+    
+    // Set the queue to the clicked index
+    player->queue.current_index = clicked_index;
+    
+    // Load and start playing the selected file
+    if (load_file_from_queue(player)) {
+        update_queue_display(player);
+        update_gui_state(player);
+        start_playback(player);
+        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+    }
 }
 
 gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
