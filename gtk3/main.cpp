@@ -15,6 +15,7 @@
 #include "audioconverter.h"
 #include "convertoggtowav.h"
 #include "audio_player.h"
+#include "vfs.h"
 
 extern double playTime;
 extern bool isPlaying;
@@ -229,19 +230,15 @@ bool init_audio(AudioPlayer *player) {
 }
 
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
-    // Create secure temporary file
-    char temp_template[] = "/tmp/midi_convert_XXXXXX.wav";
-    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
-    if (temp_fd == -1) {
-        printf("Failed to create temporary file for MIDI conversion\n");
-        return false;
-    }
-    close(temp_fd); // We just need the filename, will reopen later
+    // Generate a unique virtual filename
+    static int virtual_counter = 0;
+    char virtual_filename[256];
+    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_midi_%d.wav", virtual_counter++);
     
-    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
+    strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
     player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
-    printf("Converting MIDI: %s -> %s\n", filename, player->temp_wav_file);
+    printf("Converting MIDI to virtual WAV: %s -> %s\n", filename, virtual_filename);
     
     // Temporarily shut down the main SDL audio system
     if (player->audio_device) {
@@ -264,9 +261,9 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
-    WAVConverter* wav_converter = wav_converter_init(player->temp_wav_file, SAMPLE_RATE, AUDIO_CHANNELS);
+    VirtualWAVConverter* wav_converter = virtual_wav_converter_init(virtual_filename, SAMPLE_RATE, AUDIO_CHANNELS);
     if (!wav_converter) {
-        printf("WAV converter init failed\n");
+        printf("Virtual WAV converter init failed\n");
         cleanup();
         return false;
     }
@@ -280,8 +277,8 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
         memset(audio_buffer, 0, sizeof(audio_buffer));
         OPL_Generate(audio_buffer, AUDIO_BUFFER);
         
-        if (!wav_converter_write(wav_converter, audio_buffer, AUDIO_BUFFER * AUDIO_CHANNELS)) {
-            printf("WAV write failed\n");
+        if (!virtual_wav_converter_write(wav_converter, audio_buffer, AUDIO_BUFFER * AUDIO_CHANNELS)) {
+            printf("Virtual WAV write failed\n");
             break;
         }
         
@@ -293,7 +290,7 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
         }
         
         if (((int)playTime) % 10 == 0) {
-            int last_reported = -1;
+            static int last_reported = -1;
             if ((int)playTime != last_reported) {
                 printf("Converting... %d seconds\n", (int)playTime);
                 last_reported = (int)playTime;
@@ -301,11 +298,11 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
         }
     }
     
-    wav_converter_finish(wav_converter);
-    wav_converter_free(wav_converter);
+    virtual_wav_converter_finish(wav_converter);
+    virtual_wav_converter_free(wav_converter);
     cleanup();
     
-    printf("Conversion complete: %.2f seconds\n", playTime);
+    printf("Virtual conversion complete: %.2f seconds\n", playTime);
     
     // Reinitialize the main SDL audio system for playback
     printf("Reinitializing SDL audio for playback...\n");
@@ -318,19 +315,15 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
 }
 
 bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
-    // Create secure temporary file
-    char temp_template[] = "/tmp/mp3_convert_XXXXXX.wav";
-    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
-    if (temp_fd == -1) {
-        printf("Failed to create temporary file for MP3 conversion\n");
-        return false;
-    }
-    close(temp_fd); // We just need the filename, will reopen later
+    // Generate a unique virtual filename
+    static int virtual_counter = 0;
+    char virtual_filename[256];
+    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_mp3_%d.wav", virtual_counter++);
     
-    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
+    strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
     player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
-    printf("Converting MP3: %s -> %s\n", filename, player->temp_wav_file);
+    printf("Converting MP3 to virtual WAV: %s -> %s\n", filename, virtual_filename);
     
     // Read MP3 file into memory
     FILE* mp3_file = fopen(filename, "rb");
@@ -358,21 +351,19 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
-    // Write WAV data to file
-    FILE* wav_file = fopen(player->temp_wav_file, "wb");
-    if (!wav_file) {
-        printf("Cannot create temporary WAV file: %s\n", player->temp_wav_file);
+    // Create virtual file and write WAV data
+    VirtualFile* vf = create_virtual_file(virtual_filename);
+    if (!vf) {
+        printf("Cannot create virtual WAV file: %s\n", virtual_filename);
         return false;
     }
     
-    if (fwrite(wav_data.data(), 1, wav_data.size(), wav_file) != wav_data.size()) {
-        printf("Failed to write WAV file\n");
-        fclose(wav_file);
+    if (!virtual_file_write(vf, wav_data.data(), wav_data.size())) {
+        printf("Failed to write virtual WAV file\n");
         return false;
     }
-    fclose(wav_file);
     
-    printf("MP3 conversion complete\n");
+    printf("MP3 conversion to virtual file complete\n");
     return true;
 }
 
@@ -480,7 +471,13 @@ bool load_file(AudioPlayer *player, const char *filename) {
         }
     }
     
-    // Determine file type
+    // Check if this is a virtual file (starts with "virtual_")
+    if (strncmp(filename, "virtual_", 8) == 0) {
+        printf("Loading virtual WAV file: %s\n", filename);
+        return load_virtual_wav_file(player, filename);
+    }
+    
+    // Determine file type for regular files
     const char *ext = strrchr(filename, '.');
     if (!ext) {
         printf("Unknown file type\n");
@@ -503,20 +500,20 @@ bool load_file(AudioPlayer *player, const char *filename) {
     } else if (strcmp(ext_lower, ".mid") == 0 || strcmp(ext_lower, ".midi") == 0) {
         printf("Loading MIDI file: %s\n", filename);
         if (convert_midi_to_wav(player, filename)) {
-            printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
-            success = load_wav_file(player, player->temp_wav_file);
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
         }
     } else if (strcmp(ext_lower, ".mp3") == 0) {
         printf("Loading MP3 file: %s\n", filename);
         if (convert_mp3_to_wav(player, filename)) {
-            printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
-            success = load_wav_file(player, player->temp_wav_file);
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
         }
     } else if (strcmp(ext_lower, ".ogg") == 0) {
         printf("Loading OGG file: %s\n", filename);
         if (convert_ogg_to_wav(player, filename)) {
-            printf("Now loading converted WAV file: %s\n", player->temp_wav_file);
-            success = load_wav_file(player, player->temp_wav_file);
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
         }
     } else {
         printf("Unsupported file type: %s\n", ext);
@@ -540,7 +537,11 @@ bool load_file(AudioPlayer *player, const char *filename) {
                    player->song_duration, player->audio_buffer.length);
             printf("Skipping this file and advancing to next...\n");
             
-            // Don't auto-start playback for invalid files, let the timer logic handle advancing
+            // Clean up the virtual file if it was created
+            if (strncmp(player->temp_wav_file, "virtual_", 8) == 0) {
+                delete_virtual_file(player->temp_wav_file);
+            }
+            
             update_gui_state(player);
             
             // Trigger immediate advance for invalid files
@@ -558,7 +559,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
                 }, player);
             }
             
-            return true; // Return true since file was "loaded" even if invalid
+            return true;
         }
         
         printf("File successfully loaded (duration: %.2f, samples: %zu), auto-starting playback\n", 
@@ -1087,18 +1088,13 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     stop_playback(player);
     clear_queue(&player->queue);
     
-    // Clean up temporary file if it exists
-    if (strlen(player->temp_wav_file) > 0) {
-        if (unlink(player->temp_wav_file) == 0) {
-            printf("Cleaned up temporary file: %s\n", player->temp_wav_file);
-        }
-    }
+    // Clean up virtual filesystem instead of temporary files
+    cleanup_virtual_filesystem();
     
     if (player->audio_buffer.data) free(player->audio_buffer.data);
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
     
     SDL_Quit();
-    gtk_main_quit();
 }
 
 void create_main_window(AudioPlayer *player) {
@@ -1244,6 +1240,9 @@ void create_main_window(AudioPlayer *player) {
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     
+    // Initialize virtual filesystem
+    init_virtual_filesystem();
+    
     player = (AudioPlayer*)g_malloc0(sizeof(AudioPlayer));
     pthread_mutex_init(&player->audio_mutex, NULL);
     
@@ -1252,6 +1251,7 @@ int main(int argc, char *argv[]) {
     
     if (!init_audio(player)) {
         printf("Audio initialization failed\n");
+        cleanup_virtual_filesystem();
         return 1;
     }
     
@@ -1280,6 +1280,7 @@ int main(int argc, char *argv[]) {
     gtk_main();
     
     clear_queue(&player->queue);
+    cleanup_virtual_filesystem();
     pthread_mutex_destroy(&player->audio_mutex);
     g_free(player);
     return 0;
