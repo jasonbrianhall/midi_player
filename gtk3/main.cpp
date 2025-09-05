@@ -1290,6 +1290,82 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     (void)button;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
+#ifdef _WIN32
+    char filename[2048] = "";  // Larger buffer for multiple files
+    if (open_windows_file_dialog(filename, sizeof(filename), true)) {  // true for multiple selection
+        bool was_empty_queue = (player->queue.count == 0);
+        
+        // Helper function to check if file extension is supported
+        auto is_supported_extension = [](const char* filename) -> bool {
+            const char* ext = strrchr(filename, '.');
+            if (!ext) return false;
+            
+            // Convert to lowercase for comparison
+            char ext_lower[10];
+            strncpy(ext_lower, ext, sizeof(ext_lower) - 1);
+            ext_lower[sizeof(ext_lower) - 1] = '\0';
+            for (int i = 0; ext_lower[i]; i++) {
+                ext_lower[i] = tolower(ext_lower[i]);
+            }
+            
+            return (strcmp(ext_lower, ".mid") == 0 || 
+                    strcmp(ext_lower, ".midi") == 0 ||
+                    strcmp(ext_lower, ".wav") == 0 ||
+                    strcmp(ext_lower, ".mp3") == 0 ||
+                    strcmp(ext_lower, ".ogg") == 0 ||
+                    strcmp(ext_lower, ".flac") == 0);
+        };
+        
+        // Parse multiple filenames from Windows dialog
+        // Windows returns multiple files as: "directory\0file1.ext\0file2.ext\0\0"
+        // or single file as: "full\path\to\file.ext\0"
+        
+        char *ptr = filename;
+        char directory[512] = "";
+        
+        // Check if this is multiple files (contains directory + files)
+        char *next_null = strchr(ptr, '\0');
+        if (next_null && *(next_null + 1) != '\0') {
+            // Multiple files: first string is directory
+            strcpy(directory, ptr);
+            ptr = next_null + 1;
+            
+            // Add each file (with extension validation)
+            while (*ptr) {
+                char full_path[1024];
+                snprintf(full_path, sizeof(full_path), "%s\\%s", directory, ptr);
+                
+                if (is_supported_extension(full_path)) {
+                    add_to_queue(&player->queue, full_path);
+                } else {
+                    printf("Skipping unsupported file: %s\n", full_path);
+                }
+                
+                // Move to next filename
+                ptr += strlen(ptr) + 1;
+            }
+        } else {
+            // Single file (with extension validation)
+            if (is_supported_extension(filename)) {
+                add_to_queue(&player->queue, filename);
+            } else {
+                printf("Unsupported file type: %s\n", filename);
+            }
+        }
+        
+        // If this was the first file(s) added to an empty queue, load and start playing
+        if (was_empty_queue && player->queue.count > 0) {
+            if (load_file_from_queue(player)) {
+                update_gui_state(player);
+                // load_file now auto-starts playback
+            }
+        }
+        
+        update_queue_display(player);
+        update_gui_state(player);
+    }
+#else
+    // Your existing GTK file dialog code for Linux/Mac
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Add to Queue",
                                                     GTK_WINDOW(player->window),
                                                     GTK_FILE_CHOOSER_ACTION_OPEN,
@@ -1363,6 +1439,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     }
     
     gtk_widget_destroy(dialog);
+#endif
 }
 
 
