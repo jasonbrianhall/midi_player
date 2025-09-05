@@ -299,20 +299,20 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
 
 bool init_audio(AudioPlayer *player) {
 #ifdef _WIN32
-// Try different audio drivers in order of preference
-const char* drivers[] = {"wasapi", "directsound", "winmm", NULL};
-for (int i = 0; drivers[i]; i++) {
-    if (SDL_SetHint(SDL_HINT_AUDIODRIVER, drivers[i])) {
-        printf("Trying SDL audio driver: %s\n", drivers[i]);
-        if (SDL_Init(SDL_INIT_AUDIO) == 0) {
-            printf("Successfully initialized with driver: %s\n", drivers[i]);
-            break;
-        } else {
-            printf("Failed with driver %s: %s\n", drivers[i], SDL_GetError());
-            SDL_Quit();
+    // Try different audio drivers in order of preference
+    const char* drivers[] = {"directsound", "winmm", "wasapi", NULL};
+    for (int i = 0; drivers[i]; i++) {
+        if (SDL_SetHint(SDL_HINT_AUDIODRIVER, drivers[i])) {
+            printf("Trying SDL audio driver: %s\n", drivers[i]);
+            if (SDL_Init(SDL_INIT_AUDIO) == 0) {
+                printf("Successfully initialized with driver: %s\n", drivers[i]);
+                break;
+            } else {
+                printf("Failed with driver %s: %s\n", drivers[i], SDL_GetError());
+                SDL_Quit();
+            }
         }
     }
-}
 #else
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         printf("SDL initialization failed: %s\n", SDL_GetError());
@@ -1771,7 +1771,7 @@ void create_main_window(AudioPlayer *player) {
     player->prev_button = gtk_button_new_with_label("|◀");
     player->rewind_button = gtk_button_new_with_label("◀◀ 5s");
     player->play_button = gtk_button_new_with_label("▶");
-    player->pause_button = gtk_button_new_with_label("⸸");
+    player->pause_button = gtk_button_new_with_label("⏸");
     player->stop_button = gtk_button_new_with_label("■");
     player->fast_forward_button = gtk_button_new_with_label("5s ▶▶");
     player->next_button = gtk_button_new_with_label("▶|");
