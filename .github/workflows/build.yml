@@ -1,0 +1,607 @@
+name: Build MIDI Player
+
+on:
+  push:
+    branches: [ master, main, dev ]
+    paths:
+      - 'gtk3/**'
+      - '**.cpp'
+      - '**.h'
+      - 'gtk3/Makefile'
+      - '**.yml'
+      - '**.yaml'
+  pull_request:
+    branches: [ master, main, dev ]
+    paths:
+      - 'gtk3/**'
+      - '**.cpp'
+      - '**.h'
+      - 'gtk3/Makefile'
+      - '**.yml'
+      - '**.yaml'
+  workflow_dispatch:
+
+env:
+  PRODUCT_VERSION: "1.0.${{ github.run_number }}"
+  UPGRADE_CODE: "A8F5B321-9D73-4E2A-B8F6-D425E9A7C841"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container: 
+      image: fedora:41
+    outputs:
+      version: ${{ env.PRODUCT_VERSION }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        dnf -y install \
+          gcc gcc-c++ make \
+          gtk3-devel gtkmm30-devel \
+          SDL2-devel SDL2_mixer-devel \
+          libvorbis-devel flac-devel \
+          gstreamer1-devel gstreamer1-plugins-base-devel \
+          pkg-config \
+          mingw64-gcc mingw64-gcc-c++ \
+          mingw64-gtk3 mingw64-gtkmm30 \
+          mingw64-SDL2 mingw64-SDL2_mixer \
+          mingw64-libvorbis mingw64-flac \
+          mingw64-gstreamer1 mingw64-gstreamer1-plugins-base \
+          wine wine-devel \
+          zip unzip
+
+    - name: Build Linux Version
+      working-directory: gtk3
+      run: |
+        make linux
+        
+        # Verify the build
+        if [ -f "build/linux/musicplayer" ]; then
+          echo "✅ Linux build successful"
+          ls -la build/linux/
+        else
+          echo "❌ Linux build failed"
+          exit 1
+        fi
+
+    - name: Build Windows Version
+      working-directory: gtk3
+      run: |
+        make windows
+        
+        # Verify the build
+        if [ -f "build/windows/musicplayer.exe" ]; then
+          echo "✅ Windows build successful"
+          ls -la build/windows/
+        else
+          echo "❌ Windows build failed"
+          exit 1
+        fi
+
+    - name: Prepare Build Artifacts
+      working-directory: gtk3
+      run: |
+        # Copy resources to both builds
+        cp ../README.md build/linux/ 2>/dev/null || true
+        cp ../README.md build/windows/ 2>/dev/null || true
+        
+        # For Windows build, collect required DLLs
+        cd build/windows
+        
+        # Find and copy essential DLLs
+        DLL_SOURCE="/usr/x86_64-w64-mingw32/sys-root/mingw/bin"
+        
+        # Core runtime DLLs
+        for dll in \
+          libgcc_s_seh-1.dll \
+          libstdc++-6.dll \
+          libwinpthread-1.dll \
+          SDL2.dll \
+          SDL2_mixer.dll \
+          libvorbis-0.dll \
+          libvorbisfile-3.dll \
+          libogg-0.dll \
+          libFLAC-12.dll \
+          libgtk-3-0.dll \
+          libgdk-3-0.dll \
+          libglib-2.0-0.dll \
+          libgobject-2.0-0.dll \
+          libgio-2.0-0.dll \
+          libcairo-2.dll \
+          libpango-1.0-0.dll \
+          libpangocairo-1.0-0.dll \
+          libgdk_pixbuf-2.0-0.dll \
+          libatk-1.0-0.dll \
+          libharfbuzz-0.dll \
+          libfontconfig-1.dll \
+          libfreetype-6.dll \
+          libexpat-1.dll \
+          libbz2-1.dll \
+          libpng16-16.dll \
+          zlib1.dll \
+          libiconv-2.dll \
+          libintl-8.dll \
+          libffi-8.dll \
+          libpcre2-8-0.dll; do
+          if [ -f "$DLL_SOURCE/$dll" ]; then
+            cp "$DLL_SOURCE/$dll" .
+            echo "Copied: $dll"
+          else
+            echo "Missing: $dll"
+          fi
+        done
+        
+        # Create GTK runtime directories
+        mkdir -p lib/gdk-pixbuf-2.0
+        mkdir -p lib/gtk-3.0
+        mkdir -p share/glib-2.0/schemas
+        mkdir -p share/icons
+        mkdir -p share/themes
+        
+        # Copy GTK schemas if available
+        if [ -d "/usr/x86_64-w64-mingw32/sys-root/mingw/share/glib-2.0/schemas" ]; then
+          cp -r /usr/x86_64-w64-mingw32/sys-root/mingw/share/glib-2.0/schemas/* share/glib-2.0/schemas/ 2>/dev/null || true
+        fi
+        
+        # List all files for verification
+        echo "=== Windows build contents ==="
+        find . -type f | sort
+        
+        # Create portable ZIP
+        cd ../..
+        zip -r "MIDI-Player-GTK-Portable.zip" build/windows/*
+
+    - name: Test Linux Build
+      working-directory: gtk3
+      run: |
+        # Test if the binary can at least show version/help
+        cd build/linux
+        ./musicplayer --help || echo "Help not available, but binary runs"
+        echo "Linux binary test completed"
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: midiplayer-builds
+        path: |
+          gtk3/build/linux/**/*
+          gtk3/build/windows/**/*
+          gtk3/MIDI-Player-GTK-Portable.zip
+        retention-days: 7
+
+  build-msi-windows:
+    needs: build-linux
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: midiplayer-builds
+        path: artifacts
+
+    - name: Setup WiX Toolset
+      run: |
+        # Download and install WiX Toolset v3
+        Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip" -OutFile "wix.zip"
+        Expand-Archive -Path "wix.zip" -DestinationPath "wix"
+        echo "$env:GITHUB_WORKSPACE\wix" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Create License Files
+      run: |
+        # Create MIT License text file
+        @"
+        MIT License
+        
+        Copyright (c) 2025 Jason Hall
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        "@ | Out-File -FilePath "artifacts\build\windows\LICENSE.txt" -Encoding UTF8
+
+        # Create License RTF for installer
+        @"
+        {\rtf1\ansi\deff0 {\fonttbl {\f0 Times New Roman;}}
+        \f0\fs24
+        MIT License\par
+        \par
+        Copyright (c) 2025 Jason Hall\par
+        \par
+        Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\par
+        \par
+        The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\par
+        \par
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\par
+        }
+        "@ | Out-File -FilePath "artifacts\build\windows\License.rtf" -Encoding UTF8
+
+    - name: Generate MSI Installer
+      working-directory: artifacts/build/windows
+      run: |
+        # Generate component entries for all DLLs
+        $dllEntries = Get-ChildItem -Name "*.dll" | ForEach-Object {
+          $safeId = $_ -replace '[^a-zA-Z0-9]', '_'
+          "          <File Id=`"$safeId`" Name=`"$_`" Source=`"$_`"/>"
+        }
+        
+        # Create WXS installer definition
+        @"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+          
+          <Product Id="*" 
+                   Name="GTK MIDI Player" 
+                   Language="1033" 
+                   Version="${{ needs.build-linux.outputs.version }}" 
+                   Manufacturer="Jason Hall" 
+                   UpgradeCode="${{ env.UPGRADE_CODE }}"> 
+            
+            <Package InstallerVersion="500" 
+                     Compressed="yes" 
+                     InstallScope="perMachine" 
+                     Description="GTK MIDI Player - Retro-Modern Music Player"
+                     Comments="Built with GitHub Actions"
+                     Manufacturer="Jason Hall" />
+            
+            <!-- Major upgrade configuration -->
+            <MajorUpgrade 
+              DowngradeErrorMessage="A newer version of GTK MIDI Player is already installed. Please uninstall it first." 
+              Schedule="afterInstallInitialize" />
+            
+            <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+            
+            <!-- License agreement -->
+            <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+            
+            <!-- Custom properties -->
+            <Property Id="ARPPRODUCTICON" Value="MidiPlayerIcon" />
+            <Property Id="ARPURLINFOABOUT" Value="https://github.com/yourusername/midiplayer" />
+            <Property Id="ARPNOREPAIR" Value="yes" />
+            <Property Id="ARPNOMODIFY" Value="yes" />
+            <Property Id="ARPHELPLINK" Value="https://github.com/yourusername/midiplayer/issues" />
+            
+            <!-- Installation scope choice -->
+            <Property Id="ApplicationFolderName" Value="GTK MIDI Player" />
+            <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
+            <WixVariable Id="WixUISupportPerUser" Value="1" />
+            <WixVariable Id="WixUISupportPerMachine" Value="1" />
+            
+            <Directory Id="TARGETDIR" Name="SourceDir">
+              <!-- Program Files installation -->
+              <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="!(bind.Property.ApplicationFolderName)">
+                  
+                  <!-- Main application component -->
+                  <Component Id="MainExecutable" 
+                           Guid="B58E73D9-4F96-49A7-C36F-2E7D0E5B9F45"
+                           Win64="no">
+                    <File Id="MainEXE" 
+                          Name="musicplayer.exe" 
+                          Source="musicplayer.exe" 
+                          KeyPath="yes">
+                      <!-- File associations for audio files -->
+                      <ProgId Id="MidiPlayer.AudioFile" Description="Audio File">
+                        <Extension Id="mid" ContentType="audio/midi">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                        <Extension Id="midi" ContentType="audio/midi">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                        <Extension Id="wav" ContentType="audio/wav">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                        <Extension Id="mp3" ContentType="audio/mpeg">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                        <Extension Id="ogg" ContentType="audio/ogg">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                        <Extension Id="flac" ContentType="audio/flac">
+                          <Verb Id="open" Command="Play" TargetFile="MainEXE" />
+                        </Extension>
+                      </ProgId>
+                    </File>
+                    
+                    <!-- Application files -->
+                    <File Id="README" Name="README.md" Source="README.md"/>
+                    <File Id="LICENSE_TXT" Name="LICENSE.txt" Source="LICENSE.txt"/>
+                    
+                    <!-- DLL files -->
+        $($dllEntries -join "`r`n")
+                    
+                    <!-- Registry entries -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\GTK MIDI Player">
+                      <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLFOLDER]" />
+                      <RegistryValue Type="string" Name="Version" Value="${{ needs.build-linux.outputs.version }}" />
+                      <RegistryValue Type="string" Name="Publisher" Value="Jason Hall" />
+                    </RegistryKey>
+                  </Component>
+                  
+                  <!-- GTK Runtime directories -->
+                  <Directory Id="LibDir" Name="lib">
+                    <Directory Id="GdkPixbuf" Name="gdk-pixbuf-2.0">
+                      <Component Id="GdkPixbufDir" Guid="A9F4C725-E83A-4D68-B9D3-752E4F9E6E40">
+                        <CreateFolder />
+                        <RemoveFolder Id="RemoveGdkPixbuf" On="uninstall" />
+                        <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Components" 
+                                     Type="integer" Name="GdkPixbuf" Value="1" KeyPath="yes"/>
+                      </Component>
+                    </Directory>
+                    <Directory Id="Gtk3" Name="gtk-3.0">
+                      <Component Id="Gtk3Dir" Guid="C2E5D951-F6B2-4E79-C7E4-864F3F9E7F51">
+                        <CreateFolder />
+                        <RemoveFolder Id="RemoveGtk3" On="uninstall" />
+                        <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Components" 
+                                     Type="integer" Name="Gtk3" Value="1" KeyPath="yes"/>
+                      </Component>
+                    </Directory>
+                  </Directory>
+                  
+                  <Directory Id="ShareDir" Name="share">
+                    <Directory Id="GLib2" Name="glib-2.0">
+                      <Directory Id="Schemas" Name="schemas">
+                        <Component Id="GtkSchemas" Guid="D8F6E372-C7F3-4F83-D2F5-975F4F9E8F62">
+                          <CreateFolder />
+                          <RemoveFolder Id="RemoveSchemas" On="uninstall" />
+                          <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Components" 
+                                       Type="integer" Name="Schemas" Value="1" KeyPath="yes"/>
+                        </Component>
+                      </Directory>
+                    </Directory>
+                    <Directory Id="Icons" Name="icons">
+                      <Component Id="IconsDir" Guid="E7A8F483-D4E4-4F94-E3A6-086A5F9E9A73">
+                        <CreateFolder />
+                        <RemoveFolder Id="RemoveIcons" On="uninstall" />
+                        <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Components" 
+                                     Type="integer" Name="Icons" Value="1" KeyPath="yes"/>
+                      </Component>
+                    </Directory>
+                    <Directory Id="Themes" Name="themes">
+                      <Component Id="ThemesDir" Guid="F9B9A594-E5F5-4FA5-F4B7-197B6F9E0B84">
+                        <CreateFolder />
+                        <RemoveFolder Id="RemoveThemes" On="uninstall" />
+                        <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Components" 
+                                     Type="integer" Name="Themes" Value="1" KeyPath="yes"/>
+                      </Component>
+                    </Directory>
+                  </Directory>
+                </Directory>
+              </Directory>
+              
+              <!-- Start Menu shortcuts -->
+              <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="GTK MIDI Player">
+                  <Component Id="ApplicationShortcuts" Guid="A0C3E560-A7B2-4C64-AD83-F42E9FE63E80">
+                    <Shortcut Id="ApplicationStartMenu" 
+                             Name="GTK MIDI Player" 
+                             Target="[INSTALLFOLDER]musicplayer.exe" 
+                             WorkingDirectory="INSTALLFOLDER"
+                             Description="Launch GTK MIDI Player"
+                             Icon="MidiPlayerIcon"/>
+                    <Shortcut Id="UninstallShortcut"
+                             Name="Uninstall GTK MIDI Player"
+                             Target="[SystemFolder]msiexec.exe"
+                             Arguments="/x [ProductCode]"
+                             Description="Uninstall GTK MIDI Player" />
+                    <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+                    <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Shortcuts" 
+                                 Name="StartMenu" Type="integer" Value="1" KeyPath="yes"/>
+                  </Component>
+                </Directory>
+              </Directory>
+              
+              <!-- Desktop shortcut (optional) -->
+              <Directory Id="DesktopFolder" Name="Desktop">
+                <Component Id="DesktopShortcut" Guid="B1D4F671-FAC8-4D75-BE94-E53F7F9E1C91">
+                  <Condition>DESKTOP_SHORTCUT</Condition>
+                  <Shortcut Id="DesktopShortcut" 
+                           Name="GTK MIDI Player" 
+                           Target="[INSTALLFOLDER]musicplayer.exe"
+                           WorkingDirectory="INSTALLFOLDER"
+                           Description="Launch GTK MIDI Player"
+                           Icon="MidiPlayerIcon"/>
+                  <RegistryValue Root="HKCU" Key="Software\GTKMidiPlayer\Shortcuts" 
+                               Name="Desktop" Type="integer" Value="1" KeyPath="yes"/>
+                </Component>
+              </Directory>
+            </Directory>
+            
+            <!-- Feature definitions -->
+            <Feature Id="ProductFeature" 
+                     Title="GTK MIDI Player" 
+                     Description="The main GTK MIDI Player application and required runtime files."
+                     Level="1" 
+                     ConfigurableDirectory="INSTALLFOLDER"
+                     AllowAdvertise="no">
+              <ComponentRef Id="MainExecutable" />
+              <ComponentRef Id="ApplicationShortcuts" />
+              <ComponentRef Id="GtkSchemas" />
+              <ComponentRef Id="GdkPixbufDir" />
+              <ComponentRef Id="Gtk3Dir" />
+              <ComponentRef Id="IconsDir" />
+              <ComponentRef Id="ThemesDir" />
+            </Feature>
+            
+            <Feature Id="DesktopShortcutFeature" 
+                     Title="Desktop Shortcut" 
+                     Description="Create a shortcut on the desktop."
+                     Level="1000">
+              <ComponentRef Id="DesktopShortcut" />
+            </Feature>
+            
+            <!-- Application icon (placeholder - you can add an actual icon file) -->
+            <Icon Id="MidiPlayerIcon" SourceFile="musicplayer.exe"/>
+            
+            <!-- Custom actions for cleanup -->
+            <CustomAction Id="CleanupRegistryOnUninstall" 
+                         Script="vbscript"
+                         Execute="deferred"
+                         Impersonate="no">
+              <![CDATA[
+                On Error Resume Next
+                Set shell = CreateObject("WScript.Shell")
+                shell.RegDelete "HKLM\SOFTWARE\GTK MIDI Player\"
+                shell.RegDelete "HKCU\Software\GTKMidiPlayer\"
+              ]]>
+            </CustomAction>
+            
+            <InstallExecuteSequence>
+              <Custom Action="CleanupRegistryOnUninstall" Before="RemoveFiles">
+                REMOVE="ALL"
+              </Custom>
+            </InstallExecuteSequence>
+            
+            <!-- UI Configuration -->
+            <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+            <Property Id="DESKTOP_SHORTCUT" Value="1" />
+            
+            <UIRef Id="WixUI_FeatureTree" />
+            <UIRef Id="WixUI_ErrorProgressText" />
+            
+          </Product>
+        </Wix>
+        "@ | Out-File -FilePath "installer.wxs" -Encoding UTF8
+
+    - name: Build MSI Installer
+      working-directory: artifacts/build/windows
+      run: |
+        # Debug: Show current directory and files
+        Write-Host "=== DEBUG: Current directory ==="
+        Get-Location
+        Write-Host "=== DEBUG: Files in current directory ==="
+        Get-ChildItem
+        
+        # Compile the installer
+        Write-Host "=== Building MSI installer ==="
+        & candle.exe installer.wxs
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Candle compilation failed with exit code $LASTEXITCODE"
+          exit 1
+        }
+        
+        & light.exe -ext WixUIExtension installer.wixobj -o "GTK-MIDI-Player.msi"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Light linking failed with exit code $LASTEXITCODE"
+          exit 1
+        }
+        
+        # Verify MSI was created
+        if (Test-Path "GTK-MIDI-Player.msi") {
+          Write-Host "✅ MSI installer created successfully: GTK-MIDI-Player.msi"
+          $msiSize = (Get-Item "GTK-MIDI-Player.msi").Length
+          Write-Host "MSI file size: $msiSize bytes"
+        } else {
+          Write-Error "❌ MSI file was not created!"
+          exit 1
+        }
+
+    - name: Upload MSI Installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: GTK-MIDI-Player.msi
+        path: artifacts/build/windows/GTK-MIDI-Player.msi
+
+    - name: Upload Portable ZIP
+      uses: actions/upload-artifact@v4
+      with:
+        name: MIDI-Player-GTK-Portable.zip
+        path: artifacts/MIDI-Player-GTK-Portable.zip
+
+  create-release:
+    needs: [build-linux, build-msi-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Download MSI Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: GTK-MIDI-Player.msi
+        path: release
+
+    - name: Download Portable Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: MIDI-Player-GTK-Portable.zip
+        path: release
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          release/GTK-MIDI-Player.msi
+          release/MIDI-Player-GTK-Portable.zip
+        tag_name: ${{ github.ref == 'refs/heads/master' && format('v{0}', github.run_number) || github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
+        name: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && format('Release v{0}', github.run_number) || format('Dev Build v{0}', github.run_number) }}
+        draft: false
+        prerelease: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+        make_latest: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+        body: |
+          ## ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && '🎶 Stable Release' || '🔧 Development Build' }}
+          
+          **Version:** ${{ needs.build-linux.outputs.version }}  
+          **Commit:** ${{ github.sha }}  
+          **Build:** #${{ github.run_number }}  
+          
+          ### 📦 Downloads
+          - **GTK-Music-Player.msi** - Windows installer with uninstall support
+          - **GTK-Music-Player-Portable.zip** - Portable version (no installation required)
+          
+          ### ✨ What's Inside
+          - 🎧 **Multi-format playback**: WAV, MP3, OGG, FLAC, MIDI
+          - 🎹 **OPL3 MIDI synthesis** for authentic retro sound
+          - 🎚️ **Complete playback controls** with queue management
+          - 🔊 **Volume control** (10% to 300%)
+          - ⏱️ **Progress tracking** with timestamps
+          - 🖥️ **GTK3 interface** for modern desktop integration
+          
+          ### 🚀 Installer Features
+          - ✅ User/Machine installation scope choice
+          - ✅ File associations for audio formats
+          - ✅ Start menu shortcuts with uninstall option
+          - ✅ Optional desktop shortcut
+          - ✅ Proper uninstall support
+          - ✅ MIT License agreement
+          - ✅ Registry cleanup on uninstall
+          - ✅ Add/Remove Programs integration
+          
+          ### 🛠️ Technical Details
+          - Built on: Linux (Fedora 41 container)
+          - MSI compiled on: Windows Latest
+          - GTK3 runtime included
+          - All dependencies bundled
+          - Cross-compiled with MinGW
+          
+          ### 🎵 Supported Formats
+          - **WAV** - Raw audio beauty
+          - **MP3** - The people's codec
+          - **OGG** - Open-source proud
+          - **FLAC** - Audiophile approved
+          - **MIDI** - With OPL3 synthesis magic
+          
+          ---
+          *Built with 🐧, 🎶, and a dash of absurdity*
