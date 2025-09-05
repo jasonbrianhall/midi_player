@@ -28,7 +28,8 @@ A minimalist music player with maximum personality. Built with GTK3 and powered 
 
 Just run:
 
-```make
+```
+make
 ./musicplayer
 ```
 
