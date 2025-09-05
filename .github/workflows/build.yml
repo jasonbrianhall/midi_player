@@ -414,7 +414,7 @@ jobs:
               
               <!-- Desktop shortcut (optional) -->
               <Directory Id="DesktopFolder" Name="Desktop">
-                <Component Id="DesktopShortcut" Guid="B1D4F671-FAC8-4D75-BE94-E53F7F9E1C91">
+                <Component Id="DesktopShortcut" Guid="B1D4A671-AAC8-4D75-BE94-E53A7A9E1C91">
                   <Condition>DESKTOP_SHORTCUT</Condition>
                   <Shortcut Id="DesktopShortcut" 
                            Name="GTK MIDI Player" 
