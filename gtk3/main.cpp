@@ -895,6 +895,12 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
+    } else if (strcmp(ext_lower, ".flac") == 0) {
+        printf("Loading FLAC file: %s\n", filename);
+        if (convert_flac_to_wav(player, filename)) {
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
+        }
     } else {
         printf("Unsupported file type: %s\n", ext);
         return false;
@@ -1283,6 +1289,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.wav");
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
     gtk_file_filter_add_pattern(all_filter, "*.ogg");
+    gtk_file_filter_add_pattern(all_filter, "*.flac");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1305,6 +1312,12 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_set_name(ogg_filter, "OGG Files (*.ogg)");
     gtk_file_filter_add_pattern(ogg_filter, "*.ogg");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), ogg_filter);
+
+    GtkFileFilter *flac_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(flac_filter, "FLAC Files (*.flac)");
+    gtk_file_filter_add_pattern(flac_filter, "*.flac");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), flac_filter);
+
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         GSList *filenames = gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(dialog));
@@ -1375,6 +1388,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.wav");
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
     gtk_file_filter_add_pattern(all_filter, "*.ogg");
+    gtk_file_filter_add_pattern(all_filter, "*.flac");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1397,6 +1411,12 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_set_name(ogg_filter, "OGG Files (*.ogg)");
     gtk_file_filter_add_pattern(ogg_filter, "*.ogg");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), ogg_filter);
+
+    GtkFileFilter *flac_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(flac_filter, "FLAC Files (*.flac)");
+    gtk_file_filter_add_pattern(flac_filter, "*.flac");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), flac_filter);
+
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
@@ -1438,11 +1458,10 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
     GtkWidget *about_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
-                                                     GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                     GTK_MESSAGE_INFO,
-                                                     GTK_BUTTONS_CLOSE,
-                                                     "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), MP3 (.mp3), and OGG (.ogg) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3 and OGG files are decoded and converted to WAV.\n\nFeatures:\n- Playlist queue with repeat\n- Drag the progress slider to seek\n- Use << and >> buttons for 5-second rewind/fast-forward\n- Use |< and >| buttons for previous/next song");
-    gtk_dialog_run(GTK_DIALOG(about_dialog));
+                                                 GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                 GTK_MESSAGE_INFO,
+                                                 GTK_BUTTONS_CLOSE,
+                                                 "GTK Music Player\n\nSupports MIDI (.mid, .midi), WAV (.wav), MP3 (.mp3), OGG (.ogg), and FLAC (.flac) files.\nMIDI files are converted to WAV using OPL3 synthesis.\nMP3, OGG, and FLAC files are decoded and converted to WAV.\n\nFeatures:\n- Playlist queue with repeat\n- Drag the progress slider to seek\n- Use << and >> buttons for 5-second rewind/fast-forward\n- Use |< and >| buttons for previous/next song");
     gtk_widget_destroy(about_dialog);
 }
 
