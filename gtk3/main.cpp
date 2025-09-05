@@ -26,6 +26,8 @@ extern double playwait;
 
 AudioPlayer *player = NULL;
 
+
+
 // Queue management functions
 void init_queue(PlayQueue *queue) {
     queue->files = NULL;
@@ -230,6 +232,14 @@ bool init_audio(AudioPlayer *player) {
 }
 
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
+    // Check cache first
+    const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
+    if (cached_file) {
+        strncpy(player->temp_wav_file, cached_file, sizeof(player->temp_wav_file) - 1);
+        player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+        return true;
+    }
+    
     // Generate a unique virtual filename
     static int virtual_counter = 0;
     char virtual_filename[256];
@@ -304,6 +314,9 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
     
     printf("Virtual conversion complete: %.2f seconds\n", playTime);
     
+    // Add to cache after successful conversion
+    add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
+    
     // Reinitialize the main SDL audio system for playback
     printf("Reinitializing SDL audio for playback...\n");
     if (!init_audio(player)) {
@@ -315,6 +328,14 @@ bool convert_midi_to_wav(AudioPlayer *player, const char* filename) {
 }
 
 bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
+    // Check cache first
+    const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
+    if (cached_file) {
+        strncpy(player->temp_wav_file, cached_file, sizeof(player->temp_wav_file) - 1);
+        player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+        return true;
+    }
+    
     // Generate a unique virtual filename
     static int virtual_counter = 0;
     char virtual_filename[256];
@@ -363,11 +384,23 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
+    // Add to cache after successful conversion
+    add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
+    
     printf("MP3 conversion to virtual file complete\n");
     return true;
 }
 
+
 bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
+    // Check cache first
+    const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
+    if (cached_file) {
+        strncpy(player->temp_wav_file, cached_file, sizeof(player->temp_wav_file) - 1);
+        player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+        return true;
+    }
+    
     // Generate a unique virtual filename instead of creating temporary file
     static int virtual_counter = 0;
     char virtual_filename[256];
@@ -445,6 +478,10 @@ bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
     }
     
     free(wav_data);
+    
+    // Add to cache after successful conversion
+    add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
+    
     printf("OGG conversion to virtual file complete\n");
     return true;
 }
@@ -1151,6 +1188,7 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     
     stop_playback(player);
     clear_queue(&player->queue);
+    cleanup_conversion_cache(&player->conversion_cache);
     
     // Clean up virtual filesystem instead of temporary files
     cleanup_virtual_filesystem();
@@ -1310,11 +1348,13 @@ int main(int argc, char *argv[]) {
     player = (AudioPlayer*)g_malloc0(sizeof(AudioPlayer));
     pthread_mutex_init(&player->audio_mutex, NULL);
     
-    // Initialize queue
+    // Initialize queue and conversion cache
     init_queue(&player->queue);
+    init_conversion_cache(&player->conversion_cache);
     
     if (!init_audio(player)) {
         printf("Audio initialization failed\n");
+        cleanup_conversion_cache(&player->conversion_cache);
         cleanup_virtual_filesystem();
         return 1;
     }
@@ -1344,8 +1384,10 @@ int main(int argc, char *argv[]) {
     gtk_main();
     
     clear_queue(&player->queue);
+    cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
     pthread_mutex_destroy(&player->audio_mutex);
     g_free(player);
     return 0;
 }
+

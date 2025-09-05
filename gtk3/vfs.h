@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "audio_player.h"
 
 // Virtual file structure
 typedef struct {

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <glib.h>
 #include "vfs.h"
 #include "audio_player.h"
 
