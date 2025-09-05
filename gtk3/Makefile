@@ -23,7 +23,7 @@ SOURCES_C =
 OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)
 OBJECTS_C = $(SOURCES_C:.c=.o)
 OBJECTS = $(OBJECTS_CPP) $(OBJECTS_C)
-EXECUTABLE = gtk-musicplayer
+EXECUTABLE = musicplayer
 
 all: $(EXECUTABLE)
 
