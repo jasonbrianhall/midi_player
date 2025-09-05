@@ -314,14 +314,13 @@ for (int i = 0; drivers[i]; i++) {
     }
 }
 #else
-SDL_Init(SDL_INIT_AUDIO);
-#endif
-
-
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         printf("SDL initialization failed: %s\n", SDL_GetError());
         return false;
     }
+#endif
+
+
     
     SDL_AudioSpec want;
     SDL_zero(want);
