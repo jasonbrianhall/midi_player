@@ -368,21 +368,85 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
 }
 
 bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
-    // Create secure temporary file
-    char temp_template[] = "/tmp/ogg_convert_XXXXXX.wav";
-    int temp_fd = mkstemps(temp_template, 4); // 4 for ".wav" suffix
+    // Generate a unique virtual filename instead of creating temporary file
+    static int virtual_counter = 0;
+    char virtual_filename[256];
+    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_ogg_%d.wav", virtual_counter++);
+    
+    strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+    
+    printf("Converting OGG to virtual WAV: %s -> %s\n", filename, virtual_filename);
+    
+    // Since convertOggToWavInMemory doesn't exist, we'll use your existing convertOggToWav
+    // but capture the output and put it in virtual filesystem
+    
+    // Create a real temporary file first (we'll read it into virtual FS then delete it)
+    char temp_template[] = "/tmp/ogg_temp_XXXXXX.wav";
+    int temp_fd = mkstemps(temp_template, 4);
     if (temp_fd == -1) {
         printf("Failed to create temporary file for OGG conversion\n");
         return false;
     }
-    close(temp_fd); // We just need the filename, will reopen later
+    close(temp_fd);
     
-    strncpy(player->temp_wav_file, temp_template, sizeof(player->temp_wav_file) - 1);
-    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+    // Use your existing convertOggToWav function to create the temporary file
+    bool conversion_success = convertOggToWav(filename, temp_template);
+    if (!conversion_success) {
+        unlink(temp_template); // Clean up temp file
+        return false;
+    }
     
-    printf("Converting OGG: %s -> %s\n", filename, player->temp_wav_file);
+    // Now read the temporary WAV file into virtual filesystem
+    FILE* temp_wav_file = fopen(temp_template, "rb");
+    if (!temp_wav_file) {
+        printf("Cannot open temporary WAV file: %s\n", temp_template);
+        unlink(temp_template);
+        return false;
+    }
     
-    return convertOggToWav(filename, player->temp_wav_file);
+    // Get file size
+    fseek(temp_wav_file, 0, SEEK_END);
+    long wav_size = ftell(temp_wav_file);
+    fseek(temp_wav_file, 0, SEEK_SET);
+    
+    // Read entire WAV file into memory
+    char* wav_data = (char*)malloc(wav_size);
+    if (!wav_data) {
+        printf("Failed to allocate memory for WAV data\n");
+        fclose(temp_wav_file);
+        unlink(temp_template);
+        return false;
+    }
+    
+    if (fread(wav_data, 1, wav_size, temp_wav_file) != (size_t)wav_size) {
+        printf("Failed to read temporary WAV file\n");
+        free(wav_data);
+        fclose(temp_wav_file);
+        unlink(temp_template);
+        return false;
+    }
+    
+    fclose(temp_wav_file);
+    unlink(temp_template); // Delete the temporary file
+    
+    // Create virtual file and write WAV data
+    VirtualFile* vf = create_virtual_file(virtual_filename);
+    if (!vf) {
+        printf("Cannot create virtual WAV file: %s\n", virtual_filename);
+        free(wav_data);
+        return false;
+    }
+    
+    if (!virtual_file_write(vf, wav_data, wav_size)) {
+        printf("Failed to write virtual WAV file\n");
+        free(wav_data);
+        return false;
+    }
+    
+    free(wav_data);
+    printf("OGG conversion to virtual file complete\n");
+    return true;
 }
 
 bool load_wav_file(AudioPlayer *player, const char* wav_path) {
