@@ -700,6 +700,71 @@ bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
     return true;
 }
 
+bool convert_flac_to_wav(AudioPlayer *player, const char* filename) {
+    // Check cache first
+    const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
+    if (cached_file) {
+        strncpy(player->temp_wav_file, cached_file, sizeof(player->temp_wav_file) - 1);
+        player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+        return true;
+    }
+    
+    // Generate a unique virtual filename
+    static int virtual_counter = 0;
+    char virtual_filename[256];
+    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_flac_%d.wav", virtual_counter++);
+    
+    strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+    
+    printf("Converting FLAC to virtual WAV: %s -> %s\n", filename, virtual_filename);
+    
+    // Read FLAC file into memory
+    FILE* flac_file = fopen(filename, "rb");
+    if (!flac_file) {
+        printf("Cannot open FLAC file: %s\n", filename);
+        return false;
+    }
+    
+    fseek(flac_file, 0, SEEK_END);
+    long flac_size = ftell(flac_file);
+    fseek(flac_file, 0, SEEK_SET);
+    
+    std::vector<uint8_t> flac_data(flac_size);
+    if (fread(flac_data.data(), 1, flac_size, flac_file) != (size_t)flac_size) {
+        printf("Failed to read FLAC file\n");
+        fclose(flac_file);
+        return false;
+    }
+    fclose(flac_file);
+    
+    // Convert FLAC to WAV in memory
+    std::vector<uint8_t> wav_data;
+    if (!convertFlacToWavInMemory(flac_data, wav_data)) {
+        printf("FLAC to WAV conversion failed\n");
+        return false;
+    }
+    
+    // Create virtual file and write WAV data
+    VirtualFile* vf = create_virtual_file(virtual_filename);
+    if (!vf) {
+        printf("Cannot create virtual WAV file: %s\n", virtual_filename);
+        return false;
+    }
+    
+    if (!virtual_file_write(vf, wav_data.data(), wav_data.size())) {
+        printf("Failed to write virtual WAV file\n");
+        return false;
+    }
+    
+    // Add to cache after successful conversion
+    add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
+    
+    printf("FLAC conversion to virtual file complete\n");
+    return true;
+}
+
+
 bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     FILE* wav_file = fopen(wav_path, "rb");
     if (!wav_file) {

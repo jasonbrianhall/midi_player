@@ -17,6 +17,7 @@
 #include "wav_converter.h"
 #include "audioconverter.h"
 #include "convertoggtowav.h"
+#include "convertflactowav.h"
 
 // Conversion Cache Entries.
 typedef struct {
@@ -124,9 +125,11 @@ bool init_audio(AudioPlayer *player);
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename);
 bool convert_mp3_to_wav(AudioPlayer *player, const char* filename);
 bool convert_ogg_to_wav(AudioPlayer *player, const char* filename);
+bool convert_flac_to_wav(AudioPlayer *player, const char* filename);
 bool load_wav_file(AudioPlayer *player, const char* wav_path);
 bool load_file(AudioPlayer *player, const char *filename);
 bool load_file_from_queue(AudioPlayer *player);
+
 
 // Playback control functions
 void seek_to_position(AudioPlayer *player, double position_seconds);
