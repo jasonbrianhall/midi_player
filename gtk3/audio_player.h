@@ -173,4 +173,9 @@ bool is_file_modified(const char* filepath, time_t cached_time, off_t cached_siz
 // GUI creation function
 void create_main_window(AudioPlayer *player);
 
+// Windows Specific 
+#ifdef _WIN32
+bool open_windows_file_dialog(char* filename, size_t filename_size, bool multiple = false);
+#endif
+
 #endif // AUDIO_PLAYER_H

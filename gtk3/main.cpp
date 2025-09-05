@@ -27,7 +27,44 @@ extern double playwait;
 
 AudioPlayer *player = NULL;
 
+#ifdef _WIN32
+#include <windows.h>
+#include <commdlg.h>
+#include <shlobj.h>
 
+bool open_windows_file_dialog(char* filename, size_t filename_size, bool multiple = false) {
+    OPENFILENAME ofn;
+    char szFile[2048] = "";
+    
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.ogg;*.flac\0"
+                      "MIDI Files\0*.mid;*.midi\0"
+                      "WAV Files\0*.wav\0"
+                      "MP3 Files\0*.mp3\0"
+                      "OGG Files\0*.ogg\0"
+                      "FLAC Files\0*.flac\0"
+                      "All Files\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    
+    if (multiple) {
+        ofn.Flags |= OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+    }
+    
+    if (GetOpenFileName(&ofn)) {
+        strncpy(filename, szFile, filename_size - 1);
+        filename[filename_size - 1] = '\0';
+        return true;
+    }
+    return false;
+}
+#endif
 
 // Queue management functions
 void init_queue(PlayQueue *queue) {
@@ -1351,9 +1388,23 @@ void on_repeat_queue_toggled(GtkToggleButton *button, gpointer user_data) {
 
 // Menu callbacks
 void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
-    (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
+#ifdef _WIN32
+    char filename[1024];
+    if (open_windows_file_dialog(filename, sizeof(filename))) {
+        // Clear queue and add this single file
+        clear_queue(&player->queue);
+        add_to_queue(&player->queue, filename);
+        
+        if (load_file_from_queue(player)) {
+            printf("Successfully loaded: %s\n", filename);
+            update_queue_display(player);
+            update_gui_state(player);
+        }
+    }
+#else
+    // Your existing GTK file dialog code for Linux/Mac
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Open Audio File",
                                                     GTK_WINDOW(player->window),
                                                     GTK_FILE_CHOOSER_ACTION_OPEN,
@@ -1425,6 +1476,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     }
     
     gtk_widget_destroy(dialog);
+#endif
 }
 
 
