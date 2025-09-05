@@ -189,8 +189,8 @@ $(BUILD_DIR_WIN_DEBUG)/%.win.debug.o: %.c
 .PHONY: musicplayer-collect-dlls
 musicplayer-collect-dlls: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
 	@echo "Collecting DLLs for musicplayer..."
-	@if [ -f collect_dlls.sh ]; then \
-		./collect_dlls.sh $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN); \
+	@if [ -f $(BUILD_DIR_WIN)/collect_dlls.sh ]; then \
+		$(BUILD_DIR_WIN)/collect_dlls.sh $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN); \
 	else \
 		echo "Warning: collect_dlls.sh not found. You may need to manually copy required DLLs."; \
 		echo "Required DLLs typically include: SDL2.dll, libgtk-3-0.dll, libglib-2.0-0.dll, etc."; \
@@ -199,8 +199,8 @@ musicplayer-collect-dlls: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
 .PHONY: musicplayer-collect-debug-dlls
 musicplayer-collect-debug-dlls: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG)
 	@echo "Collecting Debug DLLs for musicplayer..."
-	@if [ -f collect_dlls.sh ]; then \
-		./collect_dlls.sh $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN_DEBUG); \
+	@if [ -f $(BUILD_DIR_WIN)/collect_dlls.sh ]; then \
+		$(BUILD_DIR_WIN)/collect_dlls.sh $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN_DEBUG); \
 	else \
 		echo "Warning: collect_dlls.sh not found. You may need to manually copy required DLLs."; \
 	fi
