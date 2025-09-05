@@ -908,53 +908,48 @@ void start_playback(AudioPlayer *player) {
             bool song_finished = false;
             bool currently_playing = p->is_playing;
             
-            // Only check for song completion if we were actually playing
-            if (currently_playing && p->audio_buffer.data && p->audio_buffer.length > 0) {
+            // Check if song has finished
+            if (p->audio_buffer.data && p->audio_buffer.length > 0) {
+                // Song finished if we've reached the end of the buffer
                 if (p->audio_buffer.position >= p->audio_buffer.length) {
-                    p->is_playing = false;
+                    if (currently_playing) {
+                        p->is_playing = false;
+                        currently_playing = false;
+                    }
                     song_finished = true;
-                    printf("Song finished naturally (pos: %zu, len: %zu)\n", 
+                    printf("Song finished - reached end of buffer (pos: %zu, len: %zu)\n", 
                            p->audio_buffer.position, p->audio_buffer.length);
+                }
+                // Also check if is_playing was set to false by audio callback
+                else if (!currently_playing && p->audio_buffer.position > 0) {
+                    song_finished = true;
+                    printf("Song finished - detected by audio callback\n");
                 }
             }
             
             // Update playback position if playing
-            if (p->is_playing && p->audio_buffer.data && p->sample_rate > 0) {
+            if (currently_playing && p->audio_buffer.data && p->sample_rate > 0) {
                 double samples_per_second = (double)(p->sample_rate * p->channels);
                 playTime = (double)p->audio_buffer.position / samples_per_second;
             }
             
             pthread_mutex_unlock(&p->audio_mutex);
             
-            // Handle song completion OUTSIDE the mutex lock
+            // Handle song completion
             if (song_finished && p->queue.count > 0) {
-                printf("Song completed. Attempting to advance queue (current: %d/%d, repeat: %s)\n", 
-                       p->queue.current_index + 1, p->queue.count, 
-                       p->queue.repeat_queue ? "ON" : "OFF");
+                printf("Song completed. Calling next_song()...\n");
                 
-                // Stop the current timer to prevent race conditions
+                // Stop the current timer
                 p->update_timer_id = 0;
                 
-                // Try to advance to next song
-                if (advance_queue(&p->queue)) {
-                    printf("Advanced to next song (now at %d/%d), loading...\n", 
-                           p->queue.current_index + 1, p->queue.count);
-                    if (load_file_from_queue(p)) {
-                        update_queue_display(p);
-                        update_gui_state(p);
-                        // load_file_from_queue calls load_file which calls start_playback
-                        // which will create a new timer, so we return FALSE here
-                        return FALSE;
-                    } else {
-                        printf("Failed to load next song\n");
-                        update_gui_state(p);
-                        return FALSE;
-                    }
-                } else {
-                    printf("Queue advance failed - at end with no repeat\n");
-                    update_gui_state(p);
+                // Call next_song() after a short delay
+                g_timeout_add(50, [](gpointer data) -> gboolean {
+                    AudioPlayer *player = (AudioPlayer*)data;
+                    next_song(player);
                     return FALSE;
-                }
+                }, p);
+                
+                return FALSE; // Stop this timer
             }
             
             // If not playing anymore (but not due to song completion), stop timer
@@ -986,6 +981,7 @@ void start_playback(AudioPlayer *player) {
         }), player);
     }
 }
+
 
 void toggle_pause(AudioPlayer *player) {
     if (!player->is_playing) return;
