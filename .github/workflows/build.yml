@@ -49,7 +49,7 @@ jobs:
           mingw64-gtk3 mingw64-gtkmm30 \
           mingw64-SDL2 mingw64-SDL2_mixer \
           mingw64-libvorbis mingw64-flac \
-          mingw64-opus mingw64-opusfile \ 
+          mingw64-opus mingw64-opusfile \
           wine wine-devel \
           zip unzip \
           opus-devel opusfile-devel \
