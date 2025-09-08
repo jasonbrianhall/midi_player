@@ -1,4 +1,4 @@
-name: Build GTK Music Player
+name: Build Zenamp
 
 on:
   push:
@@ -72,7 +72,7 @@ jobs:
           echo "No icon.png found, creating placeholder icon.ico"
           # Create a simple colored square as fallback
           convert -size 256x256 xc:'#1a73e8' -fill white -gravity center \
-                  -pointsize 32 -annotate +0+0 'GTK\nMusic\nPlayer' icon.ico
+                  -pointsize 32 -annotate +0+0 'Zenamp' icon.ico
         fi
 
     - name: Build Linux Version
@@ -81,7 +81,7 @@ jobs:
         make linux
         
         # Verify the build
-        if [ -f "build/linux/musicplayer" ]; then
+        if [ -f "build/linux/zenamp" ]; then
           echo "Linux build successful"
           ls -la build/linux/
         else
@@ -95,7 +95,7 @@ jobs:
         make windows
         
         # Verify the build
-        if [ -f "build/windows/musicplayer.exe" ]; then
+        if [ -f "build/windows/zenamp.exe" ]; then
           echo "Windows build successful"
           ls -la build/windows/
         else
@@ -175,24 +175,24 @@ jobs:
         
         # Create portable ZIP
         cd ../..
-        zip -r "GTK-Music-Player-Portable.zip" build/windows/*
+        zip -r "Zenamp-Portable.zip" build/windows/*
 
     - name: Test Linux Build
       working-directory: gtk3
       run: |
         # Test if the binary can at least show version/help
         cd build/linux
-        ./musicplayer --help || echo "Help not available, but binary runs"
+        ./zenamp --help || echo "Help not available, but binary runs"
         echo "Linux binary test completed"
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: musicplayer-builds
+        name: zenamp-builds
         path: |
           gtk3/build/linux/**/*
           gtk3/build/windows/**/*
-          gtk3/GTK-Music-Player-Portable.zip
+          gtk3/Zenamp-Portable.zip
         retention-days: 7
 
   build-msi-windows:
@@ -207,7 +207,7 @@ jobs:
     - name: Download Build Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: musicplayer-builds
+        name: zenamp-builds
         path: artifacts
 
     - name: Setup WiX Toolset
@@ -275,7 +275,7 @@ jobs:
         <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
           
           <Product Id="*" 
-                   Name="GTK Music Player" 
+                   Name="Zenamp" 
                    Language="1033" 
                    Version="${{ needs.build-linux.outputs.version }}" 
                    Manufacturer="Jason Hall" 
@@ -284,13 +284,13 @@ jobs:
             <Package InstallerVersion="500" 
                      Compressed="yes" 
                      InstallScope="perMachine" 
-                     Description="GTK Music Player - Retro-Modern Music Player"
+                     Description="Zenamp - Retro-Modern Music Player"
                      Comments="Built with GitHub Actions"
                      Manufacturer="Jason Hall" />
             
             <!-- Major upgrade configuration -->
             <MajorUpgrade 
-              DowngradeErrorMessage="A newer version of GTK Music Player is already installed. Please uninstall it first." 
+              DowngradeErrorMessage="A newer version of Zenamp is already installed. Please uninstall it first." 
               Schedule="afterInstallInitialize" />
             
             <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
@@ -299,14 +299,14 @@ jobs:
             <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
             
             <!-- Custom properties -->
-            <Property Id="ARPPRODUCTICON" Value="MusicPlayerIcon" />
-            <Property Id="ARPURLINFOABOUT" Value="https://github.com/yourusername/gtk-music-player" />
+            <Property Id="ARPPRODUCTICON" Value="zenampIcon" />
+            <Property Id="ARPURLINFOABOUT" Value="https://github.com/jasonbrianhall/midi_msdos" />
             <Property Id="ARPNOREPAIR" Value="yes" />
             <Property Id="ARPNOMODIFY" Value="yes" />
-            <Property Id="ARPHELPLINK" Value="https://github.com/yourusername/gtk-music-player/issues" />
+            <Property Id="ARPHELPLINK" Value="https://github.com/jasonbrianhall/midi_msdos/issues" />
             
             <!-- Installation scope choice -->
-            <Property Id="ApplicationFolderName" Value="GTK Music Player" />
+            <Property Id="ApplicationFolderName" Value="Zenamp" />
             <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
             <WixVariable Id="WixUISupportPerUser" Value="1" />
             <WixVariable Id="WixUISupportPerMachine" Value="1" />
@@ -321,8 +321,8 @@ jobs:
                            Guid="B58E73D9-4A96-49B7-C36E-2E7D0E5B9A45"
                            Win64="no">
                     <File Id="MainEXE" 
-                          Name="musicplayer.exe" 
-                          Source="musicplayer.exe" 
+                          Name="zenamp.exe" 
+                          Source="zenamp.exe" 
                           KeyPath="yes" />
                     
                     <!-- Application files -->
@@ -334,7 +334,7 @@ jobs:
         $($dllEntries -join "`r`n")
                     
                     <!-- Registry entries -->
-                    <RegistryKey Root="HKLM" Key="SOFTWARE\GTK Music Player">
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Zenamp">
                       <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLFOLDER]" />
                       <RegistryValue Type="string" Name="Version" Value="${{ needs.build-linux.outputs.version }}" />
                       <RegistryValue Type="string" Name="Publisher" Value="Jason Hall" />
@@ -347,7 +347,7 @@ jobs:
                       <Component Id="GdkPixbufDir" Guid="A9A4C725-E83A-4D68-B9D3-752E4A9E6E40">
                         <CreateFolder />
                         <RemoveFolder Id="RemoveGdkPixbuf" On="uninstall" />
-                        <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Components" 
+                        <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                      Type="integer" Name="GdkPixbuf" Value="1" KeyPath="yes"/>
                       </Component>
                     </Directory>
@@ -355,7 +355,7 @@ jobs:
                       <Component Id="Gtk3Dir" Guid="C2E5D951-A6B2-4E79-C7E4-864A3A9E7A51">
                         <CreateFolder />
                         <RemoveFolder Id="RemoveGtk3" On="uninstall" />
-                        <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Components" 
+                        <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                      Type="integer" Name="Gtk3" Value="1" KeyPath="yes"/>
                       </Component>
                     </Directory>
@@ -367,7 +367,7 @@ jobs:
                         <Component Id="GtkSchemas" Guid="D8A6E372-C7A3-4A83-D2A5-975A4A9E8A62">
                           <CreateFolder />
                           <RemoveFolder Id="RemoveSchemas" On="uninstall" />
-                          <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Components" 
+                          <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                        Type="integer" Name="Schemas" Value="1" KeyPath="yes"/>
                         </Component>
                       </Directory>
@@ -376,7 +376,7 @@ jobs:
                       <Component Id="IconsDir" Guid="E7A8A483-D4E4-4A94-E3A6-086A5A9E9A73">
                         <CreateFolder />
                         <RemoveFolder Id="RemoveIcons" On="uninstall" />
-                        <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Components" 
+                        <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                      Type="integer" Name="Icons" Value="1" KeyPath="yes"/>
                       </Component>
                     </Directory>
@@ -384,7 +384,7 @@ jobs:
                       <Component Id="ThemesDir" Guid="A9B9A594-E5A5-4AA5-A4B7-197B6A9E0B84">
                         <CreateFolder />
                         <RemoveFolder Id="RemoveThemes" On="uninstall" />
-                        <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Components" 
+                        <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                      Type="integer" Name="Themes" Value="1" KeyPath="yes"/>
                       </Component>
                     </Directory>
@@ -394,21 +394,21 @@ jobs:
               
               <!-- Start Menu shortcuts -->
               <Directory Id="ProgramMenuFolder">
-                <Directory Id="ApplicationProgramsFolder" Name="GTK Music Player">
+                <Directory Id="ApplicationProgramsFolder" Name="Zenamp">
                   <Component Id="ApplicationShortcuts" Guid="A0C3E560-A7B2-4C64-AD83-A42E9AE63E80">
                     <Shortcut Id="ApplicationStartMenu" 
-                             Name="GTK Music Player" 
-                             Target="[INSTALLFOLDER]musicplayer.exe" 
+                             Name="Zenamp" 
+                             Target="[INSTALLFOLDER]zenamp.exe" 
                              WorkingDirectory="INSTALLFOLDER"
-                             Description="Launch GTK Music Player"
-                             Icon="MusicPlayerIcon"/>
+                             Description="Launch Zenamp"
+                             Icon="zenampIcon"/>
                     <Shortcut Id="UninstallShortcut"
-                             Name="Uninstall GTK Music Player"
+                             Name="Uninstall Zenamp"
                              Target="[SystemFolder]msiexec.exe"
                              Arguments="/x [ProductCode]"
-                             Description="Uninstall GTK Music Player" />
+                             Description="Uninstall Zenamp" />
                     <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
-                    <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Shortcuts" 
+                    <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Shortcuts" 
                                  Name="StartMenu" Type="integer" Value="1" KeyPath="yes"/>
                   </Component>
                 </Directory>
@@ -419,12 +419,12 @@ jobs:
                 <Component Id="DesktopShortcut" Guid="B1D4A671-AAC8-4D75-BE94-E53A7A9E1C91">
                   <Condition>DESKTOP_SHORTCUT</Condition>
                   <Shortcut Id="DesktopShortcut" 
-                           Name="GTK Music Player" 
-                           Target="[INSTALLFOLDER]musicplayer.exe"
+                           Name="Zenamp" 
+                           Target="[INSTALLFOLDER]zenamp.exe"
                            WorkingDirectory="INSTALLFOLDER"
-                           Description="Launch GTK Music Player"
-                           Icon="MusicPlayerIcon"/>
-                  <RegistryValue Root="HKCU" Key="Software\GTKMusicPlayer\Shortcuts" 
+                           Description="Launch Zenamp"
+                           Icon="zenampIcon"/>
+                  <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Shortcuts" 
                                Name="Desktop" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
               </Directory>
@@ -432,8 +432,8 @@ jobs:
             
             <!-- Feature definitions -->
             <Feature Id="ProductFeature" 
-                     Title="GTK Music Player" 
-                     Description="The main GTK Music Player application and required runtime files."
+                     Title="Zenamp" 
+                     Description="The main Zenamp application and required runtime files."
                      Level="1" 
                      ConfigurableDirectory="INSTALLFOLDER"
                      AllowAdvertise="no">
@@ -454,7 +454,7 @@ jobs:
             </Feature>
             
             <!-- Application icon -->
-            <Icon Id="MusicPlayerIcon" SourceFile="icon.ico"/>
+            <Icon Id="zenampIcon" SourceFile="icon.ico"/>
             
             <!-- Custom actions for cleanup -->
             <CustomAction Id="CleanupRegistryOnUninstall" 
@@ -464,8 +464,8 @@ jobs:
               <![CDATA[
                 On Error Resume Next
                 Set shell = CreateObject("WScript.Shell")
-                shell.RegDelete "HKLM\SOFTWARE\GTK Music Player\"
-                shell.RegDelete "HKCU\Software\GTKMusicPlayer\"
+                shell.RegDelete "HKLM\SOFTWARE\Zenamp\"
+                shell.RegDelete "HKCU\Software\GTKzenamp\"
               ]]>
             </CustomAction>
             
@@ -503,16 +503,16 @@ jobs:
           exit 1
         }
         
-        & light.exe -ext WixUIExtension installer.wixobj -o "GTK-Music-Player.msi"
+        & light.exe -ext WixUIExtension installer.wixobj -o "Zenamp.msi"
         if ($LASTEXITCODE -ne 0) {
           Write-Error "Light linking failed with exit code $LASTEXITCODE"
           exit 1
         }
         
         # Verify MSI was created
-        if (Test-Path "GTK-Music-Player.msi") {
-          Write-Host "MSI installer created successfully: GTK-Music-Player.msi"
-          $msiSize = (Get-Item "GTK-Music-Player.msi").Length
+        if (Test-Path "Zenamp.msi") {
+          Write-Host "MSI installer created successfully: Zenamp.msi"
+          $msiSize = (Get-Item "Zenamp.msi").Length
           Write-Host "MSI file size: $msiSize bytes"
         } else {
           Write-Error "MSI file was not created!"
@@ -522,14 +522,14 @@ jobs:
     - name: Upload MSI Installer
       uses: actions/upload-artifact@v4
       with:
-        name: GTK-Music-Player.msi
-        path: artifacts/build/windows/GTK-Music-Player.msi
+        name: Zenamp.msi
+        path: artifacts/build/windows/Zenamp.msi
 
     - name: Upload Portable ZIP
       uses: actions/upload-artifact@v4
       with:
-        name: GTK-Music-Player-Portable.zip
-        path: artifacts/GTK-Music-Player-Portable.zip
+        name: Zenamp-Portable.zip
+        path: artifacts/Zenamp-Portable.zip
 
   create-release:
     needs: [build-linux, build-msi-windows]
@@ -542,21 +542,21 @@ jobs:
     - name: Download MSI Artifact
       uses: actions/download-artifact@v4
       with:
-        name: GTK-Music-Player.msi
+        name: Zenamp.msi
         path: release
 
     - name: Download Portable Artifact
       uses: actions/download-artifact@v4
       with:
-        name: GTK-Music-Player-Portable.zip
+        name: Zenamp-Portable.zip
         path: release
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          release/GTK-Music-Player.msi
-          release/GTK-Music-Player-Portable.zip
+          release/Zenamp.msi
+          release/Zenamp-Portable.zip
         tag_name: ${{ github.ref == 'refs/heads/master' && format('v{0}', github.run_number) || github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
         name: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && format('Release v{0}', github.run_number) || format('Dev Build v{0}', github.run_number) }}
         draft: false
@@ -570,8 +570,8 @@ jobs:
           **Build:** #${{ github.run_number }}  
           
           ### Downloads
-          - **GTK-Music-Player.msi** - Windows installer with uninstall support
-          - **GTK-Music-Player-Portable.zip** - Portable version (no installation required)
+          - **Zenamp.msi** - Windows installer with uninstall support
+          - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
           - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI

@@ -1562,7 +1562,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     }
     
     // Set about dialog properties
-    gtk_about_dialog_set_program_name(GTK_ABOUT_DIALOG(about_dialog), "Music Player");
+    gtk_about_dialog_set_program_name(GTK_ABOUT_DIALOG(about_dialog), "Zenamp");
     gtk_about_dialog_set_version(GTK_ABOUT_DIALOG(about_dialog), "1.0");
     
     // Beautiful description
@@ -1662,7 +1662,7 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 
 void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(player->window), "Music Player");
+    gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp");
     gtk_window_set_default_size(GTK_WINDOW(player->window), 800, 600);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     

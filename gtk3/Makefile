@@ -1,5 +1,5 @@
 # Enhanced Makefile with Windows and Linux Support
-# Based on musicplayer project structure
+# Based on zenamp project structure
 
 # Compiler settings
 CXX_LINUX = g++
@@ -89,10 +89,10 @@ OBJECTS_C_WIN_DEBUG = $(SOURCES_C:.c=.win.debug.o)
 OBJECTS_WIN_DEBUG = $(OBJECTS_CPP_WIN_DEBUG) $(OBJECTS_C_WIN_DEBUG)
 
 # Target executables
-EXECUTABLE_LINUX = musicplayer
-EXECUTABLE_WIN = musicplayer.exe
-EXECUTABLE_LINUX_DEBUG = musicplayer_debug
-EXECUTABLE_WIN_DEBUG = musicplayer_debug.exe
+EXECUTABLE_LINUX = zenamp
+EXECUTABLE_WIN = zenamp.exe
+EXECUTABLE_LINUX_DEBUG = zenamp_debug
+EXECUTABLE_WIN_DEBUG = zenamp_debug.exe
 
 # Build directories
 BUILD_DIR = build
@@ -113,20 +113,20 @@ all: linux
 
 # OS-specific builds
 .PHONY: windows
-windows: musicplayer-windows
+windows: zenamp-windows
 
 .PHONY: linux
-linux: musicplayer-linux
+linux: zenamp-linux
 
 # Debug targets
 .PHONY: debug
-debug: musicplayer-linux-debug musicplayer-windows-debug
+debug: zenamp-linux-debug zenamp-windows-debug
 
 #
 # Linux build targets
 #
-.PHONY: musicplayer-linux
-musicplayer-linux: $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX)
+.PHONY: zenamp-linux
+zenamp-linux: $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX)
 
 $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX): $(addprefix $(BUILD_DIR_LINUX)/,$(OBJECTS_LINUX))
 	$(CXX_LINUX) $^ -o $@ $(LDFLAGS_LINUX)
@@ -141,8 +141,8 @@ $(BUILD_DIR_LINUX)/%.o: %.c
 #
 # Linux debug targets
 #
-.PHONY: musicplayer-linux-debug
-musicplayer-linux-debug: $(BUILD_DIR_LINUX_DEBUG)/$(EXECUTABLE_LINUX_DEBUG)
+.PHONY: zenamp-linux-debug
+zenamp-linux-debug: $(BUILD_DIR_LINUX_DEBUG)/$(EXECUTABLE_LINUX_DEBUG)
 
 $(BUILD_DIR_LINUX_DEBUG)/$(EXECUTABLE_LINUX_DEBUG): $(addprefix $(BUILD_DIR_LINUX_DEBUG)/,$(OBJECTS_LINUX_DEBUG))
 	$(CXX_LINUX) $^ -o $@ $(LDFLAGS_LINUX)
@@ -157,8 +157,8 @@ $(BUILD_DIR_LINUX_DEBUG)/%.debug.o: %.c
 #
 # Windows build targets
 #
-.PHONY: musicplayer-windows
-musicplayer-windows: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) musicplayer-collect-dlls
+.PHONY: zenamp-windows
+zenamp-windows: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) zenamp-collect-dlls
 
 $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN): $(addprefix $(BUILD_DIR_WIN)/,$(OBJECTS_WIN))
 	$(CXX_WIN) $^ -o $@ $(LDFLAGS_WIN)
@@ -173,8 +173,8 @@ $(BUILD_DIR_WIN)/%.win.o: %.c
 #
 # Windows debug targets
 #
-.PHONY: musicplayer-windows-debug
-musicplayer-windows-debug: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) musicplayer-collect-debug-dlls
+.PHONY: zenamp-windows-debug
+zenamp-windows-debug: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) zenamp-collect-debug-dlls
 
 $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG): $(addprefix $(BUILD_DIR_WIN_DEBUG)/,$(OBJECTS_WIN_DEBUG))
 	$(CXX_WIN) $^ -o $@ $(LDFLAGS_WIN)
@@ -189,9 +189,9 @@ $(BUILD_DIR_WIN_DEBUG)/%.win.debug.o: %.c
 #
 # DLL collection for Windows builds
 #
-.PHONY: musicplayer-collect-dlls
-musicplayer-collect-dlls: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
-	@echo "Collecting DLLs for musicplayer..."
+.PHONY: zenamp-collect-dlls
+zenamp-collect-dlls: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
+	@echo "Collecting DLLs for zenamp..."
 	@if [ -f $(BUILD_DIR_WIN)/collect_dlls.sh ]; then \
 		$(BUILD_DIR_WIN)/collect_dlls.sh $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN); \
 	else \
@@ -199,9 +199,9 @@ musicplayer-collect-dlls: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
 		echo "Required DLLs typically include: SDL2.dll, libgtk-3-0.dll, libglib-2.0-0.dll, etc."; \
 	fi
 
-.PHONY: musicplayer-collect-debug-dlls
-musicplayer-collect-debug-dlls: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG)
-	@echo "Collecting Debug DLLs for musicplayer..."
+.PHONY: zenamp-collect-debug-dlls
+zenamp-collect-debug-dlls: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG)
+	@echo "Collecting Debug DLLs for zenamp..."
 	@if [ -f $(BUILD_DIR_WIN)/collect_dlls.sh ]; then \
 		$(BUILD_DIR_WIN)/collect_dlls.sh $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) $(DLL_SOURCE_DIR) $(BUILD_DIR_WIN_DEBUG); \
 	else \
@@ -233,15 +233,15 @@ clean-all: clean
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  make               - Build musicplayer for Linux (default)"
-	@echo "  make linux         - Build musicplayer for Linux"
-	@echo "  make windows       - Build musicplayer for Windows"
+	@echo "  make               - Build zenamp for Linux (default)"
+	@echo "  make linux         - Build zenamp for Linux"
+	@echo "  make windows       - Build zenamp for Windows"
 	@echo ""
-	@echo "  make debug         - Build musicplayer with debug symbols for both platforms"
-	@echo "  make musicplayer-linux-debug   - Build musicplayer for Linux with debug symbols"
-	@echo "  make musicplayer-windows-debug - Build musicplayer for Windows with debug symbols"
+	@echo "  make debug         - Build zenamp with debug symbols for both platforms"
+	@echo "  make zenamp-linux-debug   - Build zenamp for Linux with debug symbols"
+	@echo "  make zenamp-windows-debug - Build zenamp for Windows with debug symbols"
 	@echo ""
-	@echo "  make install       - Install musicplayer to /usr/local/bin (Linux only)"
+	@echo "  make install       - Install zenamp to /usr/local/bin (Linux only)"
 	@echo ""
 	@echo "  make clean         - Remove all build files"
 	@echo "  make clean-all     - Remove all build files and directories"
