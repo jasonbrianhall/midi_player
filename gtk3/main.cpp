@@ -17,6 +17,7 @@
 #include "audio_player.h"
 #include "vfs.h"
 #include "icon.h"
+#include "aiff.h"
 
 extern double playTime;
 extern bool isPlaying;
@@ -40,12 +41,13 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
     ofn.lStructSize = sizeof(ofn);
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.ogg;*.flac\0"
+    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.aiff;*.aif;*.ogg;*.flac\0"
                       "MIDI Files\0*.mid;*.midi\0"
                       "WAV Files\0*.wav\0"
                       "MP3 Files\0*.mp3\0"
                       "OGG Files\0*.ogg\0"
                       "FLAC Files\0*.flac\0"
+                      "AIFF Files\0*.aiff\0"
                       "All Files\0*.*\0";
     ofn.nFilterIndex = 1;
     ofn.lpstrFileTitle = NULL;
@@ -873,6 +875,12 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
+    } else if (strcmp(ext_lower, ".aif") == 0 || strcmp(ext_lower, ".aiff") == 0) {
+        printf("Loading AIFF file: %s\n", filename);
+        if (convert_aiff_to_wav(player, filename)) {
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
+        }
     } else {
         printf("Unsupported file type: %s\n", ext);
         return false;
@@ -1267,6 +1275,8 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
                     strcmp(ext_lower, ".wav") == 0 ||
                     strcmp(ext_lower, ".mp3") == 0 ||
                     strcmp(ext_lower, ".ogg") == 0 ||
+                    strcmp(ext_lower, ".aif") == 0 ||
+                    strcmp(ext_lower, ".aiff") == 0 ||
                     strcmp(ext_lower, ".flac") == 0);
         };
         
@@ -1338,6 +1348,8 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
     gtk_file_filter_add_pattern(all_filter, "*.ogg");
     gtk_file_filter_add_pattern(all_filter, "*.flac");
+    gtk_file_filter_add_pattern(all_filter, "*.aif");
+    gtk_file_filter_add_pattern(all_filter, "*.aiff");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1365,6 +1377,11 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_set_name(flac_filter, "FLAC Files (*.flac)");
     gtk_file_filter_add_pattern(flac_filter, "*.flac");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), flac_filter);
+
+    GtkFileFilter *aiff_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(aiff_filter, "AIFF Files (*.flac)");
+    gtk_file_filter_add_pattern(aiff_filter, "*.aiff");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), aiff_filter);
 
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
@@ -1452,6 +1469,8 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
     gtk_file_filter_add_pattern(all_filter, "*.ogg");
     gtk_file_filter_add_pattern(all_filter, "*.flac");
+    gtk_file_filter_add_pattern(all_filter, "*.aiff");
+    gtk_file_filter_add_pattern(all_filter, "*.aif");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1479,6 +1498,12 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_set_name(flac_filter, "FLAC Files (*.flac)");
     gtk_file_filter_add_pattern(flac_filter, "*.flac");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), flac_filter);
+
+    GtkFileFilter *aiff_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(aiff_filter, "AIFF Files (*.aiff)");
+    gtk_file_filter_add_pattern(aiff_filter, "*.aiff");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), aiff_filter);
+
 
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
@@ -1546,6 +1571,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "Supports MP3 (.mp3) files\n"
         "Supports OGG (.ogg) files\n"
         "Supports FLAC (.flac) files\n\n"
+        "Supports AIFF (.aiff) files\n\n"
         "Features:\n"
         "• Playlist queue with repeat mode\n"
         "• Drag progress slider to seek\n"
