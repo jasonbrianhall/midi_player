@@ -14,6 +14,7 @@
 #include "wav_converter.h"
 #include "audioconverter.h"
 #include "convertoggtowav.h"
+#include "convertopustowav.h"
 #include "audio_player.h"
 #include "vfs.h"
 #include "icon.h"
@@ -880,6 +881,12 @@ bool load_file(AudioPlayer *player, const char *filename) {
     } else if (strcmp(ext_lower, ".aif") == 0 || strcmp(ext_lower, ".aiff") == 0) {
         printf("Loading AIFF file: %s\n", filename);
         if (convert_aiff_to_wav(player, filename)) {
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
+        }
+    } else if (strcmp(ext_lower, ".opus") == 0) {
+        printf("Loading Opus file: %s\n", filename);
+        if (convert_opus_to_wav(player, filename)) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
