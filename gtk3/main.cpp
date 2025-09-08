@@ -326,7 +326,8 @@ bool init_audio(AudioPlayer *player) {
     
     SDL_AudioSpec want;
     SDL_zero(want);
-    want.freq = player->sample_rate;
+    //want.freq = player->sample_rate;
+    want.freq = SAMPLE_RATE;
     want.format = AUDIO_S16SYS;
     want.channels = AUDIO_CHANNELS;
     want.samples = 1024;
@@ -618,7 +619,8 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
         player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
         return true;
     }
-    
+    player->sample_rate = 44100;
+    player->channels = 2;
     // Generate a unique virtual filename
     static int virtual_counter = 0;
     char virtual_filename[256];
