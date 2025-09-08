@@ -364,6 +364,12 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
     printf("Virtual WAV: %d Hz, %d channels, %d bits\n", 
            player->sample_rate, player->channels, player->bits_per_sample);
     
+    // ADDED: Reinitialize audio with the correct sample rate and channels
+    if (!init_audio(player, player->sample_rate, player->channels)) {
+        printf("Failed to reinitialize audio for virtual WAV format\n");
+        return false;
+    }
+    
     // Calculate data size and duration
     size_t total_size = virtual_file_size(vf);
     size_t data_size = total_size - 44;
