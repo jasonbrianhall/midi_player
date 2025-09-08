@@ -1572,7 +1572,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "Supports WAV (.wav) files\n"
         "Supports MP3 (.mp3) files\n"
         "Supports OGG (.ogg) files\n"
-        "Supports FLAC (.flac) files\n\n"
+        "Supports FLAC (.flac) files\n"
         "Supports AIFF (.aiff) files\n\n"
         "Features:\n"
         "• Playlist queue with repeat mode\n"
