@@ -301,7 +301,7 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     pthread_mutex_unlock(&player->audio_mutex);
 }
 
-bool init_audio(AudioPlayer *player) {
+bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels = AUDIO_CHANNELS) {
 #ifdef _WIN32
     // Try different audio drivers in order of preference
     const char* drivers[] = {"directsound", "winmm", "wasapi", NULL};
@@ -324,17 +324,19 @@ bool init_audio(AudioPlayer *player) {
     }
 #endif
 
-
-    
     SDL_AudioSpec want;
     SDL_zero(want);
-    //want.freq = player->sample_rate;
-    want.freq = SAMPLE_RATE;
+    want.freq = sample_rate;  // Use actual file sample rate
     want.format = AUDIO_S16SYS;
-    want.channels = AUDIO_CHANNELS;
+    want.channels = channels;  // Use actual file channels
     want.samples = 1024;
     want.callback = audio_callback;
     want.userdata = player;
+    
+    // Close existing audio device if open
+    if (player->audio_device) {
+        SDL_CloseAudioDevice(player->audio_device);
+    }
     
     player->audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &player->audio_spec, SDL_AUDIO_ALLOW_FORMAT_CHANGE);
     if (player->audio_device == 0) {
@@ -772,6 +774,13 @@ bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     
     printf("WAV: %d Hz, %d channels, %d bits\n", player->sample_rate, player->channels, player->bits_per_sample);
     
+    // Reinitialize audio with the correct sample rate and channels
+    if (!init_audio(player, player->sample_rate, player->channels)) {
+        printf("Failed to reinitialize audio for WAV format\n");
+        fclose(wav_file);
+        return false;
+    }
+    
     // Get file size and calculate duration
     fseek(wav_file, 0, SEEK_END);
     long file_size = ftell(wav_file);
@@ -809,6 +818,7 @@ bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     printf("Loaded %zu samples\n", player->audio_buffer.length);
     return true;
 }
+
 
 bool load_file(AudioPlayer *player, const char *filename) {
     printf("load_file called for: %s\n", filename);

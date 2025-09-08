@@ -119,7 +119,7 @@ void update_queue_display(AudioPlayer *player);
 
 // Audio functions
 void audio_callback(void* userdata, Uint8* stream, int len);
-bool init_audio(AudioPlayer *player);
+bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels = AUDIO_CHANNELS);
 
 // File conversion functions
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename);
