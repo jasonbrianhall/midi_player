@@ -27,10 +27,12 @@ GTK_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags gtk+-3.0 2>/dev/null ||
 GTK_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs gtk+-3.0 2>/dev/null || echo "")
 VORBIS_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags vorbisfile 2>/dev/null || echo "")
 VORBIS_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs vorbisfile 2>/dev/null || echo "")
+OPUS_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags opusfile 2>/dev/null || echo "-I/usr/include/opus")
+OPUS_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs opusfile 2>/dev/null || echo "-lopusfile -lopus")
 
-CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) -DLINUX
-CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) -DLINUX
-LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
+CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) -DLINUX
+CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) -DLINUX
+LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
 
 # Windows-specific flags
 SDL2_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags sdl2 2>/dev/null || echo "")
@@ -39,12 +41,14 @@ GTK_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags gtk+-3.0 2>/dev/null || ech
 GTK_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs gtk+-3.0 2>/dev/null || echo "")
 VORBIS_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags vorbisfile 2>/dev/null || echo "")
 VORBIS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs vorbisfile 2>/dev/null || echo "")
+OPUS_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags opusfile 2>/dev/null || echo "")
+OPUS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs opusfile 2>/dev/null || echo "-lopusfile -lopus")
 
-CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) -DWIN32
-CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) -DWIN32
-LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
+CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32
+CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32
+LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
 # Add -mconsole for windows for debugging
-#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
+#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
 
 # Debug-specific flags
 CXXFLAGS_LINUX_DEBUG = $(CXXFLAGS_LINUX) $(DEBUG_FLAGS)
@@ -63,6 +67,7 @@ SOURCES_CPP = dbopl.cpp \
 	audioconverter.cpp \
 	convertmidi.cpp \
 	convertoggtowav.cpp \
+	convertopustowav.cpp \
 	vfs.cpp \
 	cache.cpp \
 	convertflactowav.cpp \
