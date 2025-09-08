@@ -56,4 +56,12 @@ void write_le16(void* data, uint16_t value);
 // Sample conversion functions
 void convert_be16_samples(int16_t* samples, size_t count);
 
+// Audio format conversion functions
+bool convert_to_stereo(int16_t* input_samples, size_t sample_count, 
+                      int input_channels, int16_t** output_samples, 
+                      size_t* output_count);
+bool resample_audio(int16_t* input_samples, size_t input_count, 
+                   double input_rate, int input_channels,
+                   int16_t** output_samples, size_t* output_count);
+
 #endif // AIFF_H

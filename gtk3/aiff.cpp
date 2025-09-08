@@ -116,8 +116,103 @@ void convert_be16_samples(int16_t* samples, size_t count) {
     }
 }
 
-// Create WAV header with proper little-endian format
-// Fixed create_wav_header function with proper sample rate handling
+// Convert to stereo (2 channels)
+bool convert_to_stereo(int16_t* input_samples, size_t sample_count, 
+                      int input_channels, int16_t** output_samples, 
+                      size_t* output_count) {
+    if (input_channels == 2) {
+        // Already stereo, just copy
+        *output_samples = (int16_t*)malloc(sample_count * sizeof(int16_t));
+        if (!*output_samples) return false;
+        memcpy(*output_samples, input_samples, sample_count * sizeof(int16_t));
+        *output_count = sample_count;
+        return true;
+    } else if (input_channels == 1) {
+        // Mono to stereo: duplicate each sample
+        size_t frames = sample_count / input_channels;
+        *output_count = frames * 2;
+        *output_samples = (int16_t*)malloc(*output_count * sizeof(int16_t));
+        if (!*output_samples) return false;
+        
+        for (size_t i = 0; i < frames; i++) {
+            (*output_samples)[i * 2] = input_samples[i];     // Left
+            (*output_samples)[i * 2 + 1] = input_samples[i]; // Right
+        }
+        return true;
+    } else {
+        // Multi-channel to stereo: mix down to 2 channels
+        size_t frames = sample_count / input_channels;
+        *output_count = frames * 2;
+        *output_samples = (int16_t*)malloc(*output_count * sizeof(int16_t));
+        if (!*output_samples) return false;
+        
+        for (size_t i = 0; i < frames; i++) {
+            int32_t left_sum = 0, right_sum = 0;
+            
+            // Simple downmix: take first channel as left, second as right
+            // Mix remaining channels equally to both
+            left_sum = input_samples[i * input_channels];
+            right_sum = input_channels > 1 ? input_samples[i * input_channels + 1] : left_sum;
+            
+            // Mix additional channels
+            for (int ch = 2; ch < input_channels; ch++) {
+                int32_t sample = input_samples[i * input_channels + ch];
+                left_sum += sample / 2;
+                right_sum += sample / 2;
+            }
+            
+            // Clamp to 16-bit range
+            left_sum = left_sum > 32767 ? 32767 : (left_sum < -32768 ? -32768 : left_sum);
+            right_sum = right_sum > 32767 ? 32767 : (right_sum < -32768 ? -32768 : right_sum);
+            
+            (*output_samples)[i * 2] = (int16_t)left_sum;
+            (*output_samples)[i * 2 + 1] = (int16_t)right_sum;
+        }
+        return true;
+    }
+}
+
+// Simple linear interpolation resampling
+bool resample_audio(int16_t* input_samples, size_t input_count, 
+                   double input_rate, int input_channels,
+                   int16_t** output_samples, size_t* output_count) {
+    if (fabs(input_rate - 44100.0) < 0.1) {
+        // No resampling needed (within tolerance)
+        *output_samples = (int16_t*)malloc(input_count * sizeof(int16_t));
+        if (!*output_samples) return false;
+        memcpy(*output_samples, input_samples, input_count * sizeof(int16_t));
+        *output_count = input_count;
+        return true;
+    }
+    
+    double ratio = 44100.0 / input_rate;
+    size_t input_frames = input_count / input_channels;
+    size_t output_frames = (size_t)(input_frames * ratio);
+    *output_count = output_frames * input_channels;
+    
+    *output_samples = (int16_t*)malloc(*output_count * sizeof(int16_t));
+    if (!*output_samples) return false;
+    
+    for (size_t out_frame = 0; out_frame < output_frames; out_frame++) {
+        double src_frame_exact = (double)out_frame / ratio;
+        size_t src_frame = (size_t)src_frame_exact;
+        double fraction = src_frame_exact - src_frame;
+        
+        for (int ch = 0; ch < input_channels; ch++) {
+            int16_t sample1 = input_samples[src_frame * input_channels + ch];
+            int16_t sample2 = (src_frame + 1 < input_frames) ? 
+                             input_samples[(src_frame + 1) * input_channels + ch] : sample1;
+            
+            // Linear interpolation
+            int32_t interpolated = (int32_t)(sample1 * (1.0 - fraction) + sample2 * fraction);
+            (*output_samples)[out_frame * input_channels + ch] = (int16_t)interpolated;
+        }
+    }
+    
+    return true;
+}
+
+// Create WAV header with proper little-endian format - FIXED for 44.1kHz stereo
 bool create_wav_header(AIFFWAVHeader* header, const AIFFInfo* aiff_info, uint32_t data_size) {
     if (!header || !aiff_info) return false;
     
@@ -129,27 +224,20 @@ bool create_wav_header(AIFFWAVHeader* header, const AIFFInfo* aiff_info, uint32_
     write_le32(&header->file_length, data_size + 36); // 44 - 8 = 36
     memcpy(header->wave, "WAVE", 4);
     
-    // Format chunk
+    // Format chunk - FIXED: Always use 44.1kHz stereo
     memcpy(header->fmt, "fmt ", 4);
     write_le32(&header->fmt_length, 16);
     write_le16(&header->audio_format, 1); // PCM
-    write_le16(&header->num_channels, aiff_info->channels);
+    write_le16(&header->num_channels, 2); // Force stereo
     
-    // FIX: Proper sample rate conversion with rounding
-    uint32_t sample_rate_int;
-    if (aiff_info->sample_rate > 0) {
-        // Round to nearest integer instead of truncating
-        sample_rate_int = (uint32_t)(aiff_info->sample_rate + 0.5);
-    } else {
-        sample_rate_int = 44100; // Default fallback
-    }
-    
+    // FIXED: Always use 44.1kHz
+    uint32_t sample_rate_int = 44100;
     write_le32(&header->sample_rate, sample_rate_int);
     
-    // FIX: Recalculate byte rate using the rounded sample rate
-    uint32_t byte_rate = sample_rate_int * aiff_info->channels * 2; // 2 bytes per sample (16-bit)
+    // FIXED: Recalculate byte rate for stereo 44.1kHz
+    uint32_t byte_rate = 44100 * 2 * 2; // 44.1kHz * 2 channels * 2 bytes per sample
     write_le32(&header->byte_rate, byte_rate);
-    write_le16(&header->block_align, aiff_info->channels * 2);
+    write_le16(&header->block_align, 2 * 2); // 2 channels * 2 bytes per sample
     write_le16(&header->bits_per_sample, 16);
     
     // Data chunk
@@ -157,14 +245,11 @@ bool create_wav_header(AIFFWAVHeader* header, const AIFFInfo* aiff_info, uint32_
     write_le32(&header->data_length, data_size);
     
     // DEBUG: Print the values being written
-    printf("DEBUG WAV Header: Sample Rate = %u Hz (from %.6f)\n", 
-           sample_rate_int, aiff_info->sample_rate);
-    printf("DEBUG WAV Header: Byte Rate = %u, Channels = %d\n", 
-           byte_rate, aiff_info->channels);
+    printf("DEBUG WAV Header: Sample Rate = %u Hz (forced to 44.1kHz stereo)\n", sample_rate_int);
+    printf("DEBUG WAV Header: Byte Rate = %u, Channels = 2\n", byte_rate);
     
     return true;
 }
-
 
 // Parse AIFF file header and return format information
 bool parse_aiff_header(FILE* file, AIFFInfo* info) {
@@ -316,8 +401,8 @@ bool convert_aiff_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
-    printf("AIFF: %d Hz, %d channels, %d bits, %.2f seconds\n", 
-           (int)aiff_info.sample_rate, aiff_info.channels, 
+    printf("AIFF: %.1f Hz, %d channels, %d bits, %.2f seconds\n", 
+           aiff_info.sample_rate, aiff_info.channels, 
            aiff_info.bits_per_sample, aiff_info.duration);
     
     // Load AIFF samples
@@ -330,14 +415,38 @@ bool convert_aiff_to_wav(AudioPlayer *player, const char* filename) {
     }
     fclose(aiff_file);
     
-    // Calculate WAV data size
-    uint32_t wav_data_size = sample_count * sizeof(int16_t);
+    // Step 1: Resample to 44100 Hz if needed
+    int16_t* resampled_samples = NULL;
+    size_t resampled_count = 0;
+    printf("Resampling from %.1f Hz to 44100 Hz...\n", aiff_info.sample_rate);
+    if (!resample_audio(samples, sample_count, aiff_info.sample_rate, 
+                       aiff_info.channels, &resampled_samples, &resampled_count)) {
+        printf("Failed to resample audio\n");
+        free(samples);
+        return false;
+    }
+    free(samples); // Free original samples
     
-    // Create WAV header with proper little-endian format
+    // Step 2: Convert to stereo
+    int16_t* stereo_samples = NULL;
+    size_t stereo_count = 0;
+    printf("Converting from %d channels to stereo...\n", aiff_info.channels);
+    if (!convert_to_stereo(resampled_samples, resampled_count, 
+                          aiff_info.channels, &stereo_samples, &stereo_count)) {
+        printf("Failed to convert to stereo\n");
+        free(resampled_samples);
+        return false;
+    }
+    free(resampled_samples); // Free resampled samples
+    
+    // Calculate WAV data size for stereo 44.1kHz output
+    uint32_t wav_data_size = stereo_count * sizeof(int16_t);
+    
+    // Create WAV header with forced 44.1kHz stereo format
     AIFFWAVHeader wav_header;
     if (!create_wav_header(&wav_header, &aiff_info, wav_data_size)) {
         printf("Failed to create WAV header\n");
-        free(samples);
+        free(stereo_samples);
         return false;
     }
     
@@ -345,29 +454,29 @@ bool convert_aiff_to_wav(AudioPlayer *player, const char* filename) {
     VirtualFile* vf = create_virtual_file(virtual_filename);
     if (!vf) {
         printf("Cannot create virtual WAV file: %s\n", virtual_filename);
-        free(samples);
+        free(stereo_samples);
         return false;
     }
     
     // Write WAV header
     if (!virtual_file_write(vf, &wav_header, sizeof(wav_header))) {
         printf("Failed to write WAV header to virtual file\n");
-        free(samples);
+        free(stereo_samples);
         return false;
     }
     
-    // Write audio data (samples are now in correct host byte order)
-    if (!virtual_file_write(vf, samples, wav_data_size)) {
+    // Write audio data (stereo samples at 44.1kHz)
+    if (!virtual_file_write(vf, stereo_samples, wav_data_size)) {
         printf("Failed to write audio data to virtual file\n");
-        free(samples);
+        free(stereo_samples);
         return false;
     }
     
-    free(samples);
+    free(stereo_samples);
     
     // Add to cache after successful conversion
     add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
     
-    printf("AIFF conversion to virtual file complete\n");
+    printf("AIFF conversion to virtual file complete: 44.1kHz stereo WAV\n");
     return true;
 }
