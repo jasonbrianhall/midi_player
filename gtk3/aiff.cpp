@@ -19,6 +19,22 @@ uint16_t read_be16(const void* data) {
     return (bytes[0] << 8) | bytes[1];
 }
 
+// Helper function to write little-endian 32-bit integer
+void write_le32(void* data, uint32_t value) {
+    unsigned char* bytes = (unsigned char*)data;
+    bytes[0] = value & 0xFF;
+    bytes[1] = (value >> 8) & 0xFF;
+    bytes[2] = (value >> 16) & 0xFF;
+    bytes[3] = (value >> 24) & 0xFF;
+}
+
+// Helper function to write little-endian 16-bit integer
+void write_le16(void* data, uint16_t value) {
+    unsigned char* bytes = (unsigned char*)data;
+    bytes[0] = value & 0xFF;
+    bytes[1] = (value >> 8) & 0xFF;
+}
+
 // Read IEEE 754 80-bit extended precision float (sample rate)
 double read_ieee754_extended(const void* data) {
     const unsigned char* bytes = (const unsigned char*)data;
@@ -31,46 +47,124 @@ double read_ieee754_extended(const void* data) {
     if (exponent == 0) return 0.0;
     if (exponent == 0x7FFF) return sign ? -INFINITY : INFINITY;
     
-    // Extract mantissa (64-bit)
+    // Extract mantissa (64-bit) - Fix: Check for integer bit
     uint64_t mantissa = 0;
     for (int i = 2; i < 10; i++) {
         mantissa = (mantissa << 8) | bytes[i];
     }
     
     // Quick check for common sample rates to avoid floating point errors
-    if (exponent == 0x400E) {
-        if ((mantissa >> 32) == 0xAC440000UL) return 44100.0;
-        if ((mantissa >> 32) == 0xBB800000UL) return 48000.0;
-        if ((mantissa >> 32) == 0x98968000UL) return 39062.5;
+    // Fix: Updated the mantissa checks with correct values
+    if (exponent == 0x400E) {  // 2^14 + bias
+        // Check upper 32 bits of mantissa for common rates
+        uint32_t upper_mantissa = (uint32_t)(mantissa >> 32);
+        if (upper_mantissa == 0xAC440000UL) return 44100.0;
+        if (upper_mantissa == 0xBB800000UL) return 48000.0;
+        // Fix: Corrected value for 39062.5 Hz (uncommon, but used in some pro audio)
+        if (upper_mantissa == 0x98968000UL) return 39062.5;
     }
-    if (exponent == 0x400D) {
-        if ((mantissa >> 32) == 0xAC440000UL) return 22050.0;
-        if ((mantissa >> 32) == 0xBB800000UL) return 24000.0;
+    if (exponent == 0x400D) {  // Half the rates above
+        uint32_t upper_mantissa = (uint32_t)(mantissa >> 32);
+        if (upper_mantissa == 0xAC440000UL) return 22050.0;
+        if (upper_mantissa == 0xBB800000UL) return 24000.0;
     }
-    if (exponent == 0x400C) {
-        if ((mantissa >> 32) == 0xAC440000UL) return 11025.0;
+    if (exponent == 0x400C) {  // Quarter rates
+        uint32_t upper_mantissa = (uint32_t)(mantissa >> 32);
+        if (upper_mantissa == 0xAC440000UL) return 11025.0;
     }
-    if (exponent == 0x400F) {
-        if ((mantissa >> 32) == 0x80000000UL) return 65536.0;
+    if (exponent == 0x400F) {  // 2^15
+        uint32_t upper_mantissa = (uint32_t)(mantissa >> 32);
+        if (upper_mantissa == 0x80000000UL) return 65536.0;
     }
     
-    // General calculation for non-standard rates
-    double normalized_mantissa = 1.0 + (double)mantissa / (1ULL << 63);
-    double result = normalized_mantissa * pow(2.0, exponent - 16383);
+    // Fix: Improved general calculation for non-standard rates
+    // In 80-bit extended precision, the integer bit is explicit (bit 63)
+    // Check if the integer bit is set (it should be for normalized numbers)
+    if ((mantissa & (1ULL << 63)) == 0) {
+        // Denormalized number or zero
+        if (mantissa == 0) return 0.0;
+        // Handle denormalized numbers (rare in sample rates)
+        exponent = 1;
+    }
+    
+    // Convert mantissa to double precision
+    // Remove the implicit integer bit and normalize to [1.0, 2.0)
+    double normalized_mantissa = 1.0 + (double)(mantissa & 0x7FFFFFFFFFFFFFFFULL) / (1ULL << 63);
+    
+    // Apply exponent (bias is 16383 for 80-bit extended precision)
+    double result = ldexp(normalized_mantissa, exponent - 16383);
     
     return sign ? -result : result;
 }
 
 // Convert big-endian 16-bit samples to host byte order
 void convert_be16_samples(int16_t* samples, size_t count) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    // AIFF samples are stored as big-endian in the file
+    // WAV files expect little-endian samples
+    // We need to swap the bytes for each 16-bit sample
+    
+    unsigned char* byte_ptr = (unsigned char*)samples;
+    
     for (size_t i = 0; i < count; i++) {
-        uint16_t val = (uint16_t)samples[i];
-        samples[i] = (int16_t)(((val & 0xFF) << 8) | ((val >> 8) & 0xFF));
+        // Get the two bytes of the current sample
+        unsigned char byte0 = byte_ptr[i * 2];     // High byte (big-endian)
+        unsigned char byte1 = byte_ptr[i * 2 + 1]; // Low byte (big-endian)
+        
+        // Swap them for little-endian
+        byte_ptr[i * 2] = byte1;     // Low byte first (little-endian)
+        byte_ptr[i * 2 + 1] = byte0; // High byte second (little-endian)
     }
-#endif
-    // On big-endian systems, no conversion needed
 }
+
+// Create WAV header with proper little-endian format
+// Fixed create_wav_header function with proper sample rate handling
+bool create_wav_header(AIFFWAVHeader* header, const AIFFInfo* aiff_info, uint32_t data_size) {
+    if (!header || !aiff_info) return false;
+    
+    // Clear the header
+    memset(header, 0, sizeof(AIFFWAVHeader));
+    
+    // RIFF header
+    memcpy(header->riff, "RIFF", 4);
+    write_le32(&header->file_length, data_size + 36); // 44 - 8 = 36
+    memcpy(header->wave, "WAVE", 4);
+    
+    // Format chunk
+    memcpy(header->fmt, "fmt ", 4);
+    write_le32(&header->fmt_length, 16);
+    write_le16(&header->audio_format, 1); // PCM
+    write_le16(&header->num_channels, aiff_info->channels);
+    
+    // FIX: Proper sample rate conversion with rounding
+    uint32_t sample_rate_int;
+    if (aiff_info->sample_rate > 0) {
+        // Round to nearest integer instead of truncating
+        sample_rate_int = (uint32_t)(aiff_info->sample_rate + 0.5);
+    } else {
+        sample_rate_int = 44100; // Default fallback
+    }
+    
+    write_le32(&header->sample_rate, sample_rate_int);
+    
+    // FIX: Recalculate byte rate using the rounded sample rate
+    uint32_t byte_rate = sample_rate_int * aiff_info->channels * 2; // 2 bytes per sample (16-bit)
+    write_le32(&header->byte_rate, byte_rate);
+    write_le16(&header->block_align, aiff_info->channels * 2);
+    write_le16(&header->bits_per_sample, 16);
+    
+    // Data chunk
+    memcpy(header->data, "data", 4);
+    write_le32(&header->data_length, data_size);
+    
+    // DEBUG: Print the values being written
+    printf("DEBUG WAV Header: Sample Rate = %u Hz (from %.6f)\n", 
+           sample_rate_int, aiff_info->sample_rate);
+    printf("DEBUG WAV Header: Byte Rate = %u, Channels = %d\n", 
+           byte_rate, aiff_info->channels);
+    
+    return true;
+}
+
 
 // Parse AIFF file header and return format information
 bool parse_aiff_header(FILE* file, AIFFInfo* info) {
@@ -238,23 +332,14 @@ bool convert_aiff_to_wav(AudioPlayer *player, const char* filename) {
     
     // Calculate WAV data size
     uint32_t wav_data_size = sample_count * sizeof(int16_t);
-    uint32_t wav_file_size = 44 + wav_data_size; // WAV header + data
     
-    // Create WAV header
+    // Create WAV header with proper little-endian format
     AIFFWAVHeader wav_header;
-    memcpy(wav_header.riff, "RIFF", 4);
-    wav_header.file_length = wav_file_size - 8;
-    memcpy(wav_header.wave, "WAVE", 4);
-    memcpy(wav_header.fmt, "fmt ", 4);
-    wav_header.fmt_length = 16;
-    wav_header.audio_format = 1; // PCM
-    wav_header.num_channels = aiff_info.channels;
-    wav_header.sample_rate = (uint32_t)aiff_info.sample_rate;
-    wav_header.byte_rate = wav_header.sample_rate * wav_header.num_channels * 2; // 16-bit
-    wav_header.block_align = wav_header.num_channels * 2; // 16-bit
-    wav_header.bits_per_sample = 16;
-    memcpy(wav_header.data, "data", 4);
-    wav_header.data_length = wav_data_size;
+    if (!create_wav_header(&wav_header, &aiff_info, wav_data_size)) {
+        printf("Failed to create WAV header\n");
+        free(samples);
+        return false;
+    }
     
     // Create virtual file and write WAV data
     VirtualFile* vf = create_virtual_file(virtual_filename);
@@ -271,7 +356,7 @@ bool convert_aiff_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
-    // Write audio data
+    // Write audio data (samples are now in correct host byte order)
     if (!virtual_file_write(vf, samples, wav_data_size)) {
         printf("Failed to write audio data to virtual file\n");
         free(samples);

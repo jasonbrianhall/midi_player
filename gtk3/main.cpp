@@ -326,7 +326,7 @@ bool init_audio(AudioPlayer *player) {
     
     SDL_AudioSpec want;
     SDL_zero(want);
-    want.freq = SAMPLE_RATE;
+    want.freq = player->sample_rate;
     want.format = AUDIO_S16SYS;
     want.channels = AUDIO_CHANNELS;
     want.samples = 1024;
@@ -1379,7 +1379,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), flac_filter);
 
     GtkFileFilter *aiff_filter = gtk_file_filter_new();
-    gtk_file_filter_set_name(aiff_filter, "AIFF Files (*.flac)");
+    gtk_file_filter_set_name(aiff_filter, "AIFF Files (*.aiff)");
     gtk_file_filter_add_pattern(aiff_filter, "*.aiff");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), aiff_filter);
 

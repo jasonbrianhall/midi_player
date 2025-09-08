@@ -34,15 +34,26 @@ typedef struct {
     uint32_t data_length;
 } __attribute__((packed)) AIFFWAVHeader;
 
-// Function prototypes
+// Main conversion function
 bool convert_aiff_to_wav(AudioPlayer *player, const char* filename);
+
+// AIFF parsing functions
 bool parse_aiff_header(FILE* file, AIFFInfo* info);
 bool load_aiff_samples(FILE* file, const AIFFInfo* info, int16_t** samples, size_t* sample_count);
 
-// Utility functions
+// WAV creation functions
+bool create_wav_header(AIFFWAVHeader* header, const AIFFInfo* aiff_info, uint32_t data_size);
+
+// Big-endian reading utility functions
 uint32_t read_be32(const void* data);
 uint16_t read_be16(const void* data);
 double read_ieee754_extended(const void* data);
+
+// Little-endian writing utility functions
+void write_le32(void* data, uint32_t value);
+void write_le16(void* data, uint16_t value);
+
+// Sample conversion functions
 void convert_be16_samples(int16_t* samples, size_t count);
 
 #endif // AIFF_H
