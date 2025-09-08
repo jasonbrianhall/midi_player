@@ -5,7 +5,8 @@
 #include <vector>
 #include <cstdint>
 #include "convertoggtowav.h"
-
+#include "audio_player.h"
+#include "vfs.h"
 
 // Memory-based OGG reading callbacks
 struct MemoryOggData {
@@ -216,5 +217,69 @@ bool convertOggToWav(const char* ogg_filename, const char* wav_filename) {
     ov_clear(&vf);
     
     printf("OGG conversion complete\n");
+    return true;
+}
+
+bool convert_ogg_to_wav(AudioPlayer *player, const char* filename) {
+    // Check cache first
+    const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
+    if (cached_file) {
+        strncpy(player->temp_wav_file, cached_file, sizeof(player->temp_wav_file) - 1);
+        player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+        return true;
+    }
+    
+    // Generate a unique virtual filename
+    static int virtual_counter = 0;
+    char virtual_filename[256];
+    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_ogg_%d.wav", virtual_counter++);
+    
+    strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
+    player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
+    
+    printf("Converting OGG to virtual WAV: %s -> %s\n", filename, virtual_filename);
+    
+    // Read OGG file into memory
+    FILE* ogg_file = fopen(filename, "rb");
+    if (!ogg_file) {
+        printf("Cannot open OGG file: %s\n", filename);
+        return false;
+    }
+    
+    fseek(ogg_file, 0, SEEK_END);
+    long ogg_size = ftell(ogg_file);
+    fseek(ogg_file, 0, SEEK_SET);
+    
+    std::vector<uint8_t> ogg_data(ogg_size);
+    if (fread(ogg_data.data(), 1, ogg_size, ogg_file) != (size_t)ogg_size) {
+        printf("Failed to read OGG file\n");
+        fclose(ogg_file);
+        return false;
+    }
+    fclose(ogg_file);
+    
+    // Convert OGG to WAV in memory
+    std::vector<uint8_t> wav_data;
+    if (!convertOggToWavInMemory(ogg_data, wav_data)) {
+        printf("OGG to WAV conversion failed\n");
+        return false;
+    }
+    
+    // Create virtual file and write WAV data
+    VirtualFile* vf = create_virtual_file(virtual_filename);
+    if (!vf) {
+        printf("Cannot create virtual WAV file: %s\n", virtual_filename);
+        return false;
+    }
+    
+    if (!virtual_file_write(vf, wav_data.data(), wav_data.size())) {
+        printf("Failed to write virtual WAV file\n");
+        return false;
+    }
+    
+    // Add to cache after successful conversion
+    add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
+    
+    printf("OGG conversion to virtual file complete\n");
     return true;
 }
