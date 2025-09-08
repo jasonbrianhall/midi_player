@@ -49,9 +49,11 @@ jobs:
           mingw64-gtk3 mingw64-gtkmm30 \
           mingw64-SDL2 mingw64-SDL2_mixer \
           mingw64-libvorbis mingw64-flac \
+          mingw64-opus mingw64-opusfile \ 
           mingw64-gstreamer1 mingw64-gstreamer1-plugins-base \
           wine wine-devel \
           zip unzip \
+          opus-devel opusfile-devel \
           ImageMagick
 
     - name: Convert Icon
@@ -574,7 +576,7 @@ jobs:
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
-          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI
+          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS
           - OPL3 MIDI synthesis for authentic retro sound
           - Complete playback controls with queue management
           - Volume control (10% to 300%)
