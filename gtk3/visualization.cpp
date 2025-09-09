@@ -9,13 +9,13 @@ Visualizer* visualizer_new(void) {
     
     // Initialize arrays
     vis->audio_samples = g_malloc0(VIS_SAMPLES * sizeof(double));
-    vis->frequency_bands = g_malloc0(VIS_NUM_BARS * sizeof(double));
-    vis->peak_data = g_malloc0(VIS_NUM_BARS * sizeof(double));
-    vis->band_values = g_malloc0(VIS_NUM_BARS * sizeof(double));
+    vis->frequency_bands = g_malloc0(VIS_FREQUENCY_BARS * sizeof(double));
+    vis->peak_data = g_malloc0(VIS_FREQUENCY_BARS * sizeof(double));
+    vis->band_values = g_malloc0(VIS_FREQUENCY_BARS * sizeof(double));
     
     // Initialize history
     for (int i = 0; i < VIS_HISTORY_SIZE; i++) {
-        vis->history[i] = g_malloc0(VIS_NUM_BARS * sizeof(double));
+        vis->history[i] = g_malloc0(VIS_FREQUENCY_BARS * sizeof(double));
     }
     vis->history_index = 0;
     
@@ -63,7 +63,7 @@ void visualizer_free(Visualizer *vis) {
     g_free(vis->peak_data);
     g_free(vis->band_values);
     
-    for (int i = 0; i < VIS_NUM_BARS; i++) {
+    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
         if (vis->band_filters[i]) {
             g_free(vis->band_filters[i]);
         }
@@ -96,17 +96,20 @@ void visualizer_update_audio_data(Visualizer *vis, int16_t *samples, size_t samp
     
     double rms_sum = 0.0;
     
-    for (int i = 0; i < VIS_SAMPLES && i * step < sample_count; i++) {
+    for (int i = 0; i < VIS_SAMPLES; i++) {
         double sum = 0.0;
         int count = 0;
         
         // Average multiple samples if needed
-        for (int j = 0; j < step && (i * step + j) < sample_count; j++) {
+        for (size_t j = 0; j < step && (i * step + j) < sample_count; j++) {
             if (channels == 1) {
                 sum += samples[i * step + j];
             } else {
                 // Average stereo channels
-                sum += (samples[(i * step + j) * 2] + samples[(i * step + j) * 2 + 1]) / 2.0;
+                size_t idx = (i * step + j) * 2;
+                if (idx + 1 < sample_count * channels) {
+                    sum += (samples[idx] + samples[idx + 1]) / 2.0;
+                }
             }
             count++;
         }
@@ -114,6 +117,8 @@ void visualizer_update_audio_data(Visualizer *vis, int16_t *samples, size_t samp
         if (count > 0) {
             vis->audio_samples[i] = (sum / count) / 32768.0 * vis->sensitivity;
             rms_sum += vis->audio_samples[i] * vis->audio_samples[i];
+        } else {
+            vis->audio_samples[i] = 0.0;
         }
     }
     
@@ -129,8 +134,8 @@ void visualizer_set_enabled(Visualizer *vis, gboolean enabled) {
         vis->enabled = enabled;
         if (!enabled) {
             // Clear visualization data
-            memset(vis->frequency_bands, 0, VIS_NUM_BARS * sizeof(double));
-            memset(vis->peak_data, 0, VIS_NUM_BARS * sizeof(double));
+            memset(vis->frequency_bands, 0, VIS_FREQUENCY_BARS * sizeof(double));
+            memset(vis->peak_data, 0, VIS_FREQUENCY_BARS * sizeof(double));
             vis->volume_level = 0.0;
             gtk_widget_queue_draw(vis->drawing_area);
         }
@@ -140,14 +145,15 @@ void visualizer_set_enabled(Visualizer *vis, gboolean enabled) {
 static void init_frequency_bands(Visualizer *vis) {
     // Create simple frequency band filters using moving averages
     // This is a basic approximation without FFT
-    for (int band = 0; band < VIS_NUM_BARS; band++) {
+    for (int band = 0; band < VIS_FREQUENCY_BARS; band++) {
         vis->band_filters[band] = g_malloc0(VIS_SAMPLES * sizeof(double));
         
         // Create simple band-pass filter coefficients
         // Lower bands = longer averaging windows (bass)
         // Higher bands = shorter averaging windows (treble)
-        int window_size = VIS_SAMPLES / (band + 1) + 2;
-        if (window_size > VIS_SAMPLES) window_size = VIS_SAMPLES;
+        int window_size = VIS_SAMPLES / (band + 2);
+        if (window_size < 2) window_size = 2;
+        if (window_size > VIS_SAMPLES / 4) window_size = VIS_SAMPLES / 4;
         
         for (int i = 0; i < window_size; i++) {
             vis->band_filters[band][i] = 1.0 / window_size;
@@ -157,27 +163,36 @@ static void init_frequency_bands(Visualizer *vis) {
 
 static void process_audio_simple(Visualizer *vis) {
     // Simple frequency band analysis using filtering
-    for (int band = 0; band < VIS_NUM_BARS; band++) {
+    for (int band = 0; band < VIS_FREQUENCY_BARS; band++) {
         double band_energy = 0.0;
         
-        // Apply simple filter to extract frequency band energy
-        int window_size = VIS_SAMPLES / (band + 1) + 2;
-        if (window_size > VIS_SAMPLES) window_size = VIS_SAMPLES;
+        // Split the audio samples into frequency-like bands
+        // Each band analyzes a different section of the sample array
+        int samples_per_band = VIS_SAMPLES / VIS_FREQUENCY_BARS;
+        int start_idx = band * samples_per_band;
+        int end_idx = start_idx + samples_per_band;
+        if (end_idx > VIS_SAMPLES) end_idx = VIS_SAMPLES;
         
-        // Calculate energy in this frequency band
-        for (int i = 0; i < VIS_SAMPLES - window_size; i++) {
-            double sum = 0.0;
-            for (int j = 0; j < window_size; j++) {
-                sum += fabs(vis->audio_samples[i + j]);
-            }
-            double avg = sum / window_size;
-            band_energy += avg * avg;
+        // Calculate RMS energy for this band
+        for (int i = start_idx; i < end_idx; i++) {
+            band_energy += vis->audio_samples[i] * vis->audio_samples[i];
         }
         
-        band_energy = sqrt(band_energy / (VIS_SAMPLES - window_size));
+        if (end_idx > start_idx) {
+            band_energy = sqrt(band_energy / (end_idx - start_idx));
+        }
         
-        // Apply logarithmic scaling
-        band_energy = log(1.0 + band_energy * 20.0) / log(21.0);
+        // Apply some frequency-based weighting
+        // Higher frequencies get boosted slightly for visual balance
+        double freq_weight = 1.0 + (double)band / VIS_FREQUENCY_BARS * 0.5;
+        band_energy *= freq_weight;
+        
+        // Apply logarithmic scaling for better visual representation
+        band_energy = log(1.0 + band_energy * 10.0) / log(11.0);
+        
+        // Clamp to reasonable range
+        if (band_energy > 1.0) band_energy = 1.0;
+        if (band_energy < 0.0) band_energy = 0.0;
         
         // Update frequency bands with decay
         vis->frequency_bands[band] = fmax(band_energy, vis->frequency_bands[band] * vis->decay_rate);
@@ -191,7 +206,7 @@ static void process_audio_simple(Visualizer *vis) {
     }
     
     // Store in history for effects
-    memcpy(vis->history[vis->history_index], vis->frequency_bands, VIS_NUM_BARS * sizeof(double));
+    memcpy(vis->history[vis->history_index], vis->frequency_bands, VIS_FREQUENCY_BARS * sizeof(double));
     vis->history_index = (vis->history_index + 1) % VIS_HISTORY_SIZE;
 }
 
@@ -225,7 +240,7 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
         case VIS_OSCILLOSCOPE:
             draw_oscilloscope(vis, cr);
             break;
-        case VIS_NUM_BARS:
+        case VIS_BARS:
             draw_bars(vis, cr);
             break;
         case VIS_CIRCLE:
@@ -240,14 +255,20 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
 }
 
 static void draw_waveform(Visualizer *vis, cairo_t *cr) {
+    if (vis->width <= 0 || vis->height <= 0) return;
+    
     cairo_set_source_rgba(cr, vis->fg_r, vis->fg_g, vis->fg_b, 0.8);
     cairo_set_line_width(cr, 2.0);
     
-    cairo_move_to(cr, 0, vis->height / 2);
+    cairo_move_to(cr, 0, vis->height / 2.0);
     
-    for (int i = 0; i < VIS_SAMPLES && i < vis->width; i++) {
-        double x = (double)i * vis->width / VIS_SAMPLES;
-        double y = vis->height / 2 + vis->audio_samples[i] * vis->height / 3;
+    for (int i = 0; i < VIS_SAMPLES; i++) {
+        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
+        double y = vis->height / 2.0 + vis->audio_samples[i] * vis->height / 2.5;
+        
+        // Clamp y to screen bounds
+        if (y < 0) y = 0;
+        if (y > vis->height) y = vis->height;
         
         if (i == 0) {
             cairo_move_to(cr, x, y);
@@ -262,12 +283,16 @@ static void draw_waveform(Visualizer *vis, cairo_t *cr) {
     cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 0.4);
     cairo_set_line_width(cr, 1.0);
     
-    cairo_move_to(cr, 0, vis->height / 2);
+    cairo_move_to(cr, 0, vis->height / 2.0);
     
-    for (int i = 0; i < VIS_SAMPLES && i < vis->width; i++) {
-        double x = (double)i * vis->width / VIS_SAMPLES;
+    for (int i = 0; i < VIS_SAMPLES; i++) {
+        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
         double phase_shifted = i < VIS_SAMPLES - 10 ? vis->audio_samples[i + 10] : 0.0;
-        double y = vis->height / 2 + phase_shifted * vis->height / 4;
+        double y = vis->height / 2.0 + phase_shifted * vis->height / 3.0;
+        
+        // Clamp y to screen bounds
+        if (y < 0) y = 0;
+        if (y > vis->height) y = vis->height;
         
         if (i == 0) {
             cairo_move_to(cr, x, y);
@@ -280,13 +305,15 @@ static void draw_waveform(Visualizer *vis, cairo_t *cr) {
 }
 
 static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
+    if (vis->width <= 0 || vis->height <= 0) return;
+    
     // Draw grid
     cairo_set_source_rgba(cr, 0.3, 0.3, 0.3, 0.5);
     cairo_set_line_width(cr, 1.0);
     
     // Horizontal lines
     for (int i = 1; i < 4; i++) {
-        double y = vis->height * i / 4;
+        double y = vis->height * i / 4.0;
         cairo_move_to(cr, 0, y);
         cairo_line_to(cr, vis->width, y);
         cairo_stroke(cr);
@@ -294,7 +321,7 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
     
     // Vertical lines
     for (int i = 1; i < 8; i++) {
-        double x = vis->width * i / 8;
+        double x = vis->width * i / 8.0;
         cairo_move_to(cr, x, 0);
         cairo_line_to(cr, x, vis->height);
         cairo_stroke(cr);
@@ -304,11 +331,16 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
     cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 1.0);
     cairo_set_line_width(cr, 2.0);
     
-    cairo_move_to(cr, 0, vis->height / 2);
+    cairo_move_to(cr, 0, vis->height / 2.0);
     
-    for (int i = 0; i < VIS_SAMPLES && i < vis->width; i++) {
-        double x = (double)i * vis->width / VIS_SAMPLES;
-        double y = vis->height / 2 + vis->audio_samples[i] * vis->height / 3;
+    for (int i = 0; i < VIS_SAMPLES; i++) {
+        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
+        double y = vis->height / 2.0 + vis->audio_samples[i] * vis->height / 2.5;
+        
+        // Clamp y to screen bounds
+        if (y < 0) y = 0;
+        if (y > vis->height) y = vis->height;
+        
         cairo_line_to(cr, x, y);
     }
     
@@ -316,15 +348,17 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
 }
 
 static void draw_bars(Visualizer *vis, cairo_t *cr) {
-    double bar_width = (double)vis->width / VIS_NUM_BARS;
+    if (vis->width <= 0 || vis->height <= 0) return;
     
-    for (int i = 0; i < VIS_NUM_BARS; i++) {
+    double bar_width = (double)vis->width / VIS_FREQUENCY_BARS;
+    
+    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
         double height = vis->frequency_bands[i] * vis->height * 0.9;
         double x = i * bar_width;
         double y = vis->height - height;
         
         // Color gradient based on frequency band
-        double hue = (double)i / VIS_NUM_BARS;
+        double hue = (double)i / VIS_FREQUENCY_BARS;
         double r = vis->fg_r + hue * (vis->accent_r - vis->fg_r);
         double g = vis->fg_g + hue * (vis->accent_g - vis->fg_g);
         double b = vis->fg_b + hue * (vis->accent_b - vis->fg_b);
@@ -351,8 +385,10 @@ static void draw_bars(Visualizer *vis, cairo_t *cr) {
 }
 
 static void draw_circle(Visualizer *vis, cairo_t *cr) {
-    double center_x = vis->width / 2;
-    double center_y = vis->height / 2;
+    if (vis->width <= 0 || vis->height <= 0) return;
+    
+    double center_x = vis->width / 2.0;
+    double center_y = vis->height / 2.0;
     double radius = fmin(center_x, center_y) * 0.8;
     
     // Draw circle background
@@ -362,8 +398,8 @@ static void draw_circle(Visualizer *vis, cairo_t *cr) {
     cairo_stroke(cr);
     
     // Draw frequency bars in circle
-    for (int i = 0; i < VIS_NUM_BARS; i++) {
-        double angle = (double)i / VIS_NUM_BARS * 2.0 * M_PI + vis->rotation;
+    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
+        double angle = (double)i / VIS_FREQUENCY_BARS * 2.0 * M_PI + vis->rotation;
         double magnitude = vis->frequency_bands[i];
         
         double inner_radius = radius * 0.3;
@@ -376,7 +412,7 @@ static void draw_circle(Visualizer *vis, cairo_t *cr) {
         
         // Color based on magnitude and position
         double intensity = magnitude;
-        double hue = (double)i / VIS_NUM_BARS;
+        double hue = (double)i / VIS_FREQUENCY_BARS;
         
         cairo_set_source_rgba(cr, 
                              vis->fg_r + intensity * hue * (vis->accent_r - vis->fg_r),
@@ -400,6 +436,8 @@ static void draw_circle(Visualizer *vis, cairo_t *cr) {
 }
 
 static void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
+    if (vis->width <= 0 || vis->height <= 0) return;
+    
     // Draw VU meter style visualization
     double meter_width = vis->width * 0.8;
     double meter_height = vis->height * 0.6;
@@ -451,22 +489,24 @@ static void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
     // Draw frequency bars below
     double freq_y = meter_y + meter_height + 20;
     double freq_height = vis->height - freq_y - 10;
-    double freq_bar_width = meter_width / VIS_NUM_BARS;
-    
-    for (int i = 0; i < VIS_NUM_BARS; i++) {
-        double height = vis->frequency_bands[i] * freq_height;
-        double x = meter_x + i * freq_bar_width;
-        double y = freq_y + freq_height - height;
+    if (freq_height > 0) {
+        double freq_bar_width = meter_width / VIS_FREQUENCY_BARS;
         
-        double hue = (double)i / VIS_NUM_BARS;
-        cairo_set_source_rgba(cr, 
-                             vis->fg_r + hue * (vis->accent_r - vis->fg_r),
-                             vis->fg_g + hue * (vis->accent_g - vis->fg_g),
-                             vis->fg_b + hue * (vis->accent_b - vis->fg_b),
-                             0.7);
-        
-        cairo_rectangle(cr, x + 1, y, freq_bar_width - 2, height);
-        cairo_fill(cr);
+        for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
+            double height = vis->frequency_bands[i] * freq_height;
+            double x = meter_x + i * freq_bar_width;
+            double y = freq_y + freq_height - height;
+            
+            double hue = (double)i / VIS_FREQUENCY_BARS;
+            cairo_set_source_rgba(cr, 
+                                 vis->fg_r + hue * (vis->accent_r - vis->fg_r),
+                                 vis->fg_g + hue * (vis->accent_g - vis->fg_g),
+                                 vis->fg_b + hue * (vis->accent_b - vis->fg_b),
+                                 0.7);
+            
+            cairo_rectangle(cr, x + 1, y, freq_bar_width - 2, height);
+            cairo_fill(cr);
+        }
     }
 }
 

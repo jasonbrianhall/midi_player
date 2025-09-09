@@ -294,9 +294,11 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
             output[i] = (int16_t)sample;
         }
         
-        // UPDATE: Feed audio data to visualizer
+        // FIXED: Feed audio data to visualizer with correct parameters
         if (player->visualizer) {
-            visualizer_update_audio_data(player->visualizer, output, samples_to_copy, player->channels);
+            // Convert samples_to_copy to sample count (not including channels)
+            size_t sample_count = samples_to_copy / player->channels;
+            visualizer_update_audio_data(player->visualizer, output, sample_count, player->channels);
         }
         
         player->audio_buffer.position += samples_to_copy;

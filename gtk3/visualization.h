@@ -7,13 +7,13 @@
 #include <string.h>
 
 #define VIS_SAMPLES 512
-#define VIS_NUM_BARS 32  // Changed from VIS_BARS to VIS_NUM_BARS
+#define VIS_FREQUENCY_BARS 32  // Renamed to avoid conflict
 #define VIS_HISTORY_SIZE 64
 
 typedef enum {
     VIS_WAVEFORM,
     VIS_OSCILLOSCOPE,
-    VIS_BARS,        // This is now safe since we renamed the macro
+    VIS_BARS,
     VIS_CIRCLE,
     VIS_VOLUME_METER
 } VisualizationType;
@@ -30,7 +30,7 @@ typedef struct {
     int history_index;
     
     // Simple frequency analysis without FFT
-    double *band_filters[VIS_NUM_BARS];  // Use VIS_NUM_BARS
+    double *band_filters[VIS_FREQUENCY_BARS];  // Use renamed constant
     double *band_values;
     
     // Visualization settings
