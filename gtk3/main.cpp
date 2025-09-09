@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <SDL2/SDL.h>
+#include "visualization.h"
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
 #include "wav_converter.h"
@@ -19,6 +20,7 @@
 #include "vfs.h"
 #include "icon.h"
 #include "aiff.h"
+
 
 extern double playTime;
 extern bool isPlaying;
@@ -283,12 +285,18 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     int samples_to_copy = (samples_requested < (int)samples_remaining) ? samples_requested : (int)samples_remaining;
     
     if (samples_to_copy > 0) {
+        // Copy audio data to output buffer
         for (int i = 0; i < samples_to_copy; i++) {
             int32_t sample = player->audio_buffer.data[player->audio_buffer.position + i];
             sample = (sample * globalVolume) / 100;
             if (sample > 32767) sample = 32767;
             else if (sample < -32768) sample = -32768;
             output[i] = (int16_t)sample;
+        }
+        
+        // UPDATE: Feed audio data to visualizer
+        if (player->visualizer) {
+            visualizer_update_audio_data(player->visualizer, output, samples_to_copy, player->channels);
         }
         
         player->audio_buffer.position += samples_to_copy;
@@ -1695,7 +1703,7 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 800, 600);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 900, 700); // Increased size for vis
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
     set_window_icon_from_base64(GTK_WINDOW(player->window));
@@ -1706,10 +1714,10 @@ void create_main_window(AudioPlayer *player) {
     
     // Player controls vbox (left side)
     GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    gtk_widget_set_size_request(player_vbox, 400, -1);
+    gtk_widget_set_size_request(player_vbox, 500, -1); // Increased width
     gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);
     
-    // Menu bar
+    // Menu bar (existing code)
     GtkWidget *menubar = gtk_menu_bar_new();
     
     // File menu
@@ -1740,7 +1748,6 @@ void create_main_window(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
     g_signal_connect(about_item, "activate", G_CALLBACK(on_menu_about), player);
     
-    
     gtk_box_pack_start(GTK_BOX(player_vbox), menubar, FALSE, FALSE, 0);
     
     // Content area
@@ -1748,6 +1755,25 @@ void create_main_window(AudioPlayer *player) {
     gtk_container_set_border_width(GTK_CONTAINER(content_vbox), 10);
     gtk_box_pack_start(GTK_BOX(player_vbox), content_vbox, TRUE, TRUE, 0);
     
+    // ADD: Initialize visualizer
+    player->visualizer = visualizer_new();
+    
+    // ADD: Visualization section
+    GtkWidget *vis_frame = gtk_frame_new("Visualization");
+    gtk_box_pack_start(GTK_BOX(content_vbox), vis_frame, FALSE, FALSE, 0);
+    
+    GtkWidget *vis_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_add(GTK_CONTAINER(vis_frame), vis_vbox);
+    gtk_container_set_border_width(GTK_CONTAINER(vis_vbox), 5);
+    
+    // Add visualization drawing area
+    gtk_box_pack_start(GTK_BOX(vis_vbox), player->visualizer->drawing_area, TRUE, TRUE, 0);
+    
+    // Add visualization controls
+    player->vis_controls = create_visualization_controls(player->visualizer);
+    gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
+    
+    // Existing file label
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
@@ -1770,7 +1796,7 @@ void create_main_window(AudioPlayer *player) {
     player->rewind_button = gtk_button_new_with_label("◀◀ 5s");
     player->play_button = gtk_button_new_with_label("▶");
     player->pause_button = gtk_button_new_with_label("⏸");
-    player->stop_button = gtk_button_new_with_label("■");
+    player->stop_button = gtk_button_new_with_label("⏹");
     player->fast_forward_button = gtk_button_new_with_label("5s ▶▶");
     player->next_button = gtk_button_new_with_label("▶|");
     
@@ -1842,7 +1868,7 @@ void create_main_window(AudioPlayer *player) {
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
     gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
     
-    // Connect signals
+    // Connect signals (existing code)
     g_signal_connect(player->window, "delete-event", G_CALLBACK(on_window_delete_event), player);
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
@@ -1858,6 +1884,7 @@ void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
     setup_keyboard_shortcuts(player);
 }
+
 
 void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
@@ -1914,6 +1941,8 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     
+    // Initialize FFTW (IMPORTANT: Add this before creating visualizer)
+    
     // Initialize virtual filesystem
     init_virtual_filesystem();
     
@@ -1955,10 +1984,17 @@ int main(int argc, char *argv[]) {
     
     gtk_main();
     
+    // Clean up visualizer
+    if (player->visualizer) {
+        visualizer_free(player->visualizer);
+    }
+    
     clear_queue(&player->queue);
     cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
     pthread_mutex_destroy(&player->audio_mutex);
+    
+    
     g_free(player);
     return 0;
 }

@@ -93,6 +93,9 @@ typedef struct {
     int sample_rate;
     int channels;
     int bits_per_sample;
+    
+    Visualizer *visualizer;
+    GtkWidget *vis_controls;
 } AudioPlayer;
 
 // External variables from midiplayer
