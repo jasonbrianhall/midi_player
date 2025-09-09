@@ -72,7 +72,8 @@ SOURCES_CPP = dbopl.cpp \
 	cache.cpp \
 	convertflactowav.cpp \
 	icon.cpp \
-	aiff.cpp
+	aiff.cpp \
+	keyboard.cpp
 
 SOURCES_C = 
 

@@ -178,4 +178,9 @@ void create_main_window(AudioPlayer *player);
 bool open_windows_file_dialog(char* filename, size_t filename_size, bool multiple = false);
 #endif
 
+// keyboard stuff
+gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
+void show_keyboard_help(AudioPlayer *player);
+void add_keyboard_shortcuts_menu(AudioPlayer *player, GtkWidget *help_menu);
+
 #endif // AUDIO_PLAYER_H
