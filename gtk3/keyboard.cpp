@@ -125,8 +125,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_Up:
             // Up Arrow: Volume up
-            if (shift_pressed) {
-                // Shift+Up: Volume up by 10%
+            {
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current + 0.1;
                 if (new_vol > 3.0) new_vol = 3.0;
@@ -137,7 +136,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_Down:
             // Down Arrow: Volume down
-            if (shift_pressed) {
+            {
                 // Shift+Down: Volume down by 10%
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current - 0.1;
@@ -226,27 +225,27 @@ void show_keyboard_help(AudioPlayer *player) {
     GtkWidget *label = gtk_label_new(
         "Keyboard Shortcuts:\n\n"
         "Playback Control:\n"
-        "  Space         - Play/Pause toggle\n"
-        "  S             - Stop\n"
-        "  N             - Next song\n"
-        "  P             - Previous song\n"
-        "  , / < ←       - Rewind 5 seconds\n"
-        "  . / > →       - Fast forward 5 seconds\n"
-        "  Home          - Go to beginning\n"
-        "  End           - Skip to next song\n\n"
+        "  Space	- Play/Pause toggle\n"
+        "  S		- Stop\n"
+        "  N		- Next song\n"
+        "  P		- Previous song\n"
+        "  , / < ←	- Rewind 5 seconds\n"
+        "  . / > →	- Fast forward 5 seconds\n"
+        "  Home		- Go to beginning\n"
+        "  End		- Skip to next song\n\n"
         "Queue Management:\n"
-        "  D / Delete    - Remove current song from queue\n"
-        "  R             - Toggle repeat mode\n"
-        "  1-9           - Jump to queue position\n\n"
+        "  D / Delete	- Remove current song from queue\n"
+        "  R		- Toggle repeat mode\n"
+        "  1-9		- Jump to queue position\n\n"
         "Volume:\n"
-        "  Shift+↑       - Volume up\n"
-        "  Shift+↓       - Volume down\n\n"
+        "  ↑		- Volume up\n"
+        "  ↓		- Volume down\n\n"
         "File Operations:\n"
-        "  Ctrl+O        - Open file\n"
-        "  Ctrl+A        - Add to queue\n"
-        "  Ctrl+C        - Clear queue\n"
-        "  Ctrl+Q        - Quit\n"
-        "  F1            - Show this help"
+        "  Ctrl+O	- Open file\n"
+        "  Ctrl+A	- Add to queue\n"
+        "  Ctrl+C	- Clear queue\n"
+        "  Ctrl+Q	- Quit\n"
+        "  F1		- Show this help"
     );
     
     gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);

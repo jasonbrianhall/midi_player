@@ -1733,10 +1733,13 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *help_item = gtk_menu_item_new_with_label("Help");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), help_item);
+
+    add_keyboard_shortcuts_menu(player, help_menu);
     
     GtkWidget *about_item = gtk_menu_item_new_with_label("About");
     gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
     g_signal_connect(about_item, "activate", G_CALLBACK(on_menu_about), player);
+    
     
     gtk_box_pack_start(GTK_BOX(player_vbox), menubar, FALSE, FALSE, 0);
     
