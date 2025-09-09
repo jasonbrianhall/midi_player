@@ -285,18 +285,20 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     int samples_to_copy = (samples_requested < (int)samples_remaining) ? samples_requested : (int)samples_remaining;
     
     if (samples_to_copy > 0) {
-        // Copy audio data to output buffer
+        // Copy and process audio data
         for (int i = 0; i < samples_to_copy; i++) {
             int32_t sample = player->audio_buffer.data[player->audio_buffer.position + i];
             sample = (sample * globalVolume) / 100;
             if (sample > 32767) sample = 32767;
             else if (sample < -32768) sample = -32768;
-            output[i] = (int16_t)sample;
+            
+            // APPLY EQUALIZER HERE
+            int16_t eq_sample = equalizer_process_sample(player->equalizer, (int16_t)sample);
+            output[i] = eq_sample;
         }
         
-        // FIXED: Feed audio data to visualizer with correct parameters
+        // Feed processed audio to visualizer
         if (player->visualizer) {
-            // Convert samples_to_copy to sample count (not including channels)
             size_t sample_count = samples_to_copy / player->channels;
             visualizer_update_audio_data(player->visualizer, output, sample_count, player->channels);
         }
@@ -311,7 +313,7 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     pthread_mutex_unlock(&player->audio_mutex);
 }
 
-bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels = AUDIO_CHANNELS) {
+bool init_audio(AudioPlayer *player, int sample_rate, int channels) {
 #ifdef _WIN32
     // Try different audio drivers in order of preference
     const char* drivers[] = {"directsound", "winmm", "wasapi", NULL};
@@ -355,6 +357,14 @@ bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels
     }
     
     printf("Audio: %d Hz, %d channels\n", player->audio_spec.freq, player->audio_spec.channels);
+    
+    // Reinitialize equalizer with new sample rate if it exists
+    if (player->equalizer && player->equalizer->sample_rate != sample_rate) {
+        printf("Reinitializing equalizer for new sample rate: %d Hz\n", sample_rate);
+        equalizer_free(player->equalizer);
+        player->equalizer = equalizer_new(sample_rate);
+    }
+    
     return true;
 }
 
@@ -1697,6 +1707,10 @@ void on_volume_changed(GtkRange *range, gpointer user_data) {
 void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     (void)user_data;
+
+    if (player->equalizer) {
+        equalizer_free(player->equalizer);
+    }
     
     // This will be called after delete-event, so just quit
     gtk_main_quit();
@@ -1774,8 +1788,8 @@ void create_main_window(AudioPlayer *player) {
     // Add visualization controls
     player->vis_controls = create_visualization_controls(player->visualizer);
     gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
-    
-    // Existing file label
+
+        // File label
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
@@ -1835,6 +1849,10 @@ void create_main_window(AudioPlayer *player) {
 
     GtkWidget *bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_end(GTK_BOX(content_vbox), bottom_box, FALSE, FALSE, 0);
+
+    GtkWidget *eq_controls = create_equalizer_controls(player);
+    gtk_box_pack_start(GTK_BOX(content_vbox), eq_controls, FALSE, FALSE, 0);
+
 
     // Add icon to bottom left
     GdkPixbuf *small_icon = load_icon_from_base64();
@@ -1960,6 +1978,11 @@ int main(int argc, char *argv[]) {
         cleanup_conversion_cache(&player->conversion_cache);
         cleanup_virtual_filesystem();
         return 1;
+    }
+    
+    player->equalizer = equalizer_new(SAMPLE_RATE);
+    if (!player->equalizer) {
+        printf("Failed to initialize equalizer\n");
     }
     
     // Initialize OPL for MIDI conversion

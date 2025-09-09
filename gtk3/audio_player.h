@@ -200,4 +200,6 @@ void show_keyboard_help(AudioPlayer *player);
 void add_keyboard_shortcuts_menu(AudioPlayer *player, GtkWidget *help_menu);
 void setup_keyboard_shortcuts(AudioPlayer *player);
 
+GtkWidget* create_equalizer_controls(AudioPlayer *player);
+
 #endif // AUDIO_PLAYER_H
