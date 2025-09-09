@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>  // For size_t
+#include <gtk/gtk.h>
+#include <string.h>
 
 #define EQ_BANDS 3  // Bass, Mid, Treble
 

@@ -18,6 +18,8 @@
 #include "audioconverter.h"
 #include "convertoggtowav.h"
 #include "convertflactowav.h"
+#include "equalizer.h"
+#include "visualization.h"
 
 // Conversion Cache Entries.
 typedef struct {
@@ -96,6 +98,17 @@ typedef struct {
     
     Visualizer *visualizer;
     GtkWidget *vis_controls;
+    
+    Equalizer *equalizer;
+    
+    // Equalizer GUI controls
+    GtkWidget *eq_frame;
+    GtkWidget *eq_enable_check;
+    GtkWidget *bass_scale;
+    GtkWidget *mid_scale;
+    GtkWidget *treble_scale;
+    GtkWidget *eq_reset_button;
+    
 } AudioPlayer;
 
 // External variables from midiplayer
