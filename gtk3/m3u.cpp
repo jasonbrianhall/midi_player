@@ -9,6 +9,15 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <SDL2/SDL.h>
+
+// Add these includes for access() and F_OK
+#ifdef _WIN32
+    #include <io.h>
+    #define F_OK 0
+#else
+    #include <unistd.h>
+#endif
+
 #include "visualization.h"
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
