@@ -1745,6 +1745,17 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *open_item = gtk_menu_item_new_with_label("Open...");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), open_item);
     g_signal_connect(open_item, "activate", G_CALLBACK(on_menu_open), player);
+
+    GtkWidget *playlist_separator = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), playlist_separator);
+
+    GtkWidget *load_playlist_item = gtk_menu_item_new_with_label("Load Playlist...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), load_playlist_item);
+    g_signal_connect(load_playlist_item, "activate", G_CALLBACK(on_menu_load_playlist), player);
+
+    GtkWidget *save_playlist_item = gtk_menu_item_new_with_label("Save Playlist...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), save_playlist_item);
+    g_signal_connect(save_playlist_item, "activate", G_CALLBACK(on_menu_save_playlist), player);
     
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), gtk_separator_menu_item_new());
     
@@ -1956,6 +1967,107 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     
     gtk_main_quit();
     return FALSE; // Allow the window to be destroyed
+}
+
+void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+#ifdef _WIN32
+    char filename[1024];
+    OPENFILENAME ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = sizeof(filename);
+    ofn.lpstrFilter = "M3U Playlists\0*.m3u;*.m3u8\0All Files\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    
+    filename[0] = '\0';
+    
+    if (GetOpenFileName(&ofn)) {
+        load_m3u_playlist(player, filename);
+    }
+#else
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Load Playlist",
+                                                    GTK_WINDOW(player->window),
+                                                    GTK_FILE_CHOOSER_ACTION_OPEN,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Load", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    
+    GtkFileFilter *m3u_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(m3u_filter, "M3U Playlists (*.m3u, *.m3u8)");
+    gtk_file_filter_add_pattern(m3u_filter, "*.m3u");
+    gtk_file_filter_add_pattern(m3u_filter, "*.m3u8");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), m3u_filter);
+    
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        load_m3u_playlist(player, filename);
+        g_free(filename);
+    }
+    
+    gtk_widget_destroy(dialog);
+#endif
+}
+
+void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (player->queue.count == 0) {
+        GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
+                                                         GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                         GTK_MESSAGE_WARNING,
+                                                         GTK_BUTTONS_OK,
+                                                         "No files in queue to save");
+        gtk_dialog_run(GTK_DIALOG(error_dialog));
+        gtk_widget_destroy(error_dialog);
+        return;
+    }
+    
+#ifdef _WIN32
+    char filename[1024];
+    OPENFILENAME ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = sizeof(filename);
+    ofn.lpstrFilter = "M3U Playlists\0*.m3u\0All Files\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrDefExt = "m3u";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+    
+    strcpy(filename, "playlist.m3u");
+    
+    if (GetSaveFileName(&ofn)) {
+        save_m3u_playlist(player, filename);
+    }
+#else
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Save Playlist",
+                                                    GTK_WINDOW(player->window),
+                                                    GTK_FILE_CHOOSER_ACTION_SAVE,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Save", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "playlist.m3u");
+    
+    GtkFileFilter *m3u_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(m3u_filter, "M3U Playlists (*.m3u)");
+    gtk_file_filter_add_pattern(m3u_filter, "*.m3u");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), m3u_filter);
+    
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        save_m3u_playlist(player, filename);
+        g_free(filename);
+    }
+    
+    gtk_widget_destroy(dialog);
+#endif
 }
 
 int main(int argc, char *argv[]) {
