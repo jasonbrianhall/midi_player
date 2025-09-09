@@ -200,6 +200,12 @@ void show_keyboard_help(AudioPlayer *player);
 void add_keyboard_shortcuts_menu(AudioPlayer *player, GtkWidget *help_menu);
 void setup_keyboard_shortcuts(AudioPlayer *player);
 
+bool load_m3u_playlist(AudioPlayer *player, const char *m3u_path);
+bool save_m3u_playlist(AudioPlayer *player, const char *m3u_path);
+bool is_m3u_file(const char *filename);
+void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data);
+void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data);
+
 GtkWidget* create_equalizer_controls(AudioPlayer *player);
 
 #endif // AUDIO_PLAYER_H

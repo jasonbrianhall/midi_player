@@ -75,7 +75,8 @@ SOURCES_CPP = dbopl.cpp \
 	aiff.cpp \
 	keyboard.cpp \
 	visualization.cpp \
-	equalizer.cpp
+	equalizer.cpp \
+	m3u.cpp
 
 SOURCES_C = 
 
