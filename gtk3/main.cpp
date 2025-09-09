@@ -1804,6 +1804,26 @@ void create_main_window(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(queue_button_box), player->add_to_queue_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(queue_button_box), player->clear_queue_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
+
+    GtkWidget *bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_box_pack_end(GTK_BOX(content_vbox), bottom_box, FALSE, FALSE, 0);
+
+    // Add icon to bottom left
+    GdkPixbuf *small_icon = load_icon_from_base64();
+    if (small_icon) {
+        // Scale the icon down to a smaller size (e.g., 32x32)
+        GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, 64, 64, GDK_INTERP_BILINEAR);
+        if (scaled_icon) {
+            GtkWidget *icon_image = gtk_image_new_from_pixbuf(scaled_icon);
+            gtk_box_pack_start(GTK_BOX(bottom_box), icon_image, FALSE, FALSE, 0);
+            g_object_unref(scaled_icon);
+        }
+        g_object_unref(small_icon);
+    }
+
+    // Add some spacing to push icon to the left
+    GtkWidget *spacer = gtk_label_new("");
+    gtk_box_pack_start(GTK_BOX(bottom_box), spacer, TRUE, TRUE, 0);
     
     // Queue display (right side)
     GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
