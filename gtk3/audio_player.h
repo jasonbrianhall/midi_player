@@ -182,5 +182,6 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
 gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
 void show_keyboard_help(AudioPlayer *player);
 void add_keyboard_shortcuts_menu(AudioPlayer *player, GtkWidget *help_menu);
+void setup_keyboard_shortcuts(AudioPlayer *player);
 
 #endif // AUDIO_PLAYER_H

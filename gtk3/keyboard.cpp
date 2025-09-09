@@ -59,7 +59,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             return TRUE;
             
         case GDK_KEY_n:
-        case GDK_KEY_Right:
             // 'n' or Right Arrow: Next song
             if (!ctrl_pressed) {
                 next_song(player);
@@ -68,7 +67,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_p:
-        case GDK_KEY_Left:
             // 'p' or Left Arrow: Previous song  
             if (!ctrl_pressed) {
                 previous_song(player);
@@ -96,12 +94,14 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             break;
             
+        case GDK_KEY_Left:
         case GDK_KEY_comma:
         case GDK_KEY_less:
             // ',' or '<': Rewind 5 seconds
             rewind_5_seconds(player);
             return TRUE;
             
+        case GDK_KEY_Right:
         case GDK_KEY_period:
         case GDK_KEY_greater:
             // '.' or '>': Fast forward 5 seconds
@@ -228,10 +228,10 @@ void show_keyboard_help(AudioPlayer *player) {
         "Playback Control:\n"
         "  Space         - Play/Pause toggle\n"
         "  S             - Stop\n"
-        "  N / →         - Next song\n"
-        "  P / ←         - Previous song\n"
-        "  , / <         - Rewind 5 seconds\n"
-        "  . / >         - Fast forward 5 seconds\n"
+        "  N             - Next song\n"
+        "  P             - Previous song\n"
+        "  , / < ←       - Rewind 5 seconds\n"
+        "  . / > →       - Fast forward 5 seconds\n"
         "  Home          - Go to beginning\n"
         "  End           - Skip to next song\n\n"
         "Queue Management:\n"
