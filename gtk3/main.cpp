@@ -255,8 +255,6 @@ void update_queue_display(AudioPlayer *player) {
         g_free(basename);
     }
     
-    // IMPORTANT: Connect the row-activated signal to handle clicks
-    // Disconnect any existing signal first to avoid multiple connections
     g_signal_handlers_disconnect_by_func(player->queue_listbox, 
                                          G_CALLBACK(on_queue_item_clicked), 
                                          player);
@@ -2073,8 +2071,6 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     
-    // Initialize FFTW (IMPORTANT: Add this before creating visualizer)
-    
     // Initialize virtual filesystem
     init_virtual_filesystem();
     
@@ -2106,13 +2102,28 @@ int main(int argc, char *argv[]) {
     gtk_widget_show_all(player->window);
     
     if (argc > 1) {
-        // Add all command line arguments to queue
-        for (int i = 1; i < argc; i++) {
-            add_to_queue(&player->queue, argv[i]);
+        // Check if first argument is an M3U playlist
+        const char *first_arg = argv[1];
+        const char *ext = strrchr(first_arg, '.');
+        
+        if (ext && (strcasecmp(ext, ".m3u") == 0 || strcasecmp(ext, ".m3u8") == 0)) {
+            // Load M3U playlist
+            printf("Loading M3U playlist: %s\n", first_arg);
+            load_m3u_playlist(player, first_arg);
+            
+            // Add any additional arguments as individual files
+            for (int i = 2; i < argc; i++) {
+                add_to_queue(&player->queue, argv[i]);
+            }
+        } else {
+            // Add all command line arguments to queue as individual files
+            for (int i = 1; i < argc; i++) {
+                add_to_queue(&player->queue, argv[i]);
+            }
         }
         
-        if (load_file_from_queue(player)) {
-            printf("Loaded and auto-starting: %s\n", argv[1]);
+        if (player->queue.count > 0 && load_file_from_queue(player)) {
+            printf("Loaded and auto-starting first file in queue\n");
             update_queue_display(player);
             update_gui_state(player);
             // load_file now auto-starts playback
@@ -2135,4 +2146,3 @@ int main(int argc, char *argv[]) {
     g_free(player);
     return 0;
 }
-
