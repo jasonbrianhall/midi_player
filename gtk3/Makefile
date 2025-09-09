@@ -73,7 +73,8 @@ SOURCES_CPP = dbopl.cpp \
 	convertflactowav.cpp \
 	icon.cpp \
 	aiff.cpp \
-	keyboard.cpp
+	keyboard.cpp \
+	visualization.cpp
 
 SOURCES_C = 
 
