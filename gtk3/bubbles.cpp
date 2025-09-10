@@ -1,7 +1,6 @@
-#include <gtk/gtk.h>
-#include <cairo.h>
-#include <math.h>
-#include <string.h>
+#ifndef BUBBLES_H
+#define BUBBLES_H
+
 #include "visualization.h"
 
 static void init_bubble_system(Visualizer *vis) {
@@ -172,7 +171,7 @@ static void update_bubbles(Visualizer *vis, double dt) {
     }
 }
 
-static void draw_bubbles(Visualizer *vis, cairo_t *cr) {
+void draw_bubbles(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     // Update bubble system
@@ -278,3 +277,5 @@ static void draw_bubbles(Visualizer *vis, cairo_t *cr) {
     }
     
 }
+
+#endif

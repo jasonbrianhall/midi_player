@@ -103,7 +103,7 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr);
 static void draw_bars(Visualizer *vis, cairo_t *cr);
 static void draw_circle(Visualizer *vis, cairo_t *cr);
 static void draw_volume_meter(Visualizer *vis, cairo_t *cr);
-static void draw_bubbles(Visualizer *vis, cairo_t *cr);
+void draw_bubbles(Visualizer *vis, cairo_t *cr);
 static void process_audio_simple(Visualizer *vis);
 static void init_frequency_bands(Visualizer *vis);
 
