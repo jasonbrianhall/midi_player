@@ -9,14 +9,38 @@
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32  // Renamed to avoid conflict
 #define VIS_HISTORY_SIZE 64
+#define MAX_BUBBLES 100
+#define MAX_POP_EFFECTS 50
 
 typedef enum {
     VIS_WAVEFORM,
     VIS_OSCILLOSCOPE,
     VIS_BARS,
     VIS_CIRCLE,
-    VIS_VOLUME_METER
+    VIS_VOLUME_METER,
+    VIS_BUBBLES
 } VisualizationType;
+
+// Define bubble and pop effect structs BEFORE Visualizer struct
+typedef struct {
+    double x, y;           // Position
+    double radius;         // Current radius
+    double max_radius;     // Maximum radius before popping
+    double velocity_x, velocity_y;  // Movement
+    double life;           // Life remaining (0.0 - 1.0)
+    double birth_time;     // When bubble was created
+    double intensity;      // Audio intensity that created it
+    gboolean active;       // Is this bubble alive?
+} Bubble;
+
+typedef struct {
+    double x, y;           // Position where pop occurred
+    double radius;         // Expanding ring radius
+    double max_radius;     // Final ring radius
+    double life;           // Effect life remaining
+    double intensity;      // Original bubble intensity
+    gboolean active;       // Is effect active?
+} PopEffect;
 
 typedef struct {
     GtkWidget *drawing_area;
@@ -52,6 +76,14 @@ typedef struct {
     
     // Size
     int width, height;
+    
+    // Bubble system data
+    Bubble bubbles[MAX_BUBBLES];
+    PopEffect pop_effects[MAX_POP_EFFECTS];
+    int bubble_count;
+    int pop_effect_count;
+    double bubble_spawn_timer;
+    double last_peak_level;
 } Visualizer;
 
 // Function declarations
@@ -71,7 +103,14 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr);
 static void draw_bars(Visualizer *vis, cairo_t *cr);
 static void draw_circle(Visualizer *vis, cairo_t *cr);
 static void draw_volume_meter(Visualizer *vis, cairo_t *cr);
+static void draw_bubbles(Visualizer *vis, cairo_t *cr);  // Add this declaration
 static void process_audio_simple(Visualizer *vis);
 static void init_frequency_bands(Visualizer *vis);
+
+// Bubble system function declarations
+static void init_bubble_system(Visualizer *vis);
+static void spawn_bubble(Visualizer *vis, double intensity);
+static void create_pop_effect(Visualizer *vis, Bubble *bubble);
+static void update_bubbles(Visualizer *vis, double dt);
 
 #endif
