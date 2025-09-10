@@ -74,6 +74,8 @@ SOURCES_CPP = dbopl.cpp \
 	icon.cpp \
 	aiff.cpp \
 	keyboard.cpp \
+	bubbles.cpp \
+	matrix.cpp \
 	visualization.cpp \
 	equalizer.cpp \
 	m3u.cpp

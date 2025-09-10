@@ -12,13 +12,33 @@
 #define MAX_BUBBLES 100
 #define MAX_POP_EFFECTS 50
 
+#define MAX_MATRIX_COLUMNS 60
+#define MAX_CHARS_PER_COLUMN 30
+
+typedef struct {
+    int x;                    // Column x position
+    double y;                 // Current y position (can be fractional)
+    double speed;             // Fall speed
+    int length;               // Length of the trail
+    double intensity;         // Brightness multiplier
+    const char* chars[MAX_CHARS_PER_COLUMN]; // Array of string pointers instead of chars
+    double char_ages[MAX_CHARS_PER_COLUMN]; // Age of each character (for fading)
+    gboolean active;          // Is this column active
+    int frequency_band;       // Which frequency band controls this column
+    bool power_mode;
+    int flash_intensity;
+    int wave_offset;
+    int glitch_timer;
+} MatrixColumn;
+
 typedef enum {
     VIS_WAVEFORM,
     VIS_OSCILLOSCOPE,
     VIS_BARS,
     VIS_CIRCLE,
     VIS_VOLUME_METER,
-    VIS_BUBBLES
+    VIS_BUBBLES,
+    VIS_MATRIX
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -84,6 +104,12 @@ typedef struct {
     int pop_effect_count;
     double bubble_spawn_timer;
     double last_peak_level;
+    
+    // Matrix
+    MatrixColumn matrix_columns[MAX_MATRIX_COLUMNS];
+    int matrix_column_count;
+    double matrix_spawn_timer;
+    int matrix_char_size;
 } Visualizer;
 
 // Function declarations
@@ -112,5 +138,12 @@ static void init_bubble_system(Visualizer *vis);
 static void spawn_bubble(Visualizer *vis, double intensity);
 static void create_pop_effect(Visualizer *vis, Bubble *bubble);
 static void update_bubbles(Visualizer *vis, double dt);
+
+// Matrix
+static void init_matrix_system(Visualizer *vis);
+static void spawn_matrix_column(Visualizer *vis, int frequency_band);
+static void update_matrix(Visualizer *vis, double dt);
+void draw_matrix(Visualizer *vis, cairo_t *cr);
+static const char* get_random_matrix_char(void);
 
 #endif
