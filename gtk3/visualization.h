@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define VIS_SAMPLES 512
-#define VIS_FREQUENCY_BARS 32  // Renamed to avoid conflict
+#define VIS_FREQUENCY_BARS 32
 #define VIS_HISTORY_SIZE 64
 #define MAX_BUBBLES 100
 #define MAX_POP_EFFECTS 50
@@ -103,7 +103,7 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr);
 static void draw_bars(Visualizer *vis, cairo_t *cr);
 static void draw_circle(Visualizer *vis, cairo_t *cr);
 static void draw_volume_meter(Visualizer *vis, cairo_t *cr);
-static void draw_bubbles(Visualizer *vis, cairo_t *cr);  // Add this declaration
+static void draw_bubbles(Visualizer *vis, cairo_t *cr);
 static void process_audio_simple(Visualizer *vis);
 static void init_frequency_bands(Visualizer *vis);
 
