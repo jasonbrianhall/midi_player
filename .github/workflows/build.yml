@@ -771,8 +771,9 @@ jobs:
           - **MIDI** - Musical Instrument Digital Interface (.mid/.midi)
           - **AIFF** - Audio Interchange File Format (.aiff/.aif)
           - **OPUS** - Royalty-free lossy audio codec
+          - **M3U** - Audio playlist files
           
-          Right-click any supported audio file and select "Open with Zenamp" or "Play with Zenamp"!
+          Right-click any supported audio file or playlist and select "Open with Zenamp" or "Play with Zenamp"!
           
           ---
           *Built with GitHub Actions*
