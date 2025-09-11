@@ -6,6 +6,7 @@ CXX_LINUX = g++
 CC_LINUX = gcc
 CXX_WIN = x86_64-w64-mingw32-g++
 CC_WIN = x86_64-w64-mingw32-gcc
+WINDRES = x86_64-w64-mingw32-windres
 
 # Common flags
 CXXFLAGS_COMMON = -Wall -Wextra -g -fpermissive
@@ -85,6 +86,10 @@ SOURCES_CPP = dbopl.cpp \
 
 SOURCES_C = 
 
+# Resource files for Windows
+RESOURCE_FILE = icon.rc
+RESOURCE_OBJ = icon.o
+
 # Object files for different platforms
 OBJECTS_CPP_LINUX = $(SOURCES_CPP:.cpp=.o)
 OBJECTS_C_LINUX = $(SOURCES_C:.c=.o)
@@ -117,6 +122,9 @@ BUILD_DIR_WIN_DEBUG = $(BUILD_DIR)/windows_debug
 
 # Windows DLL settings
 DLL_SOURCE_DIR = /usr/x86_64-w64-mingw32/sys-root/mingw/bin
+
+# Extra objects for linking (used by build.yml)
+EXTRA_OBJS ?=
 
 # Create necessary directories
 $(shell mkdir -p $(BUILD_DIR_LINUX) $(BUILD_DIR_WIN) $(BUILD_DIR_LINUX_DEBUG) $(BUILD_DIR_WIN_DEBUG))
@@ -169,13 +177,27 @@ $(BUILD_DIR_LINUX_DEBUG)/%.debug.o: %.c
 	$(CC_LINUX) $(CFLAGS_LINUX_DEBUG) -c $< -o $@
 
 #
+# Windows resource compilation
+#
+$(RESOURCE_OBJ): $(RESOURCE_FILE)
+	@echo "Compiling Windows resources..."
+	$(WINDRES) $(RESOURCE_FILE) -o $(RESOURCE_OBJ)
+
+#
 # Windows build targets
 #
 .PHONY: zenamp-windows
 zenamp-windows: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN) zenamp-collect-dlls
 
-$(BUILD_DIR_WIN)/$(EXECUTABLE_WIN): $(addprefix $(BUILD_DIR_WIN)/,$(OBJECTS_WIN))
-	$(CXX_WIN) $^ -o $@ $(LDFLAGS_WIN)
+$(BUILD_DIR_WIN)/$(EXECUTABLE_WIN): $(addprefix $(BUILD_DIR_WIN)/,$(OBJECTS_WIN)) $(EXTRA_OBJS)
+	@if [ -f "$(RESOURCE_FILE)" ]; then \
+		echo "Resource file found, compiling with embedded icon..."; \
+		$(WINDRES) $(RESOURCE_FILE) -o $(RESOURCE_OBJ); \
+		$(CXX_WIN) $(addprefix $(BUILD_DIR_WIN)/,$(OBJECTS_WIN)) $(RESOURCE_OBJ) $(EXTRA_OBJS) -o $@ $(LDFLAGS_WIN); \
+	else \
+		echo "No resource file found, compiling without embedded icon..."; \
+		$(CXX_WIN) $(addprefix $(BUILD_DIR_WIN)/,$(OBJECTS_WIN)) $(EXTRA_OBJS) -o $@ $(LDFLAGS_WIN); \
+	fi
 
 # Windows compilation rules
 $(BUILD_DIR_WIN)/%.win.o: %.cpp
@@ -190,8 +212,15 @@ $(BUILD_DIR_WIN)/%.win.o: %.c
 .PHONY: zenamp-windows-debug
 zenamp-windows-debug: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG) zenamp-collect-debug-dlls
 
-$(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG): $(addprefix $(BUILD_DIR_WIN_DEBUG)/,$(OBJECTS_WIN_DEBUG))
-	$(CXX_WIN) $^ -o $@ $(LDFLAGS_WIN)
+$(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG): $(addprefix $(BUILD_DIR_WIN_DEBUG)/,$(OBJECTS_WIN_DEBUG)) $(EXTRA_OBJS)
+	@if [ -f "$(RESOURCE_FILE)" ]; then \
+		echo "Resource file found, compiling debug with embedded icon..."; \
+		$(WINDRES) $(RESOURCE_FILE) -o $(RESOURCE_OBJ); \
+		$(CXX_WIN) $(addprefix $(BUILD_DIR_WIN_DEBUG)/,$(OBJECTS_WIN_DEBUG)) $(RESOURCE_OBJ) $(EXTRA_OBJS) -o $@ $(LDFLAGS_WIN); \
+	else \
+		echo "No resource file found, compiling debug without embedded icon..."; \
+		$(CXX_WIN) $(addprefix $(BUILD_DIR_WIN_DEBUG)/,$(OBJECTS_WIN_DEBUG)) $(EXTRA_OBJS) -o $@ $(LDFLAGS_WIN); \
+	fi
 
 # Windows debug compilation rules
 $(BUILD_DIR_WIN_DEBUG)/%.win.debug.o: %.cpp
@@ -237,6 +266,7 @@ clean:
 	rm -f $(BUILD_DIR_LINUX_DEBUG)/$(EXECUTABLE_LINUX_DEBUG)
 	rm -f $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)
 	rm -f $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG)
+	rm -f $(RESOURCE_OBJ)
 
 # Clean build directories
 .PHONY: clean-all
@@ -249,7 +279,7 @@ help:
 	@echo "Available targets:"
 	@echo "  make               - Build zenamp for Linux (default)"
 	@echo "  make linux         - Build zenamp for Linux"
-	@echo "  make windows       - Build zenamp for Windows"
+	@echo "  make windows       - Build zenamp for Windows (with icon if icon.rc exists)"
 	@echo ""
 	@echo "  make debug         - Build zenamp with debug symbols for both platforms"
 	@echo "  make zenamp-linux-debug   - Build zenamp for Linux with debug symbols"
@@ -265,5 +295,9 @@ help:
 	@echo "  Linux:   $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX)"
 	@echo "  Windows: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)"
 	@echo "  Debug versions available in respective debug directories"
+	@echo ""
+	@echo "Icon embedding:"
+	@echo "  Windows builds will automatically include icon.rc if present"
+	@echo "  Use EXTRA_OBJS=filename.o to include additional object files"
 
 .PHONY: all clean install help linux windows debug
