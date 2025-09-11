@@ -208,4 +208,32 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data);
 
 GtkWidget* create_equalizer_controls(AudioPlayer *player);
 
+enum {
+    TARGET_STRING
+};
+
+static GtkTargetEntry target_list[] = {
+    {"STRING", 0, TARGET_STRING}
+};
+
+static guint n_targets = G_N_ELEMENTS(target_list);
+
+static void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data);
+static void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
+                           GtkSelectionData *selection_data, guint target_type,
+                           guint time, gpointer user_data);
+static gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
+                              gint x, gint y, guint time, gpointer user_data);
+
+static void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
+                                gint x, gint y, GtkSelectionData *selection_data,
+                                guint target_type, guint time, gpointer user_data);
+
+gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+
+static gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
+                            gint x, gint y, guint time, gpointer user_data);
+
+gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+
 #endif // AUDIO_PLAYER_H

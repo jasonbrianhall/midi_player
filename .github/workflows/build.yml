@@ -604,6 +604,7 @@ jobs:
           - **OGG** - Open-source proud
           - **FLAC** - Audiophile approved
           - **MIDI** - With OPL3 synthesis magic
-          
+          - **AIFF** - Generally MAC Created WAVE Files
+          - **OPUS** - Royalty Free Lossy Audio 
           ---
           *Built with GitHub Actions*

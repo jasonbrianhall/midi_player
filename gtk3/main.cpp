@@ -31,10 +31,16 @@ extern double playwait;
 
 AudioPlayer *player = NULL;
 
+// Global variable to track drag source row
+int drag_source_index = -1;
+
+
 #ifdef _WIN32
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
+
+
 
 bool open_windows_file_dialog(char* filename, size_t filename_size, bool multiple = false) {
     OPENFILENAME ofn;
@@ -222,18 +228,28 @@ void update_queue_display(AudioPlayer *player) {
     }
     g_list_free(children);
     
-    // Add queue items
+    // Add queue items with drag and drop support
     for (int i = 0; i < player->queue.count; i++) {
         char *basename = g_path_get_basename(player->queue.files[i]);
         
         GtkWidget *row = gtk_list_box_row_new();
+        
+        // Create an event box to handle events properly
+        GtkWidget *event_box = gtk_event_box_new();
+        gtk_container_add(GTK_CONTAINER(row), event_box);
+        
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-        gtk_container_add(GTK_CONTAINER(row), box);
+        gtk_container_add(GTK_CONTAINER(event_box), box);
         
         // Current playing indicator
         const char *indicator = (i == player->queue.current_index) ? "▶ " : "  ";
         GtkWidget *indicator_label = gtk_label_new(indicator);
         gtk_box_pack_start(GTK_BOX(box), indicator_label, FALSE, FALSE, 0);
+        
+        // Drag handle (visual indicator that item can be dragged)
+        GtkWidget *drag_handle = gtk_label_new("☰");
+        gtk_widget_set_tooltip_text(drag_handle, "Drag to reorder");
+        gtk_box_pack_start(GTK_BOX(box), drag_handle, FALSE, FALSE, 0);
         
         GtkWidget *filename_label = gtk_label_new(basename);
         gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
@@ -241,6 +257,7 @@ void update_queue_display(AudioPlayer *player) {
         // Add remove button
         GtkWidget *remove_button = gtk_button_new_with_label("✗");
         gtk_widget_set_size_request(remove_button, 30, 30);
+        gtk_widget_set_tooltip_text(remove_button, "Remove from queue");
         
         // Store the index in the button data
         g_object_set_data(G_OBJECT(remove_button), "queue_index", GINT_TO_POINTER(i));
@@ -250,20 +267,230 @@ void update_queue_display(AudioPlayer *player) {
         
         gtk_box_pack_end(GTK_BOX(box), remove_button, FALSE, FALSE, 0);
         
-        gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
+        // Set up drag source on the EVENT BOX (not the row)
+        gtk_drag_source_set(event_box, 
+                           GDK_BUTTON1_MASK,
+                           target_list, 
+                           n_targets, 
+                           GDK_ACTION_MOVE);
         
+        // Connect drag signals to the EVENT BOX
+        g_signal_connect(event_box, "drag-begin", G_CALLBACK(on_drag_begin), player);
+        g_signal_connect(event_box, "drag-data-get", G_CALLBACK(on_drag_data_get), player);
+        
+        // Set up drop target on the EVENT BOX
+        gtk_drag_dest_set(event_box, 
+                         GTK_DEST_DEFAULT_ALL,
+                         target_list, 
+                         n_targets, 
+                         GDK_ACTION_MOVE);
+        
+        // Connect drop signals to the EVENT BOX
+        g_signal_connect(event_box, "drag-motion", G_CALLBACK(on_drag_motion), player);
+        g_signal_connect(event_box, "drag-data-received", G_CALLBACK(on_drag_data_received), player);
+        g_signal_connect(event_box, "drag-drop", G_CALLBACK(on_drag_drop), player);
+        
+        // Handle clicks on the event box (but not on the remove button)
+        g_signal_connect(event_box, "button-press-event", G_CALLBACK(on_queue_item_button_press), player);
+        
+        gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
         g_free(basename);
     }
     
-    g_signal_handlers_disconnect_by_func(player->queue_listbox, 
-                                         G_CALLBACK(on_queue_item_clicked), 
-                                         player);
-    
-    // Connect the signal for row activation (when user clicks on a row)
-    g_signal_connect(player->queue_listbox, "row-activated", 
-                     G_CALLBACK(on_queue_item_clicked), player);
-    
     gtk_widget_show_all(player->queue_listbox);
+}
+
+gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Only handle single left clicks (let drag system handle drags)
+    if (event->type != GDK_BUTTON_PRESS || event->button != 1) {
+        return FALSE;
+    }
+    
+    // Get the row from the event box
+    GtkWidget *row = gtk_widget_get_parent(widget);
+    if (!GTK_IS_LIST_BOX_ROW(row)) {
+        return FALSE;
+    }
+    
+    // Get the index of the clicked row
+    int clicked_index = gtk_list_box_row_get_index(GTK_LIST_BOX_ROW(row));
+    
+    printf("Queue item clicked: index %d\n", clicked_index);
+    
+    // If this is already the current song and it's playing, do nothing
+    if (clicked_index == player->queue.current_index && player->is_playing) {
+        printf("Already playing this song\n");
+        return TRUE;
+    }
+    
+    // Stop current playback
+    stop_playback(player);
+    
+    // Set the queue to the clicked index
+    player->queue.current_index = clicked_index;
+    
+    // Load and start playing the selected file
+    if (load_file_from_queue(player)) {
+        update_queue_display(player);
+        update_gui_state(player);
+        start_playback(player);
+        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+    }
+    
+    return TRUE; // Event handled
+}
+
+bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index) {
+    if (from_index < 0 || from_index >= queue->count || 
+        to_index < 0 || to_index >= queue->count || 
+        from_index == to_index) {
+        return false;
+    }
+    
+    // Store the item being moved
+    char *moving_item = queue->files[from_index];
+    
+    // Adjust current_index based on the move
+    int new_current_index = queue->current_index;
+    
+    if (from_index == queue->current_index) {
+        // Moving the currently playing item
+        new_current_index = to_index;
+    } else if (from_index < queue->current_index && to_index >= queue->current_index) {
+        // Moving item from before current to after current
+        new_current_index--;
+    } else if (from_index > queue->current_index && to_index <= queue->current_index) {
+        // Moving item from after current to before current
+        new_current_index++;
+    }
+    
+    // Perform the move
+    if (from_index < to_index) {
+        // Moving down: shift items up
+        for (int i = from_index; i < to_index; i++) {
+            queue->files[i] = queue->files[i + 1];
+        }
+    } else {
+        // Moving up: shift items down
+        for (int i = from_index; i > to_index; i--) {
+            queue->files[i] = queue->files[i - 1];
+        }
+    }
+    
+    // Place the moved item in its new position
+    queue->files[to_index] = moving_item;
+    queue->current_index = new_current_index;
+    
+    return true;
+}
+
+// Drag begin callback
+static void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Get the row being dragged
+    GtkListBoxRow *row = GTK_LIST_BOX_ROW(gtk_widget_get_ancestor(widget, GTK_TYPE_LIST_BOX_ROW));
+    if (row) {
+        drag_source_index = gtk_list_box_row_get_index(row);
+        printf("Drag begin: source index %d\n", drag_source_index);
+        
+        // Set drag icon to show which item is being dragged
+        char *basename = g_path_get_basename(player->queue.files[drag_source_index]);
+        GtkWidget *drag_icon = gtk_label_new(basename);
+        gtk_widget_show(drag_icon);
+        gtk_drag_set_icon_widget(context, drag_icon, 0, 0);
+        g_free(basename);
+    }
+}
+
+// Drag data get callback
+static void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
+                           GtkSelectionData *selection_data, guint target_type,
+                           guint time, gpointer user_data) {
+    (void)widget;
+    (void)context;
+    (void)time;
+    (void)user_data;
+    
+    if (target_type == TARGET_STRING && drag_source_index >= 0) {
+        char index_str[16];
+        snprintf(index_str, sizeof(index_str), "%d", drag_source_index);
+        gtk_selection_data_set_text(selection_data, index_str, -1);
+        printf("Drag data get: sending index %d\n", drag_source_index);
+    }
+}
+
+// Drag motion callback (for visual feedback)
+static gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
+                              gint x, gint y, guint time, gpointer user_data) {
+    (void)widget;
+    (void)x;
+    (void)y;
+    (void)time;
+    (void)user_data;
+    
+    // Accept the drag
+    gdk_drag_status(context, GDK_ACTION_MOVE, time);
+    return TRUE;
+}
+
+// Drag data received callback
+static void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
+                                gint x, gint y, GtkSelectionData *selection_data,
+                                guint target_type, guint time, gpointer user_data) {
+    (void)x;
+    (void)y;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (target_type == TARGET_STRING) {
+        // Get the source index from drag data
+        const gchar *data = (const gchar*)gtk_selection_data_get_text(selection_data);
+        if (data) {
+            int source_index = atoi(data);
+            
+            // Get the destination index (row we're dropping on)
+            GtkListBoxRow *target_row = GTK_LIST_BOX_ROW(gtk_widget_get_ancestor(widget, GTK_TYPE_LIST_BOX_ROW));
+            if (target_row) {
+                int target_index = gtk_list_box_row_get_index(target_row);
+                
+                printf("Drag data received: moving from %d to %d\n", source_index, target_index);
+                
+                // Perform the reorder
+                if (reorder_queue_item(&player->queue, source_index, target_index)) {
+                    // Update the display
+                    update_queue_display(player);
+                    update_gui_state(player);
+                    printf("Queue reordered successfully\n");
+                }
+            }
+        }
+    }
+    
+    gtk_drag_finish(context, TRUE, FALSE, time);
+    drag_source_index = -1; // Reset
+}
+
+
+static gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
+                            gint x, gint y, guint time, gpointer user_data) {
+    (void)widget;
+    (void)x;
+    (void)y;
+    (void)user_data;
+    
+    // Request the drag data
+    GtkTargetList *list = gtk_drag_dest_get_target_list(widget);
+    guint info; // Add this variable for the third parameter
+    GdkAtom target = gtk_target_list_find(list, GDK_SELECTION_TYPE_STRING, &info);
+    
+    if (target != GDK_NONE) {
+        gtk_drag_get_data(widget, context, target, time);
+        return TRUE;
+    }
+    
+    return FALSE;
 }
 
 void audio_callback(void* userdata, Uint8* stream, int len) {
@@ -2066,6 +2293,48 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     
     gtk_widget_destroy(dialog);
 #endif
+}
+
+gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Only handle single left clicks (not drags, not right clicks)
+    if (event->type != GDK_BUTTON_PRESS || event->button != 1) {
+        return FALSE; // Let other handlers process this
+    }
+    
+    // Get the row that was clicked
+    GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(widget), (gint)event->y);
+    if (!row) {
+        return FALSE;
+    }
+    
+    // Get the index of the clicked row
+    int clicked_index = gtk_list_box_row_get_index(row);
+    
+    printf("Queue item clicked: index %d\n", clicked_index);
+    
+    // If this is already the current song and it's playing, do nothing
+    if (clicked_index == player->queue.current_index && player->is_playing) {
+        printf("Already playing this song\n");
+        return TRUE;
+    }
+    
+    // Stop current playback
+    stop_playback(player);
+    
+    // Set the queue to the clicked index
+    player->queue.current_index = clicked_index;
+    
+    // Load and start playing the selected file
+    if (load_file_from_queue(player)) {
+        update_queue_display(player);
+        update_gui_state(player);
+        start_playback(player);
+        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+    }
+    
+    return TRUE; // Event handled
 }
 
 int main(int argc, char *argv[]) {
