@@ -15,6 +15,38 @@
 #define MAX_MATRIX_COLUMNS 60
 #define MAX_CHARS_PER_COLUMN 30
 
+#define MAX_FIREWORKS 20
+#define MAX_PARTICLES_PER_FIREWORK 50
+#define MAX_TOTAL_PARTICLES 1000
+
+// Add these new structs after the PopEffect struct
+typedef struct {
+    double x, y;           // Position
+    double vx, vy;         // Velocity
+    double ax, ay;         // Acceleration (gravity)
+    double life;           // Life remaining (1.0 to 0.0)
+    double max_life;       // Initial life span
+    double size;           // Particle size
+    double r, g, b;        // Color
+    double brightness;     // Brightness multiplier
+    gboolean active;       // Is particle alive
+    int trail_length;      // Length of particle trail
+    double trail_x[10], trail_y[10]; // Trail positions
+} FireworkParticle;
+
+typedef struct {
+    double x, y;           // Launch position
+    double target_x, target_y; // Explosion point
+    double vx, vy;         // Velocity
+    double life;           // Life until explosion
+    double explosion_size; // Size of explosion
+    double hue;            // Base color hue
+    int particle_count;    // Number of particles to spawn
+    gboolean exploded;     // Has it exploded yet
+    gboolean active;       // Is firework active
+    int frequency_band;    // Which frequency band triggered it
+} Firework;
+
 typedef struct {
     int x;                    // Column x position
     double y;                 // Current y position (can be fractional)
@@ -38,7 +70,8 @@ typedef enum {
     VIS_CIRCLE,
     VIS_VOLUME_METER,
     VIS_BUBBLES,
-    VIS_MATRIX
+    VIS_MATRIX,
+    VIS_FIREWORKS
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -110,6 +143,17 @@ typedef struct {
     int matrix_column_count;
     double matrix_spawn_timer;
     int matrix_char_size;
+
+    Firework fireworks[MAX_FIREWORKS];
+    FireworkParticle particles[MAX_TOTAL_PARTICLES];
+    int firework_count;
+    int particle_count;
+    double firework_spawn_timer;
+    double last_beat_time;
+    double beat_threshold;
+    double gravity;
+
+
 } Visualizer;
 
 // Function declarations
@@ -145,5 +189,17 @@ static void spawn_matrix_column(Visualizer *vis, int frequency_band);
 static void update_matrix(Visualizer *vis, double dt);
 void draw_matrix(Visualizer *vis, cairo_t *cr);
 static const char* get_random_matrix_char(void);
+
+// Fireworks
+void init_fireworks_system(Visualizer *vis);
+static void spawn_firework(Visualizer *vis, double intensity, int frequency_band);
+static void explode_firework(Visualizer *vis, Firework *firework);
+void update_fireworks(Visualizer *vis, double dt);
+void draw_fireworks(Visualizer *vis, cairo_t *cr);
+static void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
+                          double r, double g, double b, double life);
+static double get_hue_for_frequency(int frequency_band);
+static void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
+
 
 #endif

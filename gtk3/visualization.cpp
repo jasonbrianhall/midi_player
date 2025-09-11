@@ -47,7 +47,7 @@ Visualizer* visualizer_new(void) {
     
     // Start animation timer
     vis->timer_id = g_timeout_add(33, visualizer_timer_callback, vis); // ~30 FPS
-    
+    init_fireworks_system(vis);
     return vis;
 }
 
@@ -252,6 +252,9 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
         case VIS_BUBBLES:
             draw_bubbles(vis, cr);
             break;
+        case VIS_FIREWORKS:
+            draw_fireworks(vis, cr);
+            break;            
         case VIS_MATRIX:
             draw_matrix(vis, cr);
             break;
@@ -543,6 +546,9 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
         if (vis->rotation > 2.0 * M_PI) vis->rotation -= 2.0 * M_PI;
         
         gtk_widget_queue_draw(vis->drawing_area);
+        if (vis->type == VIS_FIREWORKS) {
+            update_fireworks(vis, 0.033); // 33ms = ~30 FPS
+        }
     }
     
     return TRUE; // Continue timer
@@ -587,6 +593,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Volume Meter");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bubbles");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Matrix Rain");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fireworks");    
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     gtk_box_pack_start(GTK_BOX(controls_box), type_combo, FALSE, FALSE, 0);
