@@ -76,6 +76,50 @@ jobs:
                   -pointsize 32 -annotate +0+0 'Zenamp' icon.ico
         fi
 
+    - name: Create Windows Resource File
+      working-directory: gtk3
+      run: |
+        # Create resource file to embed icon and version info
+        cat > icon.rc << 'EOF'
+        #include <windows.h>
+        
+        // Icon resource
+        1 ICON "icon.ico"
+        
+        // Version information
+        VS_VERSION_INFO VERSIONINFO
+        FILEVERSION 1,0,${{ github.run_number }},0
+        PRODUCTVERSION 1,0,${{ github.run_number }},0
+        FILEFLAGSMASK 0x3fL
+        FILEFLAGS 0x0L
+        FILEOS 0x40004L
+        FILETYPE 0x1L
+        FILESUBTYPE 0x0L
+        BEGIN
+            BLOCK "StringFileInfo"
+            BEGIN
+                BLOCK "040904b0"
+                BEGIN
+                    VALUE "CompanyName", "Jason Hall"
+                    VALUE "FileDescription", "Zenamp - Retro-Modern Music Player"
+                    VALUE "FileVersion", "1.0.${{ github.run_number }}.0"
+                    VALUE "InternalName", "zenamp"
+                    VALUE "LegalCopyright", "Copyright (c) 2025 Jason Hall"
+                    VALUE "OriginalFilename", "zenamp.exe"
+                    VALUE "ProductName", "Zenamp"
+                    VALUE "ProductVersion", "1.0.${{ github.run_number }}.0"
+                END
+            END
+            BLOCK "VarFileInfo"
+            BEGIN
+                VALUE "Translation", 0x409, 1200
+            END
+        END
+        EOF
+        
+        echo "Resource file created successfully"
+        cat icon.rc
+
     - name: Build Linux Version
       working-directory: gtk3
       run: |
@@ -93,7 +137,12 @@ jobs:
     - name: Build Windows Version
       working-directory: gtk3
       run: |
-        make windows
+        # Compile resource file first
+        x86_64-w64-mingw32-windres icon.rc -o icon.o
+        echo "Resource file compiled successfully"
+        
+        # Build with embedded icon and version info
+        make windows EXTRA_OBJS=icon.o
         
         # Verify the build
         if [ -f "build/windows/zenamp.exe" ]; then
@@ -270,7 +319,7 @@ jobs:
           "          <File Id=`"$safeId`" Name=`"$_`" Source=`"$_`"/>"
         }
         
-        # Create WXS installer definition
+        # Create WXS installer definition with file associations
         @"
         <?xml version="1.0" encoding="UTF-8"?>
         <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
@@ -306,6 +355,9 @@ jobs:
             <Property Id="ARPNOMODIFY" Value="yes" />
             <Property Id="ARPHELPLINK" Value="https://github.com/jasonbrianhall/midi_msdos/issues" />
             
+            <!-- File association properties -->
+            <Property Id="ASSOCIATE_FILES" Value="1" />
+            
             <!-- Installation scope choice -->
             <Property Id="ApplicationFolderName" Value="Zenamp" />
             <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
@@ -340,6 +392,99 @@ jobs:
                       <RegistryValue Type="string" Name="Version" Value="${{ needs.build-linux.outputs.version }}" />
                       <RegistryValue Type="string" Name="Publisher" Value="Jason Hall" />
                     </RegistryKey>
+                  </Component>
+                  
+                  <!-- File Association Component -->
+                  <Component Id="FileAssociations" Guid="C3F4E765-B8D2-4E91-A7C8-F64A8A9E2B73">
+                    <Condition>ASSOCIATE_FILES</Condition>
+                    
+                    <!-- Program registration -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\Applications\zenamp.exe">
+                      <RegistryValue Type="string" Name="FriendlyAppName" Value="Zenamp" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                      <RegistryValue Type="string" Key="shell\play\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                      <RegistryValue Type="string" Key="shell\play" Value="Play with Zenamp" />
+                    </RegistryKey>
+                    
+                    <!-- WAV Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.wav\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampWAV" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampWAV">
+                      <RegistryValue Type="string" Value="WAV Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- MP3 Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.mp3\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampMP3" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampMP3">
+                      <RegistryValue Type="string" Value="MP3 Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- OGG Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.ogg\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampOGG" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampOGG">
+                      <RegistryValue Type="string" Value="OGG Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- FLAC Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.flac\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampFLAC" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampFLAC">
+                      <RegistryValue Type="string" Value="FLAC Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- MIDI Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.mid\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampMIDI" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.midi\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampMIDI" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampMIDI">
+                      <RegistryValue Type="string" Value="MIDI Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- AIFF Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.aiff\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampAIFF" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.aif\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampAIFF" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampAIFF">
+                      <RegistryValue Type="string" Value="AIFF Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- OPUS Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.opus\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampOPUS" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampOPUS">
+                      <RegistryValue Type="string" Value="OPUS Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
+                                 Type="integer" Name="FileAssociations" Value="1" KeyPath="yes"/>
                   </Component>
                   
                   <!-- GTK Runtime directories -->
@@ -454,6 +599,13 @@ jobs:
               <ComponentRef Id="DesktopShortcut" />
             </Feature>
             
+            <Feature Id="FileAssociationFeature" 
+                     Title="File Associations" 
+                     Description="Associate audio files with Zenamp (WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS)."
+                     Level="1">
+              <ComponentRef Id="FileAssociations" />
+            </Feature>
+            
             <!-- Application icon -->
             <Icon Id="zenampIcon" SourceFile="icon.ico"/>
             
@@ -467,6 +619,15 @@ jobs:
                 Set shell = CreateObject("WScript.Shell")
                 shell.RegDelete "HKLM\SOFTWARE\Zenamp\"
                 shell.RegDelete "HKCU\Software\GTKzenamp\"
+                ' Clean up file associations
+                shell.RegDelete "HKLM\SOFTWARE\Classes\Applications\zenamp.exe\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampWAV\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampMP3\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampOGG\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampFLAC\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampMIDI\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampAIFF\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampOPUS\"
               ]]>
             </CustomAction>
             
@@ -571,7 +732,7 @@ jobs:
           **Build:** #${{ github.run_number }}  
           
           ### Downloads
-          - **Zenamp.msi** - Windows installer with uninstall support
+          - **Zenamp.msi** - Windows installer with uninstall support and file associations
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
@@ -583,28 +744,35 @@ jobs:
           - GTK3 interface for modern desktop integration
           
           ### Installer Features
-          - User/Machine installation scope choice
-          - Start menu shortcuts with uninstall option
-          - Optional desktop shortcut
-          - Proper uninstall support
-          - MIT License agreement
-          - Registry cleanup on uninstall
-          - Add/Remove Programs integration
+          - **File Associations**: Optional association with audio files
+          - **Proper Icons**: Custom icon for file associations and shortcuts
+          - **User/Machine Installation**: Choose installation scope
+          - **Start Menu Integration**: Shortcuts with uninstall option
+          - **Optional Desktop Shortcut**: Create desktop shortcut during install
+          - **Proper Uninstall Support**: Clean removal with registry cleanup
+          - **MIT License Agreement**: Full license display during installation
+          - **Add/Remove Programs Integration**: Proper Windows integration
           
           ### Technical Details
           - Built on: Linux (Fedora 41 container)
           - MSI compiled on: Windows Latest
+          - **Embedded Icon**: Icon properly embedded in executable
+          - **Version Information**: Full version details embedded
           - GTK3 runtime included
           - All dependencies bundled
           - Cross-compiled with MinGW
           
-          ### Supported Formats
-          - **WAV** - Raw audio beauty
-          - **MP3** - The people's codec
-          - **OGG** - Open-source proud
-          - **FLAC** - Audiophile approved
-          - **MIDI** - With OPL3 synthesis magic
-          - **AIFF** - Generally MAC Created WAVE Files
-          - **OPUS** - Royalty Free Lossy Audio 
+          ### File Association Support
+          When "File Associations" feature is selected during installation:
+          - **WAV** - Windows Audio files
+          - **MP3** - MPEG Audio Layer 3
+          - **OGG** - Ogg Vorbis files
+          - **FLAC** - Free Lossless Audio Codec
+          - **MIDI** - Musical Instrument Digital Interface (.mid/.midi)
+          - **AIFF** - Audio Interchange File Format (.aiff/.aif)
+          - **OPUS** - Royalty-free lossy audio codec
+          
+          Right-click any supported audio file and select "Open with Zenamp" or "Play with Zenamp"!
+          
           ---
           *Built with GitHub Actions*
