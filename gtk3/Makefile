@@ -77,6 +77,7 @@ SOURCES_CPP = dbopl.cpp \
 	bubbles.cpp \
 	matrix.cpp \
 	fireworks.cpp \
+	dna.cpp \
 	visualization.cpp \
 	equalizer.cpp \
 	m3u.cpp
