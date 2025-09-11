@@ -19,7 +19,17 @@
 #define MAX_PARTICLES_PER_FIREWORK 50
 #define MAX_TOTAL_PARTICLES 1000
 
-// Add these new structs after the PopEffect struct
+#define DNA_POINTS 200
+#define DNA_STRANDS 2
+
+typedef struct {
+    double amplitude;      // How far from center line
+    double frequency;      // How fast the helix twists
+    double phase_offset;   // Phase difference between strands
+    double flow_speed;     // How fast the helix flows horizontally
+    double strand_colors[DNA_STRANDS][3]; // RGB colors for each strand
+} DNAHelix;
+
 typedef struct {
     double x, y;           // Position
     double vx, vy;         // Velocity
@@ -71,7 +81,8 @@ typedef enum {
     VIS_VOLUME_METER,
     VIS_BUBBLES,
     VIS_MATRIX,
-    VIS_FIREWORKS
+    VIS_FIREWORKS,
+    VIS_DNA_HELIX
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -153,6 +164,10 @@ typedef struct {
     double beat_threshold;
     double gravity;
 
+    DNAHelix dna_helix;
+    double dna_time_offset;
+    double dna_amplitude_multiplier;
+    double dna_twist_rate;
 
 } Visualizer;
 
@@ -201,5 +216,8 @@ static void spawn_particle(Visualizer *vis, double x, double y, double vx, doubl
 static double get_hue_for_frequency(int frequency_band);
 static void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
 
+void init_dna_system(Visualizer *vis);
+void update_dna_helix(Visualizer *vis, double dt);
+void draw_dna_helix(Visualizer *vis, cairo_t *cr);
 
 #endif
