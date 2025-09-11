@@ -743,7 +743,27 @@ jobs:
           - Progress tracking with timestamps
           - GTK3 interface for modern desktop integration
           
+          ### Silent Installation Support
+          **For MS Store and automated deployments:**
+          ```cmd
+          # Silent install with all features
+          msiexec /i Zenamp.msi /quiet /norestart ASSOCIATE_FILES=1 DESKTOP_SHORTCUT=1
+          
+          # Silent install without file associations
+          msiexec /i Zenamp.msi /quiet /norestart ASSOCIATE_FILES=0 DESKTOP_SHORTCUT=0
+          
+          # Silent uninstall
+          msiexec /x Zenamp.msi /quiet /norestart
+          ```
+          
+          **Command-line Properties:**
+          - `ASSOCIATE_FILES=1` - Enable file associations (default: 1)
+          - `DESKTOP_SHORTCUT=1` - Create desktop shortcut (default: 1)
+          - `INSTALLFOLDER="C:\Program Files\Zenamp"` - Custom install path
+          
           ### Installer Features
+          - **Silent Mode Compatible**: Supports `/quiet` and `/S` switches for MS Store
+          - **Interactive Mode**: Full feature selection when run normally
           - **File Associations**: Optional association with audio files
           - **Proper Icons**: Custom icon for file associations and shortcuts
           - **User/Machine Installation**: Choose installation scope
