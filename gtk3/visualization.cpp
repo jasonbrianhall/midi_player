@@ -49,6 +49,8 @@ Visualizer* visualizer_new(void) {
     vis->timer_id = g_timeout_add(33, visualizer_timer_callback, vis); // ~30 FPS
     init_fireworks_system(vis);
     init_dna_system(vis);
+    init_dna2_system(vis);
+
     return vis;
 }
 
@@ -262,6 +264,10 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
         case VIS_DNA_HELIX:
            draw_dna_helix(vis, cr);
            break; 
+        case VIS_DNA2_HELIX:
+           draw_dna2_helix(vis, cr);
+           break; 
+
     }
     
     return FALSE;
@@ -550,17 +556,25 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
         if (vis->rotation > 2.0 * M_PI) vis->rotation -= 2.0 * M_PI;
         
         gtk_widget_queue_draw(vis->drawing_area);
-        if (vis->type == VIS_FIREWORKS) {
-            update_fireworks(vis, 0.033); // 33ms = ~30 FPS
-        }
-        else if (vis->type == VIS_DNA_HELIX) {
-            update_dna_helix(vis, 0.033); // 33ms = ~30 FPS
+        
+        switch (vis->type) {
+            case VIS_FIREWORKS:
+                update_fireworks(vis, 0.033); // 33ms = ~30 FPS
+                break;
+            case VIS_DNA_HELIX:
+                update_dna_helix(vis, 0.033); // 33ms = ~30 FPS
+                break;
+            case VIS_DNA2_HELIX:
+                update_dna2_helix(vis, 0.033);
+                break;
+            default:
+                // No update function needed for other visualization types
+                break;
         }
     }
     
     return TRUE; // Continue timer
 }
-
 // Callback functions for controls
 static void on_vis_type_changed(GtkComboBox *combo, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
@@ -602,6 +616,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Matrix Rain");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fireworks");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix Alternative");    
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     gtk_box_pack_start(GTK_BOX(controls_box), type_combo, FALSE, FALSE, 0);

@@ -22,6 +22,18 @@
 #define DNA_POINTS 200
 #define DNA_STRANDS 2
 
+#define MAX_DNA_SEGMENTS 80
+#define DNA_BASE_PAIRS 4
+
+typedef struct {
+    double x, y, z;        // 3D position (z for depth simulation)
+    double intensity;      // Audio intensity affecting this segment
+    double base_type;      // 0-3 for A,T,G,C base pair types
+    double connection_strength; // How strongly the base pairs connect
+    double twist_offset;   // Individual twist offset for this segment
+    gboolean active;       // Is this segment visible
+} DNASegment;
+
 typedef struct {
     double amplitude;      // How far from center line
     double frequency;      // How fast the helix twists
@@ -82,7 +94,8 @@ typedef enum {
     VIS_BUBBLES,
     VIS_MATRIX,
     VIS_FIREWORKS,
-    VIS_DNA_HELIX
+    VIS_DNA_HELIX,
+    VIS_DNA2_HELIX
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -164,10 +177,19 @@ typedef struct {
     double beat_threshold;
     double gravity;
 
+    // DNA 1
     DNAHelix dna_helix;
     double dna_time_offset;
     double dna_amplitude_multiplier;
     double dna_twist_rate;
+
+    // DNA 2
+    DNASegment dna_segments[MAX_DNA_SEGMENTS];
+    int dna_segment_count;
+    double dna_rotation;
+    double dna_twist_speed;
+    double dna_spine_offset;
+    double dna_base_pulse[DNA_BASE_PAIRS]; // Pulse intensity for each base type    
 
 } Visualizer;
 
@@ -219,5 +241,9 @@ static void hsv_to_rgb(double h, double s, double v, double *r, double *g, doubl
 void init_dna_system(Visualizer *vis);
 void update_dna_helix(Visualizer *vis, double dt);
 void draw_dna_helix(Visualizer *vis, cairo_t *cr);
+void init_dna2_system(Visualizer *vis);
+void update_dna2_helix(Visualizer *vis, double dt);
+void draw_dna2_helix(Visualizer *vis, cairo_t *cr);
+void get_base_color(int base_type, double intensity, double *r, double *g, double *b);
 
 #endif

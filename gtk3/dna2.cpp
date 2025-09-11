@@ -3,7 +3,7 @@
 
 #include "visualization.h"
 
-void init_dna_system(Visualizer *vis) {
+void init_dna2_system(Visualizer *vis) {
     vis->dna_segment_count = MAX_DNA_SEGMENTS;
     vis->dna_rotation = 0.0;
     vis->dna_twist_speed = 0.02;
@@ -33,7 +33,7 @@ void init_dna_system(Visualizer *vis) {
     }
 }
 
-void update_dna_helix(Visualizer *vis, double dt) {
+void update_dna2_helix(Visualizer *vis, double dt) {
     // Update rotation
     vis->dna_rotation += vis->dna_twist_speed;
     if (vis->dna_rotation > 2.0 * M_PI) {
@@ -90,7 +90,7 @@ void update_dna_helix(Visualizer *vis, double dt) {
     }
 }
 
-void draw_dna_helix(Visualizer *vis, cairo_t *cr) {
+void draw_dna2_helix(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     double center_x = vis->width / 2.0;
