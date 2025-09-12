@@ -1880,7 +1880,6 @@ static void on_window_realize(GtkWidget *widget, gpointer user_data) {
     int queue_height = scale_size(base_queue_height, screen_height, ref_height);
 
     int scale = gtk_widget_get_scale_factor(player->window);
-    
     if (scale>1) {
         window_width/=scale;
         window_height/=scale;
