@@ -245,5 +245,6 @@ void init_dna2_system(Visualizer *vis);
 void update_dna2_helix(Visualizer *vis, double dt);
 void draw_dna2_helix(Visualizer *vis, cairo_t *cr);
 void get_base_color(int base_type, double intensity, double *r, double *g, double *b);
+void on_visualizer_realize(GtkWidget *widget, gpointer user_data);
 
 #endif

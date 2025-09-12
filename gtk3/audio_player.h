@@ -178,6 +178,7 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data);
 gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data);
 bool remove_from_queue(PlayQueue *queue, int index);
 void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data);
+double get_scale_factor(GtkWidget *widget);
 
 // Caching
 void init_conversion_cache(ConversionCache *cache);
@@ -188,6 +189,7 @@ bool is_file_modified(const char* filepath, time_t cached_time, off_t cached_siz
 
 // GUI creation function
 void create_main_window(AudioPlayer *player);
+
 
 // Windows Specific 
 #ifdef _WIN32

@@ -1813,6 +1813,84 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
 #endif
 }
 
+static void on_window_realize(GtkWidget *widget, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    double scale_factor = get_scale_factor(widget);
+    
+    if (scale_factor > 1.0) {
+        printf("High DPI detected (%.1fx), adjusting layout...\n", scale_factor);
+        
+        // Adjust window size for high DPI but keep it reasonable
+        int current_width, current_height;
+        gtk_window_get_size(GTK_WINDOW(widget), &current_width, &current_height);
+        
+        // Only resize if we're still at default size
+        if (current_width == 900 && current_height == 700) {
+            int scaled_width = (int)(900 / scale_factor);
+            int scaled_height = (int)(700 / scale_factor);
+            
+            // Ensure minimum size
+            if (scaled_width < 800) scaled_width = 800;
+            if (scaled_height < 600) scaled_height = 600;
+            
+            gtk_window_resize(GTK_WINDOW(widget), scaled_width, scaled_height);
+        }
+        
+        // Adjust player vbox width
+        GList *children = gtk_container_get_children(GTK_CONTAINER(widget));
+        if (children && children->data) {
+            GtkWidget *main_hbox = GTK_WIDGET(children->data);
+            GList *hbox_children = gtk_container_get_children(GTK_CONTAINER(main_hbox));
+            if (hbox_children && hbox_children->data) {
+                GtkWidget *player_vbox = GTK_WIDGET(hbox_children->data);
+                int new_width = (int)(500 / scale_factor);
+                if (new_width < 400) new_width = 400;
+                gtk_widget_set_size_request(player_vbox, new_width, -1);
+            }
+            g_list_free(hbox_children);
+        }
+        g_list_free(children);
+        
+        // Adjust visualizer size
+        if (player->visualizer && player->visualizer->drawing_area) {
+            int vis_width = (int)(400 / scale_factor);
+            int vis_height = (int)(200 / scale_factor);
+            if (vis_width < 300) vis_width = 300;
+            if (vis_height < 150) vis_height = 150;
+            gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
+        }
+        
+        // Adjust queue scrolled window
+        if (player->queue_scrolled_window) {
+            int queue_width = (int)(300 / scale_factor);
+            int queue_height = (int)(400 / scale_factor);
+            if (queue_width < 250) queue_width = 250;
+            if (queue_height < 300) queue_height = 300;
+            gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, queue_height);
+        }
+    }
+}
+
+double get_scale_factor(GtkWidget *widget) {
+    if (!widget || !gtk_widget_get_realized(widget)) {
+        return 1.0;
+    }
+    
+    GdkWindow *window = gtk_widget_get_window(widget);
+    if (!window) {
+        return 1.0;
+    }
+    
+    GdkDisplay *display = gdk_window_get_display(window);
+    GdkMonitor *monitor = gdk_display_get_monitor_at_window(display, window);
+    
+    if (monitor) {
+        return gdk_monitor_get_scale_factor(monitor);
+    }
+    
+    return 1.0;
+}
 
 void on_menu_quit(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
@@ -1880,10 +1958,13 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 900, 700); // Increased size for vis
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 900, 700);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
     set_window_icon_from_base64(GTK_WINDOW(player->window));
+    
+    // Connect realize signal to handle DPI scaling
+    g_signal_connect(player->window, "realize", G_CALLBACK(on_window_realize), player);
     
     // Main hbox to split player controls and queue
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -1891,10 +1972,10 @@ void create_main_window(AudioPlayer *player) {
     
     // Player controls vbox (left side)
     GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    gtk_widget_set_size_request(player_vbox, 500, -1); // Increased width
+    gtk_widget_set_size_request(player_vbox, 500, -1);
     gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);
     
-    // Menu bar (existing code)
+    // Menu bar
     GtkWidget *menubar = gtk_menu_bar_new();
     
     // File menu
@@ -1943,10 +2024,10 @@ void create_main_window(AudioPlayer *player) {
     gtk_container_set_border_width(GTK_CONTAINER(content_vbox), 10);
     gtk_box_pack_start(GTK_BOX(player_vbox), content_vbox, TRUE, TRUE, 0);
     
-    // ADD: Initialize visualizer
+    // Initialize visualizer
     player->visualizer = visualizer_new();
     
-    // ADD: Visualization section
+    // Visualization section
     GtkWidget *vis_frame = gtk_frame_new("Visualization");
     gtk_box_pack_start(GTK_BOX(content_vbox), vis_frame, FALSE, FALSE, 0);
     
@@ -1961,7 +2042,7 @@ void create_main_window(AudioPlayer *player) {
     player->vis_controls = create_visualization_controls(player->visualizer);
     gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
 
-        // File label
+    // File label
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(content_vbox), player->file_label, FALSE, FALSE, 0);
     
@@ -2025,7 +2106,6 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *eq_controls = create_equalizer_controls(player);
     gtk_box_pack_start(GTK_BOX(content_vbox), eq_controls, FALSE, FALSE, 0);
 
-
     // Add icon to bottom left
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
@@ -2060,7 +2140,7 @@ void create_main_window(AudioPlayer *player) {
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
     gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
     
-    // Connect signals (existing code)
+    // Connect signals
     g_signal_connect(player->window, "delete-event", G_CALLBACK(on_window_delete_event), player);
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
     g_signal_connect(player->play_button, "clicked", G_CALLBACK(on_play_clicked), player);
@@ -2076,7 +2156,6 @@ void create_main_window(AudioPlayer *player) {
     g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
     setup_keyboard_shortcuts(player);
 }
-
 
 void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;

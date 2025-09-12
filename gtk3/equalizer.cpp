@@ -229,6 +229,21 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
     
+    // Detect if we need to adjust sizes for high DPI
+    GtkWidget *toplevel = gtk_widget_get_toplevel(player->window);
+    double scale_factor = 1.0;
+    
+    if (GTK_IS_WINDOW(toplevel) && gtk_widget_get_realized(toplevel)) {
+        scale_factor = get_scale_factor(toplevel);
+    }
+    
+    // Adjust scale sizes based on DPI
+    int scale_width = (int)(50 / (scale_factor > 1.0 ? scale_factor : 1.0));
+    int scale_height = (int)(120 / (scale_factor > 1.0 ? scale_factor : 1.0));
+    
+    if (scale_width < 40) scale_width = 40;
+    if (scale_height < 100) scale_height = 100;
+    
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *bass_label = gtk_label_new("Bass\n(100Hz)");
@@ -237,7 +252,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->bass_scale, 50, 120);
+    gtk_widget_set_size_request(player->bass_scale, scale_width, scale_height);
     // Invert the scale so positive values are at the top
     gtk_range_set_inverted(GTK_RANGE(player->bass_scale), TRUE);
     g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
@@ -254,7 +269,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->mid_scale, 50, 120);
+    gtk_widget_set_size_request(player->mid_scale, scale_width, scale_height);
     gtk_range_set_inverted(GTK_RANGE(player->mid_scale), TRUE);
     g_signal_connect(player->mid_scale, "value-changed", G_CALLBACK(on_mid_changed), player);
     
@@ -270,7 +285,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->treble_scale, 50, 120);
+    gtk_widget_set_size_request(player->treble_scale, scale_width, scale_height);
     gtk_range_set_inverted(GTK_RANGE(player->treble_scale), TRUE);
     g_signal_connect(player->treble_scale, "value-changed", G_CALLBACK(on_treble_changed), player);
     

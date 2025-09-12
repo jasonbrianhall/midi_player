@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include "visualization.h"
+#include "audio_player.h"
 
 Visualizer* visualizer_new(void) {
     Visualizer *vis = g_malloc0(sizeof(Visualizer));
@@ -22,9 +23,12 @@ Visualizer* visualizer_new(void) {
     // Initialize simple frequency band analysis
     init_frequency_bands(vis);
     
-    // Create drawing area
+    // Create drawing area with DPI awareness
     vis->drawing_area = gtk_drawing_area_new();
     gtk_widget_set_size_request(vis->drawing_area, 400, 200);
+    
+    // Make drawing area DPI aware
+    g_signal_connect(vis->drawing_area, "realize", G_CALLBACK(on_visualizer_realize), vis);
     
     // Default settings
     vis->type = VIS_WAVEFORM;
@@ -575,6 +579,34 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
     
     return TRUE; // Continue timer
 }
+
+void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
+    Visualizer *vis = (Visualizer*)user_data;
+    
+    // Get parent window to check scale factor
+    GtkWidget *toplevel = gtk_widget_get_toplevel(widget);
+    if (GTK_IS_WINDOW(toplevel)) {
+        double scale_factor = get_scale_factor(toplevel);
+        
+        if (scale_factor > 1.0) {
+            // Adjust drawing area size for high DPI
+            int current_width = gtk_widget_get_allocated_width(widget);
+            int current_height = gtk_widget_get_allocated_height(widget);
+            
+            // Only adjust if we're at default size
+            if (current_width == 400 && current_height == 200) {
+                int new_width = (int)(400 / scale_factor);
+                int new_height = (int)(200 / scale_factor);
+                
+                if (new_width < 300) new_width = 300;
+                if (new_height < 150) new_height = 150;
+                
+                gtk_widget_set_size_request(widget, new_width, new_height);
+            }
+        }
+    }
+}
+
 // Callback functions for controls
 static void on_vis_type_changed(GtkComboBox *combo, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
