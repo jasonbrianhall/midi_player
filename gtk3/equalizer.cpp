@@ -213,24 +213,30 @@ void on_eq_reset_clicked(GtkButton *button, gpointer user_data) {
 
 // Function to create equalizer controls:
 GtkWidget* create_equalizer_controls(AudioPlayer *player) {
-    // Create frame without label to remove blue header
     player->eq_frame = gtk_frame_new(NULL);
 
     GtkWidget *eq_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(player->eq_frame), eq_vbox);
     gtk_container_set_border_width(GTK_CONTAINER(eq_vbox), 5);
 
-    // Detect DPI scale factor
-    GtkWidget *toplevel = gtk_widget_get_toplevel(player->window);
-    int scale_factor = gtk_widget_get_scale_factor(toplevel);
+    // Get screen info for scaling decisions
+    GdkScreen *screen = gtk_widget_get_screen(player->window);
+    int screen_width = gdk_screen_get_width(screen);
+    int screen_height = gdk_screen_get_height(screen);
+    
+    // Simple size calculation based on screen size
+    int slider_width = scale_size(150, screen_width, 1920);
+    int slider_height = scale_size(150, screen_height, 1080);
+    
+    // Minimums
+    slider_width = fmax(slider_width, 100);
+    slider_height = fmax(slider_height, 100);
 
-    if (GTK_IS_WINDOW(toplevel) && gtk_widget_get_realized(toplevel)) {
-        scale_factor = get_scale_factor(toplevel);
-    }
+    // Use horizontal sliders on small screens
+    bool use_horizontal = (screen_width < 1200 || screen_height < 800);
 
-    // DPI-scaled dimensions for vertical sliders
-    int slider_width = (int)(150 / scale_factor);
-    int slider_height = (int)(150 / scale_factor);
+    printf("EQ sliders: %dx%d, horizontal=%s\n", 
+           slider_width, slider_height, use_horizontal ? "yes" : "no");
 
     // EQ controls laid out horizontally
     GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -239,11 +245,9 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *bass_label = gtk_label_new("Bass (100Hz)");
-    if (scale_factor<=1.0) {
-        player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
-    } else {
-        player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
-    }
+    
+    GtkOrientation orientation = use_horizontal ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL;
+    player->bass_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
     
     gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
@@ -258,11 +262,8 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Mid control
     GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *mid_label = gtk_label_new("Mid (1KHz)");
-    if (scale_factor<=1.0) {
-        player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
-    } else {
-        player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
-    }    
+    player->mid_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
+    
     gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
@@ -276,11 +277,8 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Treble control
     GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *treble_label = gtk_label_new("Treble (8KHz)");
-    if (scale_factor<=1.0) {
-        player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
-    } else {
-        player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
-    }
+    player->treble_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
+    
     gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);

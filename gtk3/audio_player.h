@@ -145,7 +145,7 @@ bool convert_flac_to_wav(AudioPlayer *player, const char* filename);
 bool load_wav_file(AudioPlayer *player, const char* wav_path);
 bool load_file(AudioPlayer *player, const char *filename);
 bool load_file_from_queue(AudioPlayer *player);
-
+int scale_size(int base_size, int screen_dimension, int base_dimension);
 
 // Playback control functions
 void seek_to_position(AudioPlayer *player, double position_seconds);

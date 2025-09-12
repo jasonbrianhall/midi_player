@@ -581,27 +581,9 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
 }
 
 void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
-    Visualizer *vis = (Visualizer*)user_data;
-
-    int scale = gtk_widget_get_scale_factor(widget);
-    // Base size at 100% zoom
-    int base_width;
-    int base_height;
-    if (scale==1) { 
-        base_width = 400; 
-        base_height=200;
-    } else {
-        base_width = 400;
-        base_height = 200;
-    }
-    
-
-    // Shrink size to counteract zoom
-    int adjusted_width = base_width / scale;
-    int adjusted_height = base_height / scale;
-
-    printf("adjusted_width=%d, adjusted_height=%d\n", adjusted_width, adjusted_height);
-    gtk_widget_set_size_request(widget, adjusted_width, adjusted_height);
+    // The size is already set by on_window_realize(), so we don't need to do anything here
+    // Just ensure the widget is properly realized
+    printf("Visualizer realized\n");
 }
 
 

@@ -1822,60 +1822,83 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
 
 static void on_window_realize(GtkWidget *widget, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    double scale_factor = get_scale_factor(widget);
-    
-    if (scale_factor > 1.0) {
-        printf("High DPI detected (%.1fx), adjusting layout...\n", scale_factor);
-        
-        // Adjust window size for high DPI but keep it reasonable
-        int current_width, current_height;
-        gtk_window_get_size(GTK_WINDOW(widget), &current_width, &current_height);
-        
-        // Only resize if we're still at default size
-        if (current_width == 900 && current_height == 700) {
-            int scaled_width = (int)(900 / scale_factor);
-            int scaled_height = (int)(700 / scale_factor);
-            
-            // Ensure minimum size
-            if (scaled_width < 800) scaled_width = 800;
-            if (scaled_height < 600) scaled_height = 600;
-            
-            gtk_window_resize(GTK_WINDOW(widget), scaled_width, scaled_height);
+
+    // Get screen resolution
+    GdkScreen *screen = gtk_widget_get_screen(widget);
+    int screen_width = gdk_screen_get_width(screen);
+    int screen_height = gdk_screen_get_height(screen);
+
+    printf("Screen resolution: %dx%d\n", screen_width, screen_height);
+
+    // Base sizes that work well at 1920x1080
+    const int base_window_width = 900;
+    const int base_window_height = 700;
+    const int base_player_width = 500;
+    const int base_vis_width = 400;
+    const int base_vis_height = 200;
+    const int base_queue_width = 300;
+    const int base_queue_height = 400;
+
+    // Use reference resolution for scaling decisions
+    const int ref_width = 1920;
+    const int ref_height = 1080;
+
+    // Calculate appropriate sizes
+    int window_width = scale_size(base_window_width, screen_width, ref_width);
+    int window_height = scale_size(base_window_height, screen_height, ref_height);
+    int player_width = scale_size(base_player_width, screen_width, ref_width);
+    int vis_width = scale_size(base_vis_width, screen_width, ref_width);
+    int vis_height = scale_size(base_vis_height, screen_height, ref_height);
+    int queue_width = scale_size(base_queue_width, screen_width, ref_width);
+    int queue_height = scale_size(base_queue_height, screen_height, ref_height);
+
+    // Apply minimum sizes
+    window_width = fmax(window_width, 800);
+    window_height = fmax(window_height, 600);
+    player_width = fmax(player_width, 400);
+    vis_width = fmax(vis_width, 300);
+    vis_height = fmax(vis_height, 150);
+    queue_width = fmax(queue_width, 250);
+    queue_height = fmax(queue_height, 300);
+
+    printf("Scaled sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n",
+           window_width, window_height, player_width, vis_width, vis_height, queue_width, queue_height);
+
+    // Resize window
+    gtk_window_resize(GTK_WINDOW(widget), window_width, window_height);
+
+    // Adjust player vbox width
+    GList *children = gtk_container_get_children(GTK_CONTAINER(widget));
+    if (children && children->data) {
+        GtkWidget *main_hbox = GTK_WIDGET(children->data);
+        GList *hbox_children = gtk_container_get_children(GTK_CONTAINER(main_hbox));
+        if (hbox_children && hbox_children->data) {
+            GtkWidget *player_vbox = GTK_WIDGET(hbox_children->data);
+            gtk_widget_set_size_request(player_vbox, player_width, -1);
         }
-        
-        // Adjust player vbox width
-        GList *children = gtk_container_get_children(GTK_CONTAINER(widget));
-        if (children && children->data) {
-            GtkWidget *main_hbox = GTK_WIDGET(children->data);
-            GList *hbox_children = gtk_container_get_children(GTK_CONTAINER(main_hbox));
-            if (hbox_children && hbox_children->data) {
-                GtkWidget *player_vbox = GTK_WIDGET(hbox_children->data);
-                int new_width = (int)(500 / scale_factor);
-                if (new_width < 400) new_width = 400;
-                gtk_widget_set_size_request(player_vbox, new_width, -1);
-            }
-            g_list_free(hbox_children);
-        }
-        g_list_free(children);
-        
-        // Adjust visualizer size
-        if (player->visualizer && player->visualizer->drawing_area) {
-            int vis_width = (int)(400 / scale_factor);
-            int vis_height = (int)(200 / scale_factor);
-            if (vis_width < 300) vis_width = 300;
-            if (vis_height < 150) vis_height = 150;
-            gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
-        }
-        
-        // Adjust queue scrolled window
-        if (player->queue_scrolled_window) {
-            int queue_width = (int)(300 / scale_factor);
-            int queue_height = (int)(400 / scale_factor);
-            if (queue_width < 250) queue_width = 250;
-            if (queue_height < 300) queue_height = 300;
-            gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, queue_height);
-        }
+        g_list_free(hbox_children);
+    }
+    g_list_free(children);
+
+    // Adjust visualizer size
+    if (player->visualizer && player->visualizer->drawing_area) {
+        gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
+    }
+
+    // Adjust queue scrolled window
+    if (player->queue_scrolled_window) {
+        gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, queue_height);
+    }
+}
+
+int scale_size(int base_size, int screen_dimension, int base_dimension) {
+    if (screen_dimension < base_dimension) {
+        // Scale down for smaller screens
+        return (base_size * screen_dimension) / base_dimension;
+    } else {
+        // Keep base size or scale up slightly for larger screens
+        double scale = fmin(1.5, (double)screen_dimension / base_dimension);
+        return (int)(base_size * scale);
     }
 }
 
@@ -1977,12 +2000,8 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_container_add(GTK_CONTAINER(player->window), main_hbox);
     
-    // Player controls vbox (left side)
+    // Player controls vbox (left side) - size will be set in on_window_realize()
     GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    int scale = gtk_widget_get_scale_factor(player->window);
-    int scaled_width = (int)(200 / scale);
-    gtk_widget_set_size_request(player_vbox, scaled_width, -1);
-
     gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);
     
     // Menu bar
@@ -2118,8 +2137,14 @@ void create_main_window(AudioPlayer *player) {
 
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
-        int scale = gtk_widget_get_scale_factor(player->window);
-        int icon_size = (int)(64 / (scale > 0 ? scale : 1));
+        // Get screen info for icon scaling
+        GdkScreen *screen = gtk_widget_get_screen(player->window);
+        int screen_width = gdk_screen_get_width(screen);
+        
+        // Scale icon based on screen size
+        int icon_size = scale_size(64, screen_width, 1920);
+        icon_size = fmax(icon_size, 32); // Minimum icon size
+        icon_size = fmin(icon_size, 96); // Maximum icon size
 
         GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, icon_size, icon_size, GDK_INTERP_BILINEAR);
         if (scaled_icon) {
@@ -2141,27 +2166,23 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *spacer = gtk_label_new("");
     gtk_box_pack_start(GTK_BOX(bottom_box), spacer, TRUE, TRUE, 0);
     
-// Queue display (right side)
-GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-gtk_box_pack_start(GTK_BOX(main_hbox), queue_vbox, TRUE, TRUE, 0);
+    // Queue display (right side)
+    GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_box_pack_start(GTK_BOX(main_hbox), queue_vbox, TRUE, TRUE, 0);
 
-GtkWidget *queue_label = gtk_label_new("Queue:");
-gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
-gtk_box_pack_start(GTK_BOX(queue_vbox), queue_label, FALSE, FALSE, 0);
+    GtkWidget *queue_label = gtk_label_new("Queue:");
+    gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(queue_vbox), queue_label, FALSE, FALSE, 0);
 
-// DPI-aware width scaling
-int queue_width = (int)(400 / (scale > 0 ? scale : 1));  // wider than before
+    // Size will be set in on_window_realize()
+    player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
-player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
-gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
-                               GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, 400);
+    player->queue_listbox = gtk_list_box_new();
+    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
+    gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
 
-player->queue_listbox = gtk_list_box_new();
-gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
-gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
-
-    
     // Connect signals
     g_signal_connect(player->window, "delete-event", G_CALLBACK(on_window_delete_event), player);
     g_signal_connect(player->window, "destroy", G_CALLBACK(on_window_destroy), player);
