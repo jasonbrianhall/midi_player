@@ -2070,7 +2070,8 @@ void create_main_window(AudioPlayer *player) {
     // Get screen info to decide layout early
     GdkScreen *screen = gdk_screen_get_default();
     int screen_width = gdk_screen_get_width(screen);
-    bool use_compact_layout = (screen_width <= 1024);
+    //bool use_compact_layout = (screen_width <= 1024);
+    bool use_compact_layout = true;
     
     // Main hbox to split player controls and queue
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
