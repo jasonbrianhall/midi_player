@@ -1830,18 +1830,45 @@ static void on_window_realize(GtkWidget *widget, gpointer user_data) {
 
     printf("Screen resolution: %dx%d\n", screen_width, screen_height);
 
-    // Base sizes that work well at 1920x1080
-    const int base_window_width = 900;
-    const int base_window_height = 700;
-    const int base_player_width = 500;
-    const int base_vis_width = 400;
-    const int base_vis_height = 200;
-    const int base_queue_width = 300;
-    const int base_queue_height = 400;
+    // Adaptive base sizes based on screen resolution category
+    int base_window_width, base_window_height, base_player_width;
+    int base_vis_width, base_vis_height, base_queue_width, base_queue_height;
+    
+    if (screen_width <= 800 || screen_height <= 600) {
+        // Very small screens (800x600, etc.) - use much smaller visualization
+        base_window_width = 750;
+        base_window_height = 550;
+        base_player_width = 350;
+        base_vis_width = 200;  // Much smaller visualization
+        base_vis_height = 80;  // Much smaller visualization
+        base_queue_width = 200;
+        base_queue_height = 300;
+        printf("Using very small screen base sizes\n");
+    } else if (screen_width < 1200 || screen_height < 900) {
+        // Medium screens (1024x768, etc.) - moderately smaller visualization
+        base_window_width = 800;
+        base_window_height = 600;
+        base_player_width = 400;
+        base_vis_width = 260;  // Smaller visualization
+        base_vis_height = 120; // Smaller visualization
+        base_queue_width = 250;
+        base_queue_height = 350;
+        printf("Using medium-screen base sizes\n");
+    } else {
+        // Large screens (1920x1080+) - keep current size
+        base_window_width = 900;
+        base_window_height = 700;
+        base_player_width = 500;
+        base_vis_width = 400;
+        base_vis_height = 200;
+        base_queue_width = 300;
+        base_queue_height = 400;
+        printf("Using large-screen base sizes\n");
+    }
 
-    // Use reference resolution for scaling decisions
-    const int ref_width = 1920;
-    const int ref_height = 1080;
+    // Use a more appropriate reference resolution based on screen category
+    int ref_width = (screen_width < 1200) ? 1024 : 1920;
+    int ref_height = (screen_height < 900) ? 768 : 1080;
 
     // Calculate appropriate sizes
     int window_width = scale_size(base_window_width, screen_width, ref_width);
@@ -1852,16 +1879,34 @@ static void on_window_realize(GtkWidget *widget, gpointer user_data) {
     int queue_width = scale_size(base_queue_width, screen_width, ref_width);
     int queue_height = scale_size(base_queue_height, screen_height, ref_height);
 
-    // Apply minimum sizes
-    window_width = fmax(window_width, 800);
-    window_height = fmax(window_height, 600);
-    player_width = fmax(player_width, 400);
-    vis_width = fmax(vis_width, 300);
-    vis_height = fmax(vis_height, 150);
-    queue_width = fmax(queue_width, 250);
-    queue_height = fmax(queue_height, 300);
+    // Apply more aggressive minimum sizes for very small screens
+    if (screen_width <= 800) {
+        window_width = fmax(window_width, 750);
+        window_height = fmax(window_height, 550);
+        player_width = fmax(player_width, 300);
+        vis_width = fmax(vis_width, 180);   // Smaller minimum
+        vis_height = fmax(vis_height, 60);  // Much smaller minimum
+        queue_width = fmax(queue_width, 180);
+        queue_height = fmax(queue_height, 250);
+    } else if (screen_width <= 1024) {
+        window_width = fmax(window_width, 800);
+        window_height = fmax(window_height, 600);
+        player_width = fmax(player_width, 400);
+        vis_width = fmax(vis_width, 220);   // Smaller minimum
+        vis_height = fmax(vis_height, 100); // Smaller minimum
+        queue_width = fmax(queue_width, 250);
+        queue_height = fmax(queue_height, 300);
+    } else {
+        window_width = fmax(window_width, 800);
+        window_height = fmax(window_height, 600);
+        player_width = fmax(player_width, 400);
+        vis_width = fmax(vis_width, 300);
+        vis_height = fmax(vis_height, 150);
+        queue_width = fmax(queue_width, 250);
+        queue_height = fmax(queue_height, 300);
+    }
 
-    printf("Scaled sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n",
+    printf("Final sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n",
            window_width, window_height, player_width, vis_width, vis_height, queue_width, queue_height);
 
     // Resize window
@@ -1883,6 +1928,7 @@ static void on_window_realize(GtkWidget *widget, gpointer user_data) {
     // Adjust visualizer size
     if (player->visualizer && player->visualizer->drawing_area) {
         gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
+        printf("Set visualizer size to: %dx%d\n", vis_width, vis_height);
     }
 
     // Adjust queue scrolled window
@@ -1893,8 +1939,13 @@ static void on_window_realize(GtkWidget *widget, gpointer user_data) {
 
 int scale_size(int base_size, int screen_dimension, int base_dimension) {
     if (screen_dimension < base_dimension) {
-        // Scale down for smaller screens
-        return (base_size * screen_dimension) / base_dimension;
+        // Scale down for smaller screens, but with a minimum ratio
+        double scale_ratio = (double)screen_dimension / base_dimension;
+        
+        // Don't scale below 60% of original size to keep things usable
+        scale_ratio = fmax(scale_ratio, 0.6);
+        
+        return (int)(base_size * scale_ratio);
     } else {
         // Keep base size or scale up slightly for larger screens
         double scale = fmin(1.5, (double)screen_dimension / base_dimension);
@@ -1995,6 +2046,11 @@ void create_main_window(AudioPlayer *player) {
     
     // Connect realize signal to handle DPI scaling
     g_signal_connect(player->window, "realize", G_CALLBACK(on_window_realize), player);
+    
+    // Get screen info to decide layout early
+    GdkScreen *screen = gdk_screen_get_default();
+    int screen_width = gdk_screen_get_width(screen);
+    bool use_compact_layout = (screen_width <= 1024);
     
     // Main hbox to split player controls and queue
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2116,32 +2172,63 @@ void create_main_window(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(volume_box), volume_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(volume_box), player->volume_scale, TRUE, TRUE, 0);
     
-    // Queue control buttons
-    GtkWidget *queue_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(content_vbox), queue_button_box, FALSE, FALSE, 0);
-    
-    player->add_to_queue_button = gtk_button_new_with_label("Add to Queue");
-    player->clear_queue_button = gtk_button_new_with_label("Clear Queue");
-    player->repeat_queue_button = gtk_check_button_new_with_label("Repeat Queue");
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
-    
-    gtk_box_pack_start(GTK_BOX(queue_button_box), player->add_to_queue_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(queue_button_box), player->clear_queue_button, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
+    // Queue control buttons - adaptive layout based on screen size
+    if (use_compact_layout) {
+        printf("Using compact queue controls layout for screen width: %d\n", screen_width);
+        
+        // For small screens, create a horizontal box that will contain:
+        // [Main Controls] [Queue Controls Vertical]
+        GtkWidget *bottom_controls_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_pack_start(GTK_BOX(content_vbox), bottom_controls_hbox, FALSE, FALSE, 0);
+        
+        // Left side: equalizer controls
+        GtkWidget *eq_controls = create_equalizer_controls(player);
+        gtk_box_pack_start(GTK_BOX(bottom_controls_hbox), eq_controls, TRUE, TRUE, 0);
+        
+        // Right side: queue controls in vertical layout
+        GtkWidget *queue_controls_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+        gtk_box_pack_start(GTK_BOX(bottom_controls_hbox), queue_controls_vbox, FALSE, FALSE, 0);
+        
+        player->add_to_queue_button = gtk_button_new_with_label("Add");
+        player->clear_queue_button = gtk_button_new_with_label("Clear");
+        player->repeat_queue_button = gtk_check_button_new_with_label("Repeat");
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
+        
+        // Set smaller button sizes for compact layout
+        gtk_widget_set_size_request(player->add_to_queue_button, 80, 30);
+        gtk_widget_set_size_request(player->clear_queue_button, 80, 30);
+        
+        gtk_box_pack_start(GTK_BOX(queue_controls_vbox), player->add_to_queue_button, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(queue_controls_vbox), player->clear_queue_button, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(queue_controls_vbox), player->repeat_queue_button, FALSE, FALSE, 0);
+        
+    } else {
+        printf("Using standard queue controls layout for screen width: %d\n", screen_width);
+        
+        // Standard layout for larger screens - horizontal queue controls
+        GtkWidget *queue_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+        gtk_box_pack_start(GTK_BOX(content_vbox), queue_button_box, FALSE, FALSE, 0);
+        
+        player->add_to_queue_button = gtk_button_new_with_label("Add to Queue");
+        player->clear_queue_button = gtk_button_new_with_label("Clear Queue");
+        player->repeat_queue_button = gtk_check_button_new_with_label("Repeat Queue");
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
+        
+        gtk_box_pack_start(GTK_BOX(queue_button_box), player->add_to_queue_button, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(queue_button_box), player->clear_queue_button, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
+        
+        // Equalizer controls below for standard layout
+        GtkWidget *eq_controls = create_equalizer_controls(player);
+        gtk_box_pack_start(GTK_BOX(content_vbox), eq_controls, FALSE, FALSE, 0);
+    }
 
     GtkWidget *bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_end(GTK_BOX(content_vbox), bottom_box, FALSE, FALSE, 0);
 
-    GtkWidget *eq_controls = create_equalizer_controls(player);
-    gtk_box_pack_start(GTK_BOX(content_vbox), eq_controls, FALSE, FALSE, 0);
-
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
         // Get screen info for icon scaling
-        GdkScreen *screen = gtk_widget_get_screen(player->window);
-        int screen_width = gdk_screen_get_width(screen);
-        
-        // Scale icon based on screen size
         int icon_size = scale_size(64, screen_width, 1920);
         icon_size = fmax(icon_size, 32); // Minimum icon size
         icon_size = fmin(icon_size, 96); // Maximum icon size
@@ -2150,11 +2237,11 @@ void create_main_window(AudioPlayer *player) {
         if (scaled_icon) {
             GtkWidget *icon_image = gtk_image_new_from_pixbuf(scaled_icon);
 
-            // Create a container for the icon below the EQ
+            // Create a container for the icon below the controls
             GtkWidget *icon_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
             gtk_box_pack_start(GTK_BOX(icon_box), icon_image, FALSE, FALSE, 0);
 
-            // Insert icon_box below the equalizer
+            // Insert icon_box at the bottom
             gtk_box_pack_start(GTK_BOX(content_vbox), icon_box, FALSE, FALSE, 0);
 
             g_object_unref(scaled_icon);

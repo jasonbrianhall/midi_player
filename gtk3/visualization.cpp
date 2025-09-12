@@ -606,7 +606,12 @@ static void on_sensitivity_changed(GtkRange *range, gpointer user_data) {
 }
 
 GtkWidget* create_visualization_controls(Visualizer *vis) {
-    GtkWidget *controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    // Get screen info to decide control layout
+    GdkScreen *screen = gdk_screen_get_default();
+    int screen_width = gdk_screen_get_width(screen);
+    bool use_compact_controls = (screen_width <= 1024);
+    
+    GtkWidget *controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, use_compact_controls ? 3 : 5);
     
     // Enable/disable checkbox
     GtkWidget *enable_check = gtk_check_button_new_with_label("Enable");
@@ -614,9 +619,11 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     g_signal_connect(enable_check, "toggled", G_CALLBACK(on_vis_enabled_toggled), vis);
     gtk_box_pack_start(GTK_BOX(controls_box), enable_check, FALSE, FALSE, 0);
     
-    // Type selection
-    GtkWidget *type_label = gtk_label_new("Type:");
-    gtk_box_pack_start(GTK_BOX(controls_box), type_label, FALSE, FALSE, 0);
+    // Type selection - more compact for small screens
+    if (!use_compact_controls) {
+        GtkWidget *type_label = gtk_label_new("Type:");
+        gtk_box_pack_start(GTK_BOX(controls_box), type_label, FALSE, FALSE, 0);
+    }
     
     GtkWidget *type_combo = gtk_combo_box_text_new();
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Waveform");
@@ -631,15 +638,31 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix Alternative");    
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
+    
+    if (use_compact_controls) {
+        // Smaller combo box for compact layout
+        gtk_widget_set_size_request(type_combo, 120, -1);
+    }
+    
     gtk_box_pack_start(GTK_BOX(controls_box), type_combo, FALSE, FALSE, 0);
     
-    // Sensitivity slider
-    GtkWidget *sens_label = gtk_label_new("Sensitivity:");
-    gtk_box_pack_start(GTK_BOX(controls_box), sens_label, FALSE, FALSE, 0);
+    // Sensitivity slider - more compact for small screens
+    if (!use_compact_controls) {
+        GtkWidget *sens_label = gtk_label_new("Sensitivity:");
+        gtk_box_pack_start(GTK_BOX(controls_box), sens_label, FALSE, FALSE, 0);
+    }
     
     GtkWidget *sens_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(sens_scale), vis->sensitivity);
-    gtk_widget_set_size_request(sens_scale, 100, -1);
+    
+    if (use_compact_controls) {
+        // Smaller sensitivity slider for compact layout
+        gtk_widget_set_size_request(sens_scale, 80, -1);
+        gtk_scale_set_draw_value(GTK_SCALE(sens_scale), FALSE); // Hide value display to save space
+    } else {
+        gtk_widget_set_size_request(sens_scale, 100, -1);
+    }
+    
     g_signal_connect(sens_scale, "value-changed", G_CALLBACK(on_sensitivity_changed), vis);
     gtk_box_pack_start(GTK_BOX(controls_box), sens_scale, FALSE, FALSE, 0);
     

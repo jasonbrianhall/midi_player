@@ -224,27 +224,42 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     int screen_width = gdk_screen_get_width(screen);
     int screen_height = gdk_screen_get_height(screen);
     
-    // Simple size calculation based on screen size
-    int slider_width = scale_size(150, screen_width, 1920);
-    int slider_height = scale_size(150, screen_height, 1080);
+    // Adaptive slider sizing based on screen resolution
+    int slider_width, slider_height;
+    bool use_horizontal;
     
-    // Minimums
-    slider_width = fmax(slider_width, 100);
-    slider_height = fmax(slider_height, 100);
-
-    // Use horizontal sliders on small screens
-    bool use_horizontal = (screen_width < 1200 || screen_height < 800);
+    if (screen_width <= 800 || screen_height <= 600) {
+        // Very small screens - compact layout
+        slider_width = 120;
+        slider_height = 80;
+        use_horizontal = true;
+        printf("EQ: Using very small screen layout\n");
+    } else if (screen_width < 1200 || screen_height < 800) {
+        // Small-medium screens
+        slider_width = 130;
+        slider_height = 100;
+        use_horizontal = true;
+        printf("EQ: Using small-medium screen layout\n");
+    } else {
+        // Larger screens - use vertical sliders
+        slider_width = scale_size(150, screen_width, 1920);
+        slider_height = scale_size(150, screen_height, 1080);
+        slider_width = fmax(slider_width, 120);
+        slider_height = fmax(slider_height, 120);
+        use_horizontal = false;
+        printf("EQ: Using large screen layout\n");
+    }
 
     printf("EQ sliders: %dx%d, horizontal=%s\n", 
            slider_width, slider_height, use_horizontal ? "yes" : "no");
 
     // EQ controls laid out horizontally
-    GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
 
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *bass_label = gtk_label_new("Bass (100Hz)");
+    GtkWidget *bass_label = gtk_label_new("Bass");
     
     GtkOrientation orientation = use_horizontal ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL;
     player->bass_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
@@ -261,7 +276,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
 
     // Mid control
     GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *mid_label = gtk_label_new("Mid (1KHz)");
+    GtkWidget *mid_label = gtk_label_new("Mid");
     player->mid_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
     
     gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
@@ -276,7 +291,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
 
     // Treble control
     GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *treble_label = gtk_label_new("Treble (8KHz)");
+    GtkWidget *treble_label = gtk_label_new("Treble");
     player->treble_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
     
     gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
