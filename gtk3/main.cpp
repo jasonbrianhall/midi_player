@@ -250,10 +250,17 @@ void update_queue_display(AudioPlayer *player) {
         GtkWidget *drag_handle = gtk_label_new("☰");
         gtk_widget_set_tooltip_text(drag_handle, "Drag to reorder");
         gtk_box_pack_start(GTK_BOX(box), drag_handle, FALSE, FALSE, 0);
-        
+
         GtkWidget *filename_label = gtk_label_new(basename);
+
+        // Left-align the label inside the box
+        gtk_widget_set_halign(filename_label, GTK_ALIGN_START);
+
+        // Left-align the text inside the label itself
+        gtk_label_set_xalign(GTK_LABEL(filename_label), 0.0);
+
         gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
-        
+
         // Add remove button
         GtkWidget *remove_button = gtk_button_new_with_label("✗");
         gtk_widget_set_size_request(remove_button, 30, 30);
