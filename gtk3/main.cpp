@@ -2109,14 +2109,22 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *eq_controls = create_equalizer_controls(player);
     gtk_box_pack_start(GTK_BOX(content_vbox), eq_controls, FALSE, FALSE, 0);
 
-    // Add icon to bottom left
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
-        // Scale the icon down to a smaller size (e.g., 32x32)
-        GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, 64, 64, GDK_INTERP_BILINEAR);
+        int scale = gtk_widget_get_scale_factor(player->window);
+        int icon_size = (int)(64 / (scale > 0 ? scale : 1));
+
+        GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, icon_size, icon_size, GDK_INTERP_BILINEAR);
         if (scaled_icon) {
             GtkWidget *icon_image = gtk_image_new_from_pixbuf(scaled_icon);
-            gtk_box_pack_start(GTK_BOX(bottom_box), icon_image, FALSE, FALSE, 0);
+
+            // Create a container for the icon below the EQ
+            GtkWidget *icon_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+            gtk_box_pack_start(GTK_BOX(icon_box), icon_image, FALSE, FALSE, 0);
+
+            // Insert icon_box below the equalizer
+            gtk_box_pack_start(GTK_BOX(content_vbox), icon_box, FALSE, FALSE, 0);
+
             g_object_unref(scaled_icon);
         }
         g_object_unref(small_icon);
