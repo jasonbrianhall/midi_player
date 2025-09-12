@@ -1822,10 +1822,12 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
 
 
 static void on_window_resize(GtkWidget *widget, gpointer user_data) {
+
     // Get screen resolution
     GdkScreen *screen = gtk_widget_get_screen(widget);
     int screen_width = gdk_screen_get_width(screen);
     int screen_height = gdk_screen_get_height(screen);
+    printf("Screen %i %i\n", screen_width, screen_height);
 
     printf("Screen resolution: %dx%d\n", screen_width, screen_height);
 
@@ -1951,131 +1953,6 @@ static void on_window_resize(GtkWidget *widget, gpointer user_data) {
 
 static void on_window_realize(GtkWidget *widget, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
-
-    // Get screen resolution
-/*    GdkScreen *screen = gtk_widget_get_screen(widget);
-    int screen_width = gdk_screen_get_width(screen);
-    int screen_height = gdk_screen_get_height(screen);
-
-    printf("Screen resolution: %dx%d\n", screen_width, screen_height);
-
-    // Adaptive base sizes based on screen resolution category
-    int base_window_width, base_window_height, base_player_width;
-    int base_vis_width, base_vis_height, base_queue_width, base_queue_height;
-    
-    if (screen_width <= 800 || screen_height <= 600) {
-        // Very small screens (800x600, etc.) - use much smaller visualization
-        base_window_width = 750;
-        base_window_height = 550;
-        base_player_width = 350;
-        base_vis_width = 200;  // Much smaller visualization
-        base_vis_height = 80;  // Much smaller visualization
-        base_queue_width = 200;
-        base_queue_height = 300;
-        printf("Using very small screen base sizes\n");
-    } else if (screen_width < 1200 || screen_height < 900) {
-        // Medium screens (1024x768, etc.) - moderately smaller visualization
-        base_window_width = 800;
-        base_window_height = 600;
-        base_player_width = 400;
-        base_vis_width = 260;  // Smaller visualization
-        base_vis_height = 120; // Smaller visualization
-        base_queue_width = 250;
-        base_queue_height = 350;
-        printf("Using medium-screen base sizes\n");
-    } else {
-        // Large screens (1920x1080+) - keep current size
-        base_window_width = 900;
-        base_window_height = 700;
-        base_player_width = 500;
-        base_vis_width = 400;
-        base_vis_height = 200;
-        base_queue_width = 300;
-        base_queue_height = 400;
-        printf("Using large-screen base sizes\n");
-    }
-
-    // Use a more appropriate reference resolution based on screen category
-    int ref_width = (screen_width < 1200) ? 1024 : 1920;
-    int ref_height = (screen_height < 900) ? 768 : 1080;
-
-    // Calculate appropriate sizes
-    int window_width = scale_size(base_window_width, screen_width, ref_width);
-    int window_height = scale_size(base_window_height, screen_height, ref_height);
-    int player_width = scale_size(base_player_width, screen_width, ref_width);
-    int vis_width = scale_size(base_vis_width, screen_width, ref_width);
-    int vis_height = scale_size(base_vis_height, screen_height, ref_height);
-    int queue_width = scale_size(base_queue_width, screen_width, ref_width);
-    int queue_height = scale_size(base_queue_height, screen_height, ref_height);
-
-    int scale = gtk_widget_get_scale_factor(player->window);
-    if (scale>1) {
-        window_width/=scale;
-        window_height/=scale;
-        player_width/=scale;
-        vis_width/=scale;
-        vis_height/=scale;
-        queue_width/=scale;
-        queue_height/=scale;
-    }
-
-
-    // Apply more aggressive minimum sizes for very small screens
-    if (screen_width <= 800) {
-        window_width = fmax(window_width, 750);
-        window_height = fmax(window_height, 550);
-        player_width = fmax(player_width, 300);
-        vis_width = fmax(vis_width, 180);   // Smaller minimum
-        vis_height = fmax(vis_height, 60);  // Much smaller minimum
-        queue_width = fmax(queue_width, 180);
-        queue_height = fmax(queue_height, 250);
-    } else if (screen_width <= 1024) {
-        window_width = fmax(window_width, 800);
-        window_height = fmax(window_height, 600);
-        player_width = fmax(player_width, 400);
-        vis_width = fmax(vis_width, 220);   // Smaller minimum
-        vis_height = fmax(vis_height, 100); // Smaller minimum
-        queue_width = fmax(queue_width, 250);
-        queue_height = fmax(queue_height, 300);
-    } else {
-        window_width = fmax(window_width, 800);
-        window_height = fmax(window_height, 600);
-        player_width = fmax(player_width, 400);
-        vis_width = fmax(vis_width, 300);
-        vis_height = fmax(vis_height, 150);
-        queue_width = fmax(queue_width, 250);
-        queue_height = fmax(queue_height, 300);
-    }
-
-    printf("Final sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n",
-           window_width, window_height, player_width, vis_width, vis_height, queue_width, queue_height);
-
-    // Resize window
-    //gtk_window_resize(GTK_WINDOW(widget), window_width, window_height);
-
-    // Adjust player vbox width
-    GList *children = gtk_container_get_children(GTK_CONTAINER(widget));
-    if (children && children->data) {
-        GtkWidget *main_hbox = GTK_WIDGET(children->data);
-        GList *hbox_children = gtk_container_get_children(GTK_CONTAINER(main_hbox));
-        if (hbox_children && hbox_children->data) {
-            GtkWidget *player_vbox = GTK_WIDGET(hbox_children->data);
-            gtk_widget_set_size_request(player_vbox, player_width, -1);
-        }
-        g_list_free(hbox_children);
-    }
-    g_list_free(children);
-
-    // Adjust visualizer size
-    if (player->visualizer && player->visualizer->drawing_area) {
-        gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
-        printf("Set visualizer size to: %dx%d\n", vis_width, vis_height);
-    }
-
-    // Adjust queue scrolled window
-    if (player->queue_scrolled_window) {
-        gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, queue_height);
-    }*/
 }
 
 int scale_size(int base_size, int screen_dimension, int base_dimension) {
