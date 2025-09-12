@@ -213,6 +213,11 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
 }
 
 void show_keyboard_help(AudioPlayer *player) {
+    // Get screen resolution to adapt dialog size
+    GdkScreen *screen = gtk_widget_get_screen(player->window);
+    int screen_height = gdk_screen_get_height(screen);
+    bool use_compact_dialog = (screen_height <= 700);
+    
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Keyboard Shortcuts",
                                                     GTK_WINDOW(player->window),
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
@@ -220,36 +225,73 @@ void show_keyboard_help(AudioPlayer *player) {
                                                     NULL);
     
     GtkWidget *content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    gtk_container_set_border_width(GTK_CONTAINER(content_area), 15);
+    gtk_container_set_border_width(GTK_CONTAINER(content_area), use_compact_dialog ? 10 : 15);
     
-    GtkWidget *label = gtk_label_new(
-        "Keyboard Shortcuts:\n\n"
-        "Playback Control:\n"
-        "  Space		- Play/Pause toggle\n"
-        "  S			- Stop\n"
-        "  N			- Next song\n"
-        "  P			- Previous song\n"
-        "  , / < ←		- Rewind 5 seconds\n"
-        "  . / > →		- Fast forward 5 seconds\n"
-        "  Home	- Go to beginning\n"
-        "  End		- Skip to next song\n\n"
-        "Queue Management:\n"
-        "  D / Delete	- Remove current song from queue\n"
-        "  R				- Toggle repeat mode\n"
-        "  1-9			- Jump to queue position\n\n"
-        "Volume:\n"
-        "  ↑		- Volume up\n"
-        "  ↓		- Volume down\n\n"
-        "File Operations:\n"
-        "  Ctrl+O	- Open file\n"
-        "  Ctrl+A	- Add to queue\n"
-        "  Ctrl+C	- Clear queue\n"
-        "  Ctrl+Q	- Quit\n"
-        "  F1			- Show this help"
-    );
+    if (use_compact_dialog) {
+        // Compact version for small screens - use scrolled window
+        GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), 
+                                      GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+        gtk_widget_set_size_request(scrolled, 400, 400); // Fit in 800x600
+        
+        GtkWidget *label = gtk_label_new(
+            "Shortcuts:\n\n"
+            "Space - Play/Pause    S - Stop\n"
+            "N - Next    P - Previous\n"
+            "< - Rewind 5s    > - Forward 5s\n"
+            "↑ - Volume up    ↓ - Volume down\n"
+            "Home - Beginning    End - Next song\n\n"
+            "D/Del - Remove current song\n"
+            "R - Toggle repeat    1-9 - Jump to #\n\n"
+            "Ctrl+O - Open    Ctrl+A - Add queue\n"
+            "Ctrl+C - Clear    Ctrl+Q - Quit\n"
+            "F1 - This help"
+        );
+        
+        gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
+        gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
+        gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled), label);
+        gtk_container_add(GTK_CONTAINER(content_area), scrolled);
+        
+    } else {
+        // Full version for larger screens
+        GtkWidget *label = gtk_label_new(
+            "Keyboard Shortcuts:\n\n"
+            "Playback Control:\n"
+            "  Space\t\t- Play/Pause toggle\n"
+            "  S\t\t- Stop\n"
+            "  N\t\t- Next song\n"
+            "  P\t\t- Previous song\n"
+            "  , / < ←\t- Rewind 5 seconds\n"
+            "  . / > →\t- Fast forward 5 seconds\n"
+            "  Home\t- Go to beginning\n"
+            "  End\t\t- Skip to next song\n\n"
+            "Queue Management:\n"
+            "  D / Delete\t- Remove current song from queue\n"
+            "  R\t\t- Toggle repeat mode\n"
+            "  1-9\t\t- Jump to queue position\n\n"
+            "Volume:\n"
+            "  ↑\t\t- Volume up\n"
+            "  ↓\t\t- Volume down\n\n"
+            "File Operations:\n"
+            "  Ctrl+O\t- Open file\n"
+            "  Ctrl+A\t- Add to queue\n"
+            "  Ctrl+C\t- Clear queue\n"
+            "  Ctrl+Q\t- Quit\n"
+            "  F1\t\t- Show this help"
+        );
+        
+        gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
+        gtk_container_add(GTK_CONTAINER(content_area), label);
+    }
     
-    gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
-    gtk_container_add(GTK_CONTAINER(content_area), label);
+    // Set dialog size constraints
+    if (use_compact_dialog) {
+        gtk_window_set_default_size(GTK_WINDOW(dialog), 420, 450);
+        gtk_window_set_resizable(GTK_WINDOW(dialog), TRUE);
+    } else {
+        gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    }
     
     gtk_widget_show_all(dialog);
     gtk_dialog_run(GTK_DIALOG(dialog));
