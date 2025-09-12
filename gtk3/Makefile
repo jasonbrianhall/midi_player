@@ -82,7 +82,8 @@ SOURCES_CPP = dbopl.cpp \
 	dna2.cpp \
 	visualization.cpp \
 	equalizer.cpp \
-	m3u.cpp
+	m3u.cpp \
+	help.cpp
 
 SOURCES_C = 
 
