@@ -609,6 +609,13 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     // Get screen info to decide control layout
     GdkScreen *screen = gdk_screen_get_default();
     int screen_width = gdk_screen_get_width(screen);
+    int scale = gtk_widget_get_scale_factor(player->window);
+    printf("%i %i\n", screen_width, scale);
+    if (scale>1) {
+        screen_width/=scale;
+    }
+
+
     bool use_compact_controls = (screen_width <= 1024);
     
     GtkWidget *controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, use_compact_controls ? 3 : 5);

@@ -223,6 +223,12 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     GdkScreen *screen = gtk_widget_get_screen(player->window);
     int screen_width = gdk_screen_get_width(screen);
     int screen_height = gdk_screen_get_height(screen);
+    int scale = gtk_widget_get_scale_factor(player->window);
+    
+    if (scale>1) {
+        screen_width/=scale;
+        screen_height/=scale;
+    }
     
     // Adaptive slider sizing based on screen resolution
     int slider_width, slider_height;
