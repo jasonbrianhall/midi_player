@@ -2134,22 +2134,26 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *spacer = gtk_label_new("");
     gtk_box_pack_start(GTK_BOX(bottom_box), spacer, TRUE, TRUE, 0);
     
-    // Queue display (right side)
-    GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_box_pack_start(GTK_BOX(main_hbox), queue_vbox, TRUE, TRUE, 0);
-    
-    GtkWidget *queue_label = gtk_label_new("Queue:");
-    gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
-    gtk_box_pack_start(GTK_BOX(queue_vbox), queue_label, FALSE, FALSE, 0);
-    
-    player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
-                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-    gtk_widget_set_size_request(player->queue_scrolled_window, 300, 400);
-    
-    player->queue_listbox = gtk_list_box_new();
-    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
-    gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
+// Queue display (right side)
+GtkWidget *queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+gtk_box_pack_start(GTK_BOX(main_hbox), queue_vbox, TRUE, TRUE, 0);
+
+GtkWidget *queue_label = gtk_label_new("Queue:");
+gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
+gtk_box_pack_start(GTK_BOX(queue_vbox), queue_label, FALSE, FALSE, 0);
+
+// DPI-aware width scaling
+int queue_width = (int)(400 / (scale > 0 ? scale : 1));  // wider than before
+
+player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
+                               GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+gtk_widget_set_size_request(player->queue_scrolled_window, queue_width, 400);
+
+player->queue_listbox = gtk_list_box_new();
+gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
+gtk_box_pack_start(GTK_BOX(queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
+
     
     // Connect signals
     g_signal_connect(player->window, "delete-event", G_CALLBACK(on_window_delete_event), player);
