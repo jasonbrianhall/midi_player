@@ -1973,7 +1973,7 @@ void create_main_window(AudioPlayer *player) {
     // Player controls vbox (left side)
     GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     int scale = gtk_widget_get_scale_factor(player->window);
-    int scaled_width = (int)(500 / scale);
+    int scaled_width = (int)(200 / scale);
     gtk_widget_set_size_request(player_vbox, scaled_width, -1);
 
     gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);

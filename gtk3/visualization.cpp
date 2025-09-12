@@ -585,8 +585,8 @@ void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
 
     int scale = gtk_widget_get_scale_factor(widget);
     // Base size at 100% zoom
-    const int base_width = 400;
-    const int base_height = 200;
+    const int base_width = 200;
+    const int base_height = 100;
 
     // Shrink size to counteract zoom
     int adjusted_width = base_width / scale;

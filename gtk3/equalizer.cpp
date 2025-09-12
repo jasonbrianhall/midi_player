@@ -214,86 +214,82 @@ void on_eq_reset_clicked(GtkButton *button, gpointer user_data) {
 // Function to create equalizer controls:
 GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     player->eq_frame = gtk_frame_new("Equalizer");
-    
+
     GtkWidget *eq_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(player->eq_frame), eq_vbox);
     gtk_container_set_border_width(GTK_CONTAINER(eq_vbox), 5);
-    
+
     // Enable checkbox
     player->eq_enable_check = gtk_check_button_new_with_label("Enable Equalizer");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->eq_enable_check), TRUE);
     g_signal_connect(player->eq_enable_check, "toggled", G_CALLBACK(on_eq_enabled_toggled), player);
     gtk_box_pack_start(GTK_BOX(eq_vbox), player->eq_enable_check, FALSE, FALSE, 0);
-    
-    // EQ controls container
-    GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
-    
-    // Detect if we need to adjust sizes for high DPI
+
+    // Detect DPI scale factor
     GtkWidget *toplevel = gtk_widget_get_toplevel(player->window);
-    double scale_factor = 2.0;
-    
+    double scale_factor = 1.0;
     if (GTK_IS_WINDOW(toplevel) && gtk_widget_get_realized(toplevel)) {
         scale_factor = get_scale_factor(toplevel);
     }
-    
-    int scale_width = (int)(50 / scale_factor);
-    int scale_height = (int)(120 / scale_factor);
-    
+
+    // DPI-scaled dimensions for horizontal sliders
+    int slider_width = (int)(150 / scale_factor);
+    int slider_height = (int)(40 / scale_factor);
+
+    // EQ controls laid out horizontally
+    GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
+
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *bass_label = gtk_label_new("Bass\n(100Hz)");
-    gtk_label_set_justify(GTK_LABEL(bass_label), GTK_JUSTIFY_CENTER);
-    player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    GtkWidget *bass_label = gtk_label_new("Bass (100Hz)");
+    player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->bass_scale, scale_width, scale_height);
-    // Invert the scale so positive values are at the top
-    gtk_range_set_inverted(GTK_RANGE(player->bass_scale), TRUE);
+    gtk_widget_set_size_request(player->bass_scale, slider_width, slider_height);
+    gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE); // left = low, right = high
     g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
-    
     gtk_box_pack_start(GTK_BOX(bass_vbox), bass_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(eq_controls_box), bass_vbox, TRUE, TRUE, 0);
-    
+
     // Mid control
     GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *mid_label = gtk_label_new("Mid\n(1KHz)");
-    gtk_label_set_justify(GTK_LABEL(mid_label), GTK_JUSTIFY_CENTER);
-    player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    GtkWidget *mid_label = gtk_label_new("Mid (1KHz)");
+    player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->mid_scale, scale_width, scale_height);
-    gtk_range_set_inverted(GTK_RANGE(player->mid_scale), TRUE);
+    gtk_widget_set_size_request(player->mid_scale, slider_width, slider_height);
+    gtk_range_set_inverted(GTK_RANGE(player->mid_scale), FALSE);
     g_signal_connect(player->mid_scale, "value-changed", G_CALLBACK(on_mid_changed), player);
-    
     gtk_box_pack_start(GTK_BOX(mid_vbox), mid_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(mid_vbox), player->mid_scale, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(mid_vbox), player->mid_scale, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(eq_controls_box), mid_vbox, TRUE, TRUE, 0);
-    
+
     // Treble control
     GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *treble_label = gtk_label_new("Treble\n(8KHz)");
-    gtk_label_set_justify(GTK_LABEL(treble_label), GTK_JUSTIFY_CENTER);
-    player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    GtkWidget *treble_label = gtk_label_new("Treble (8KHz)");
+    player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->treble_scale, scale_width, scale_height);
-    gtk_range_set_inverted(GTK_RANGE(player->treble_scale), TRUE);
+    gtk_widget_set_size_request(player->treble_scale, slider_width, slider_height);
+    gtk_range_set_inverted(GTK_RANGE(player->treble_scale), FALSE);
     g_signal_connect(player->treble_scale, "value-changed", G_CALLBACK(on_treble_changed), player);
-    
     gtk_box_pack_start(GTK_BOX(treble_vbox), treble_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(treble_vbox), player->treble_scale, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(treble_vbox), player->treble_scale, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(eq_controls_box), treble_vbox, TRUE, TRUE, 0);
-    
+
     // Reset button
     player->eq_reset_button = gtk_button_new_with_label("Reset");
     g_signal_connect(player->eq_reset_button, "clicked", G_CALLBACK(on_eq_reset_clicked), player);
     gtk_box_pack_start(GTK_BOX(eq_vbox), player->eq_reset_button, FALSE, FALSE, 0);
-    
+
     return player->eq_frame;
 }
+
+
+
 
