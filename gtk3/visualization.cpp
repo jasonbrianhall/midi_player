@@ -591,8 +591,8 @@ void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
         base_width = 400; 
         base_height=200;
     } else {
-        base_width = 200;
-        base_height = 100;
+        base_width = 400;
+        base_height = 200;
     }
     
 

@@ -213,28 +213,24 @@ void on_eq_reset_clicked(GtkButton *button, gpointer user_data) {
 
 // Function to create equalizer controls:
 GtkWidget* create_equalizer_controls(AudioPlayer *player) {
-    player->eq_frame = gtk_frame_new("Equalizer");
+    // Create frame without label to remove blue header
+    player->eq_frame = gtk_frame_new(NULL);
 
     GtkWidget *eq_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(player->eq_frame), eq_vbox);
     gtk_container_set_border_width(GTK_CONTAINER(eq_vbox), 5);
 
-    // Enable checkbox
-    player->eq_enable_check = gtk_check_button_new_with_label("Enable Equalizer");
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->eq_enable_check), TRUE);
-    g_signal_connect(player->eq_enable_check, "toggled", G_CALLBACK(on_eq_enabled_toggled), player);
-    gtk_box_pack_start(GTK_BOX(eq_vbox), player->eq_enable_check, FALSE, FALSE, 0);
-
     // Detect DPI scale factor
     GtkWidget *toplevel = gtk_widget_get_toplevel(player->window);
-    double scale_factor = 1.0;
+    int scale_factor = gtk_widget_get_scale_factor(toplevel);
+
     if (GTK_IS_WINDOW(toplevel) && gtk_widget_get_realized(toplevel)) {
         scale_factor = get_scale_factor(toplevel);
     }
 
-    // DPI-scaled dimensions for horizontal sliders
+    // DPI-scaled dimensions for vertical sliders
     int slider_width = (int)(150 / scale_factor);
-    int slider_height = (int)(40 / scale_factor);
+    int slider_height = (int)(150 / scale_factor);
 
     // EQ controls laid out horizontally
     GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -243,12 +239,17 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *bass_label = gtk_label_new("Bass (100Hz)");
-    player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    if (scale_factor<=1.0) {
+        player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    } else {
+        player->bass_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    }
+    
     gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
     gtk_widget_set_size_request(player->bass_scale, slider_width, slider_height);
-    gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE); // left = low, right = high
+    gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE);
     g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
     gtk_box_pack_start(GTK_BOX(bass_vbox), bass_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, FALSE, FALSE, 0);
@@ -257,7 +258,11 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Mid control
     GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *mid_label = gtk_label_new("Mid (1KHz)");
-    player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    if (scale_factor<=1.0) {
+        player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    } else {
+        player->mid_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    }    
     gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
@@ -271,7 +276,11 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Treble control
     GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *treble_label = gtk_label_new("Treble (8KHz)");
-    player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    if (scale_factor<=1.0) {
+        player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, -12.0, 12.0, 0.5);
+    } else {
+        player->treble_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -12.0, 12.0, 0.5);
+    }
     gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
     gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
     gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
@@ -289,6 +298,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
 
     return player->eq_frame;
 }
+
 
 
 
