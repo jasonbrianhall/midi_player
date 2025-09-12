@@ -231,18 +231,14 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     
     // Detect if we need to adjust sizes for high DPI
     GtkWidget *toplevel = gtk_widget_get_toplevel(player->window);
-    double scale_factor = 1.0;
+    double scale_factor = 2.0;
     
     if (GTK_IS_WINDOW(toplevel) && gtk_widget_get_realized(toplevel)) {
         scale_factor = get_scale_factor(toplevel);
     }
     
-    // Adjust scale sizes based on DPI
-    int scale_width = (int)(50 / (scale_factor > 1.0 ? scale_factor : 1.0));
-    int scale_height = (int)(120 / (scale_factor > 1.0 ? scale_factor : 1.0));
-    
-    if (scale_width < 40) scale_width = 40;
-    if (scale_height < 100) scale_height = 100;
+    int scale_width = (int)(50 / scale_factor);
+    int scale_height = (int)(120 / scale_factor);
     
     // Bass control
     GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);

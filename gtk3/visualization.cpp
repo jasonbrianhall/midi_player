@@ -582,30 +582,20 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
 
 void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
-    
-    // Get parent window to check scale factor
-    GtkWidget *toplevel = gtk_widget_get_toplevel(widget);
-    if (GTK_IS_WINDOW(toplevel)) {
-        double scale_factor = get_scale_factor(toplevel);
-        
-        if (scale_factor > 1.0) {
-            // Adjust drawing area size for high DPI
-            int current_width = gtk_widget_get_allocated_width(widget);
-            int current_height = gtk_widget_get_allocated_height(widget);
-            
-            // Only adjust if we're at default size
-            if (current_width == 400 && current_height == 200) {
-                int new_width = (int)(400 / scale_factor);
-                int new_height = (int)(200 / scale_factor);
-                
-                if (new_width < 300) new_width = 300;
-                if (new_height < 150) new_height = 150;
-                
-                gtk_widget_set_size_request(widget, new_width, new_height);
-            }
-        }
-    }
+
+    int scale = gtk_widget_get_scale_factor(widget);
+    // Base size at 100% zoom
+    const int base_width = 400;
+    const int base_height = 200;
+
+    // Shrink size to counteract zoom
+    int adjusted_width = base_width / scale;
+    int adjusted_height = base_height / scale;
+
+    printf("adjusted_width=%d, adjusted_height=%d\n", adjusted_width, adjusted_height);
+    gtk_widget_set_size_request(widget, adjusted_width, adjusted_height);
 }
+
 
 // Callback functions for controls
 static void on_vis_type_changed(GtkComboBox *combo, gpointer user_data) {

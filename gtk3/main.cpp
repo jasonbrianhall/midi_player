@@ -1958,7 +1958,7 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 void create_main_window(AudioPlayer *player) {
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp");
-    gtk_window_set_default_size(GTK_WINDOW(player->window), 900, 700);
+    gtk_window_set_default_size(GTK_WINDOW(player->window), 640, 480);
     gtk_container_set_border_width(GTK_CONTAINER(player->window), 10);
     
     set_window_icon_from_base64(GTK_WINDOW(player->window));
@@ -1972,7 +1972,10 @@ void create_main_window(AudioPlayer *player) {
     
     // Player controls vbox (left side)
     GtkWidget *player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    gtk_widget_set_size_request(player_vbox, 500, -1);
+    int scale = gtk_widget_get_scale_factor(player->window);
+    int scaled_width = (int)(500 / scale);
+    gtk_widget_set_size_request(player_vbox, scaled_width, -1);
+
     gtk_box_pack_start(GTK_BOX(main_hbox), player_vbox, FALSE, FALSE, 0);
     
     // Menu bar
