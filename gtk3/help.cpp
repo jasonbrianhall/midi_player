@@ -160,11 +160,9 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     // Show all widgets
     gtk_widget_show_all(dialog);
     
-    // Run dialog and handle response
-    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-    if (response == GTK_RESPONSE_CLOSE || response == GTK_RESPONSE_DELETE_EVENT) {
-        gtk_widget_destroy(dialog);
-    }
+    // Connect close button signal instead of using gtk_dialog_run()
+    g_signal_connect(dialog, "response", G_CALLBACK(gtk_widget_destroy), NULL);
+    g_signal_connect(dialog, "delete-event", G_CALLBACK(gtk_widget_destroy), NULL);
 }
 
 #endif
