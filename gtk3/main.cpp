@@ -1894,9 +1894,10 @@ static void on_window_resize(GtkWidget *widget, gpointer user_data) {
 
     // Apply more aggressive minimum sizes for very small screens
     if (screen_width <= 800) {
-        window_width = fmax(window_width, 750);
-        window_height = fmax(window_height, 550);
-        player_width = fmax(player_width, 300);
+        //window_width = fmax(window_width, screen_width - 50);  // Leave some margin
+        //window_height = fmax(window_height, screen_height - 50);        player_width = fmax(player_width, 300);
+        window_width = screen_width;
+        window_height = screen_height;
         vis_width = fmax(vis_width, 180);   // Smaller minimum
         vis_height = fmax(vis_height, 60);  // Much smaller minimum
         queue_width = fmax(queue_width, 180);

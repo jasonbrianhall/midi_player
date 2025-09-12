@@ -182,6 +182,11 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             // F1: Show help
             show_keyboard_help(player);
             return TRUE;
+            
+        case GDK_KEY_F11:
+            // F11: Toggle fullscreen
+            toggle_fullscreen(player);
+            return TRUE;
 
         case GDK_KEY_0:
         case GDK_KEY_1:
@@ -210,6 +215,26 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     }
     
     return FALSE; // Event not handled
+}
+
+void toggle_fullscreen(AudioPlayer *player) {
+    GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+    if (!gdk_window) {
+        printf("Cannot toggle fullscreen: window not realized\n");
+        return;
+    }
+    
+    GdkWindowState state = gdk_window_get_state(gdk_window);
+    
+    if (state & GDK_WINDOW_STATE_FULLSCREEN) {
+        // Currently fullscreen, switch to windowed
+        gtk_window_unfullscreen(GTK_WINDOW(player->window));
+        printf("Exiting fullscreen mode\n");
+    } else {
+        // Currently windowed, switch to fullscreen
+        gtk_window_fullscreen(GTK_WINDOW(player->window));
+        printf("Entering fullscreen mode\n");
+    }
 }
 
 void show_keyboard_help(AudioPlayer *player) {
@@ -245,7 +270,7 @@ void show_keyboard_help(AudioPlayer *player) {
             "R - Toggle repeat    1-9 - Jump to #\n\n"
             "Ctrl+O - Open    Ctrl+A - Add queue\n"
             "Ctrl+C - Clear    Ctrl+Q - Quit\n"
-            "F1 - This help"
+            "F1 - This help    F11 - Fullscreen"
         );
         
         gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
@@ -277,8 +302,11 @@ void show_keyboard_help(AudioPlayer *player) {
             "  Ctrl+O\t- Open file\n"
             "  Ctrl+A\t- Add to queue\n"
             "  Ctrl+C\t- Clear queue\n"
-            "  Ctrl+Q\t- Quit\n"
-            "  F1\t\t- Show this help"
+            "  Ctrl+Q\t- Quit\n\n"
+            "Display:\n"
+            "  F1\t\t- Show this help\n"
+            "  F11\t\t- Toggle fullscreen\n"
+            
         );
         
         gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);

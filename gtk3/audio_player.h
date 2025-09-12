@@ -207,6 +207,7 @@ bool save_m3u_playlist(AudioPlayer *player, const char *m3u_path);
 bool is_m3u_file(const char *filename);
 void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data);
 void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data);
+void toggle_fullscreen(AudioPlayer *player);
 
 GtkWidget* create_equalizer_controls(AudioPlayer *player);
 
