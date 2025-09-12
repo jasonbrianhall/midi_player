@@ -227,87 +227,160 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
     // Adaptive slider sizing based on screen resolution
     int slider_width, slider_height;
     bool use_horizontal;
+    bool reset_button_on_side;
     
     if (screen_width <= 800 || screen_height <= 600) {
-        // Very small screens - compact layout
-        slider_width = 120;
+        // Very small screens - compact layout with reset button on side
+        slider_width = 100;
+        slider_height = 60;
+        use_horizontal = true;
+        reset_button_on_side = true;
+        printf("EQ: Using very small screen layout with side reset button\n");
+    } else if (screen_width < 1200 || screen_height < 800) {
+        // Small-medium screens - reset button still on side to save vertical space
+        slider_width = 110;
         slider_height = 80;
         use_horizontal = true;
-        printf("EQ: Using very small screen layout\n");
-    } else if (screen_width < 1200 || screen_height < 800) {
-        // Small-medium screens
-        slider_width = 130;
-        slider_height = 100;
-        use_horizontal = true;
-        printf("EQ: Using small-medium screen layout\n");
+        reset_button_on_side = true;
+        printf("EQ: Using small-medium screen layout with side reset button\n");
     } else {
-        // Larger screens - use vertical sliders
+        // Larger screens - use vertical sliders with reset button below
         slider_width = scale_size(150, screen_width, 1920);
         slider_height = scale_size(150, screen_height, 1080);
         slider_width = fmax(slider_width, 120);
         slider_height = fmax(slider_height, 120);
         use_horizontal = false;
-        printf("EQ: Using large screen layout\n");
+        reset_button_on_side = false;
+        printf("EQ: Using large screen layout with bottom reset button\n");
     }
 
-    printf("EQ sliders: %dx%d, horizontal=%s\n", 
-           slider_width, slider_height, use_horizontal ? "yes" : "no");
+    printf("EQ sliders: %dx%d, horizontal=%s, reset_on_side=%s\n", 
+           slider_width, slider_height, use_horizontal ? "yes" : "no",
+           reset_button_on_side ? "yes" : "no");
 
-    // EQ controls laid out horizontally
-    GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
+    if (reset_button_on_side) {
+        // For compact layouts: put sliders and reset button side by side
+        GtkWidget *eq_main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+        gtk_box_pack_start(GTK_BOX(eq_vbox), eq_main_hbox, TRUE, TRUE, 0);
+        
+        // EQ controls box for sliders
+        GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
+        gtk_box_pack_start(GTK_BOX(eq_main_hbox), eq_controls_box, TRUE, TRUE, 0);
 
-    // Bass control
-    GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *bass_label = gtk_label_new("Bass");
-    
-    GtkOrientation orientation = use_horizontal ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL;
-    player->bass_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
-    
-    gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
-    gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
-    gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->bass_scale, slider_width, slider_height);
-    gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE);
-    g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
-    gtk_box_pack_start(GTK_BOX(bass_vbox), bass_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(eq_controls_box), bass_vbox, TRUE, TRUE, 0);
+        // Bass control
+        GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
+        GtkWidget *bass_label = gtk_label_new("Bass");
+        
+        GtkOrientation orientation = GTK_ORIENTATION_HORIZONTAL;
+        player->bass_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 1.0);
+        
+        gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->bass_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE);
+        g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
+        gtk_box_pack_start(GTK_BOX(bass_vbox), bass_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), bass_vbox, TRUE, TRUE, 0);
 
-    // Mid control
-    GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *mid_label = gtk_label_new("Mid");
-    player->mid_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
-    
-    gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
-    gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
-    gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->mid_scale, slider_width, slider_height);
-    gtk_range_set_inverted(GTK_RANGE(player->mid_scale), FALSE);
-    g_signal_connect(player->mid_scale, "value-changed", G_CALLBACK(on_mid_changed), player);
-    gtk_box_pack_start(GTK_BOX(mid_vbox), mid_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(mid_vbox), player->mid_scale, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(eq_controls_box), mid_vbox, TRUE, TRUE, 0);
+        // Mid control
+        GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
+        GtkWidget *mid_label = gtk_label_new("Mid");
+        player->mid_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 1.0);
+        
+        gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->mid_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->mid_scale), FALSE);
+        g_signal_connect(player->mid_scale, "value-changed", G_CALLBACK(on_mid_changed), player);
+        gtk_box_pack_start(GTK_BOX(mid_vbox), mid_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(mid_vbox), player->mid_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), mid_vbox, TRUE, TRUE, 0);
 
-    // Treble control
-    GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-    GtkWidget *treble_label = gtk_label_new("Treble");
-    player->treble_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
-    
-    gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
-    gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
-    gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
-    gtk_widget_set_size_request(player->treble_scale, slider_width, slider_height);
-    gtk_range_set_inverted(GTK_RANGE(player->treble_scale), FALSE);
-    g_signal_connect(player->treble_scale, "value-changed", G_CALLBACK(on_treble_changed), player);
-    gtk_box_pack_start(GTK_BOX(treble_vbox), treble_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(treble_vbox), player->treble_scale, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(eq_controls_box), treble_vbox, TRUE, TRUE, 0);
+        // Treble control
+        GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
+        GtkWidget *treble_label = gtk_label_new("Treble");
+        player->treble_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 1.0);
+        
+        gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->treble_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->treble_scale), FALSE);
+        g_signal_connect(player->treble_scale, "value-changed", G_CALLBACK(on_treble_changed), player);
+        gtk_box_pack_start(GTK_BOX(treble_vbox), treble_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(treble_vbox), player->treble_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), treble_vbox, TRUE, TRUE, 0);
 
-    // Reset button
-    player->eq_reset_button = gtk_button_new_with_label("Reset");
-    g_signal_connect(player->eq_reset_button, "clicked", G_CALLBACK(on_eq_reset_clicked), player);
-    gtk_box_pack_start(GTK_BOX(eq_vbox), player->eq_reset_button, FALSE, FALSE, 0);
+        // Reset button on the right side
+        GtkWidget *reset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
+        GtkWidget *reset_spacer = gtk_label_new(""); // Spacer to align with sliders
+        player->eq_reset_button = gtk_button_new_with_label("Reset");
+        gtk_widget_set_size_request(player->eq_reset_button, 60, 30);
+        g_signal_connect(player->eq_reset_button, "clicked", G_CALLBACK(on_eq_reset_clicked), player);
+        gtk_box_pack_start(GTK_BOX(reset_vbox), reset_spacer, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(reset_vbox), player->eq_reset_button, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_main_hbox), reset_vbox, FALSE, FALSE, 0);
+        
+    } else {
+        // Standard layout for large screens: sliders in a row, reset button below
+        GtkWidget *eq_controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+        gtk_box_pack_start(GTK_BOX(eq_vbox), eq_controls_box, TRUE, TRUE, 0);
+
+        // Bass control
+        GtkWidget *bass_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *bass_label = gtk_label_new("Bass");
+        
+        GtkOrientation orientation = GTK_ORIENTATION_VERTICAL;
+        player->bass_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
+        
+        gtk_range_set_value(GTK_RANGE(player->bass_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->bass_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->bass_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->bass_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->bass_scale), FALSE);
+        g_signal_connect(player->bass_scale, "value-changed", G_CALLBACK(on_bass_changed), player);
+        gtk_box_pack_start(GTK_BOX(bass_vbox), bass_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(bass_vbox), player->bass_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), bass_vbox, TRUE, TRUE, 0);
+
+        // Mid control
+        GtkWidget *mid_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *mid_label = gtk_label_new("Mid");
+        player->mid_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
+        
+        gtk_range_set_value(GTK_RANGE(player->mid_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->mid_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->mid_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->mid_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->mid_scale), FALSE);
+        g_signal_connect(player->mid_scale, "value-changed", G_CALLBACK(on_mid_changed), player);
+        gtk_box_pack_start(GTK_BOX(mid_vbox), mid_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(mid_vbox), player->mid_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), mid_vbox, TRUE, TRUE, 0);
+
+        // Treble control
+        GtkWidget *treble_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *treble_label = gtk_label_new("Treble");
+        player->treble_scale = gtk_scale_new_with_range(orientation, -12.0, 12.0, 0.5);
+        
+        gtk_range_set_value(GTK_RANGE(player->treble_scale), 0.0);
+        gtk_scale_set_draw_value(GTK_SCALE(player->treble_scale), TRUE);
+        gtk_scale_set_value_pos(GTK_SCALE(player->treble_scale), GTK_POS_BOTTOM);
+        gtk_widget_set_size_request(player->treble_scale, slider_width, slider_height);
+        gtk_range_set_inverted(GTK_RANGE(player->treble_scale), FALSE);
+        g_signal_connect(player->treble_scale, "value-changed", G_CALLBACK(on_treble_changed), player);
+        gtk_box_pack_start(GTK_BOX(treble_vbox), treble_label, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(treble_vbox), player->treble_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(eq_controls_box), treble_vbox, TRUE, TRUE, 0);
+
+        // Reset button below sliders
+        player->eq_reset_button = gtk_button_new_with_label("Reset");
+        g_signal_connect(player->eq_reset_button, "clicked", G_CALLBACK(on_eq_reset_clicked), player);
+        gtk_box_pack_start(GTK_BOX(eq_vbox), player->eq_reset_button, FALSE, FALSE, 0);
+    }
 
     return player->eq_frame;
 }
