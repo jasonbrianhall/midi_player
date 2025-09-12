@@ -240,14 +240,12 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
         slider_width = 100;
         slider_height = 60;
         use_horizontal = true;
-        //reset_button_on_side = true;
         printf("EQ: Using very small screen layout with side reset button\n");
     } else if (screen_width < 1200 || screen_height < 800) {
         // Small-medium screens - reset button still on side to save vertical space
         slider_width = 110;
         slider_height = 80;
         use_horizontal = true;
-        //reset_button_on_side = true;
         printf("EQ: Using small-medium screen layout with side reset button\n");
     } else {
         // Larger screens - use vertical sliders with reset button below
@@ -256,7 +254,7 @@ GtkWidget* create_equalizer_controls(AudioPlayer *player) {
         slider_width = fmax(slider_width, 120);
         slider_height = fmax(slider_height, 120);
         use_horizontal = false;
-        //reset_button_on_side = false;
+        reset_button_on_side = false;
         printf("EQ: Using large screen layout with bottom reset button\n");
     }
 

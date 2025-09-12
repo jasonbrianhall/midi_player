@@ -2071,8 +2071,8 @@ void create_main_window(AudioPlayer *player) {
     // Get screen info to decide layout early
     GdkScreen *screen = gdk_screen_get_default();
     int screen_width = gdk_screen_get_width(screen);
-    //bool use_compact_layout = (screen_width <= 1024);
-    bool use_compact_layout = true;
+    bool use_compact_layout = (screen_width <= 1024);
+    //bool use_compact_layout = true;
     
     // Main hbox to split player controls and queue
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2091,7 +2091,7 @@ void create_main_window(AudioPlayer *player) {
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(file_item), file_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), file_item);
     
-    GtkWidget *open_item = gtk_menu_item_new_with_label("Open...");
+    GtkWidget *open_item = gtk_menu_item_new_with_label("Open One File (Clears Queue)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), open_item);
     g_signal_connect(open_item, "activate", G_CALLBACK(on_menu_open), player);
 
@@ -2105,9 +2105,18 @@ void create_main_window(AudioPlayer *player) {
     GtkWidget *save_playlist_item = gtk_menu_item_new_with_label("Save Playlist...");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), save_playlist_item);
     g_signal_connect(save_playlist_item, "activate", G_CALLBACK(on_menu_save_playlist), player);
+
+    GtkWidget *add_to_queue_playlist_item = gtk_menu_item_new_with_label("Add to Queue...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), add_to_queue_playlist_item);
+    g_signal_connect(add_to_queue_playlist_item, "activate", G_CALLBACK(on_add_to_queue_clicked), player);
+
+    GtkWidget *clear_queue_playlist_item = gtk_menu_item_new_with_label("Clear Queue...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), clear_queue_playlist_item);
+    g_signal_connect(clear_queue_playlist_item, "activate", G_CALLBACK(on_clear_queue_clicked), player);
     
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), gtk_separator_menu_item_new());
     
+
     GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
     g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
