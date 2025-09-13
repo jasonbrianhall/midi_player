@@ -31,8 +31,8 @@ static void calculate_layout_config(LayoutManager *layout) {
     int screen_height = gdk_screen_get_height(screen);
     
     // Determine if we should use compact layout
-    layout->config.is_compact = (screen_width <= 1024);
-    
+    //layout->config.is_compact = (screen_width <= 1024);
+    layout->config.is_compact = false;
     // Adaptive base sizes based on screen resolution category
     int base_window_width, base_window_height, base_player_width;
     int base_vis_width, base_vis_height, base_queue_width, base_queue_height;
@@ -53,7 +53,7 @@ static void calculate_layout_config(LayoutManager *layout) {
         base_player_width = 400;
         base_vis_width = 260;
         base_vis_height = 120;
-        base_queue_width = 250;
+        base_queue_width = 200;
         base_queue_height = 350;
     } else {
         // Large screens
@@ -435,7 +435,8 @@ void create_main_window(AudioPlayer *player) {
     create_player_controls(player);
     
     // Create shared equalizer widget FIRST (before queue display)
-    create_shared_equalizer(player);
+    player->layout.shared_equalizer = create_equalizer_controls(player);
+    //create_shared_equalizer(player);
     
     // Create both layout variants for queue controls (but only show the active one)
     //create_queue_controls_compact(player);

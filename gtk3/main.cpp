@@ -1837,13 +1837,13 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
     
     if (screen_width <= 800 || screen_height <= 600) {
         // Very small screens (800x600, etc.) - use much smaller visualization
-        base_window_width = 750;
-        base_window_height = 550;
-        base_player_width = 350;
-        base_vis_width = 200;  // Much smaller visualization
+        base_window_width = screen_width-50;
+        base_window_height = screen_height-50;
+        base_player_width = 200;
+        base_vis_width = 100;  // Much smaller visualization
         base_vis_height = 80;  // Much smaller visualization
-        base_queue_width = 200;
-        base_queue_height = 300;
+        base_queue_width = 100;
+        base_queue_height = 100;
         printf("Using very small screen base sizes\n");
     } else if (screen_width < 1200 || screen_height < 900) {
         // Medium screens (1024x768, etc.) - moderately smaller visualization
