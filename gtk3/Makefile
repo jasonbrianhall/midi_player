@@ -83,7 +83,8 @@ SOURCES_CPP = dbopl.cpp \
 	visualization.cpp \
 	equalizer.cpp \
 	m3u.cpp \
-	help.cpp
+	help.cpp \
+	layout.cpp
 
 SOURCES_C = 
 
