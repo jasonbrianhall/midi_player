@@ -252,18 +252,11 @@ static void create_player_controls(AudioPlayer *player) {
 static void create_queue_controls_compact(AudioPlayer *player) {
     printf("Creating compact queue controls layout\n");
     
-    // Create horizontal box for bottom controls
+    // Create horizontal box for bottom controls (only queue controls, no equalizer)
     player->layout.compact.bottom_controls_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.compact.bottom_controls_hbox, FALSE, FALSE, 0);
     
-    // Left side: equalizer controls
-    gtk_box_pack_start(GTK_BOX(player->layout.compact.bottom_controls_hbox), player->layout.shared_equalizer, TRUE, TRUE, 0);    
-    
-    // Right side: queue controls in vertical layout
-    player->layout.compact.queue_controls_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
-    gtk_box_pack_start(GTK_BOX(player->layout.compact.bottom_controls_hbox), 
-                      player->layout.compact.queue_controls_vbox, FALSE, FALSE, 0);
-    
+    // Queue controls in horizontal layout for compact
     player->add_to_queue_button = gtk_button_new_with_label("Add");
     player->clear_queue_button = gtk_button_new_with_label("Clear");
     player->repeat_queue_button = gtk_check_button_new_with_label("Repeat");
@@ -273,15 +266,16 @@ static void create_queue_controls_compact(AudioPlayer *player) {
     gtk_widget_set_size_request(player->add_to_queue_button, 80, 30);
     gtk_widget_set_size_request(player->clear_queue_button, 80, 30);
     
-    gtk_box_pack_start(GTK_BOX(player->layout.compact.queue_controls_vbox), player->add_to_queue_button, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(player->layout.compact.queue_controls_vbox), player->clear_queue_button, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(player->layout.compact.queue_controls_vbox), player->repeat_queue_button, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(player->layout.compact.bottom_controls_hbox), player->add_to_queue_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(player->layout.compact.bottom_controls_hbox), player->clear_queue_button, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(player->layout.compact.bottom_controls_hbox), player->repeat_queue_button, TRUE, TRUE, 0);
 }
+
 
 static void create_queue_controls_regular(AudioPlayer *player) {
     printf("Creating regular queue controls layout\n");
     
-    // Standard layout - horizontal queue controls
+    // Standard layout - horizontal queue controls (no equalizer here)
     player->layout.regular.queue_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.regular.queue_button_box, FALSE, FALSE, 0);
     
@@ -293,11 +287,6 @@ static void create_queue_controls_regular(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(player->layout.regular.queue_button_box), player->add_to_queue_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(player->layout.regular.queue_button_box), player->clear_queue_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(player->layout.regular.queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
-    
-    // Equalizer controls below for standard layout - use the shared equalizer
-    player->layout.regular.eq_below_controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_box_pack_start(GTK_BOX(player->layout.regular.eq_below_controls), player->layout.shared_equalizer, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.regular.eq_below_controls, FALSE, FALSE, 0);
 }
 
 static void create_icon_section(AudioPlayer *player) {
@@ -326,7 +315,7 @@ static void create_icon_section(AudioPlayer *player) {
 }
 
 static void create_queue_display(AudioPlayer *player) {
-    // Queue display (right side)
+    // Queue display - now on the right side but arranged vertically
     player->layout.queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_box_pack_start(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, TRUE, TRUE, 0);
 
@@ -334,17 +323,23 @@ static void create_queue_display(AudioPlayer *player) {
     gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), queue_label, FALSE, FALSE, 0);
 
-    // Set size based on layout config
+    // Set size based on layout config - adjust height to leave room for equalizer
     player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    
+    // Reduce queue height to make room for equalizer below
+    int adjusted_queue_height = player->layout.config.queue_height - 150; // Reserve space for equalizer
     gtk_widget_set_size_request(player->queue_scrolled_window, 
                                player->layout.config.queue_width, 
-                               player->layout.config.queue_height);
+                               adjusted_queue_height);
 
     player->queue_listbox = gtk_list_box_new();
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
+    
+    // Add equalizer at the bottom of the right side
+    gtk_box_pack_end(GTK_BOX(player->layout.queue_vbox), player->layout.shared_equalizer, FALSE, FALSE, 0);
 }
 
 static void connect_widget_signals(AudioPlayer *player) {
@@ -370,9 +365,7 @@ static void hide_unused_layout(AudioPlayer *player) {
         if (player->layout.regular.queue_button_box) {
             gtk_widget_hide(player->layout.regular.queue_button_box);
         }
-        if (player->layout.regular.eq_below_controls) {
-            gtk_widget_hide(player->layout.regular.eq_below_controls);
-        }
+        // No need to hide eq_below_controls since equalizer is now in queue_vbox
     } else {
         // Hide compact layout widgets
         if (player->layout.compact.bottom_controls_hbox) {
@@ -392,14 +385,13 @@ void switch_layout(AudioPlayer *player, bool to_compact) {
     if (to_compact) {
         // Switch to compact
         gtk_widget_hide(player->layout.regular.queue_button_box);
-        gtk_widget_hide(player->layout.regular.eq_below_controls);
         gtk_widget_show_all(player->layout.compact.bottom_controls_hbox);
     } else {
         // Switch to regular
         gtk_widget_hide(player->layout.compact.bottom_controls_hbox);
         gtk_widget_show_all(player->layout.regular.queue_button_box);
-        gtk_widget_show_all(player->layout.regular.eq_below_controls);
     }
+    // Equalizer stays visible in queue_vbox for both layouts
 }
 
 void create_main_window(AudioPlayer *player) {
@@ -432,27 +424,30 @@ void create_main_window(AudioPlayer *player) {
     // Create menu bar
     create_menu_bar(player);
     
-    // Content area
+    // Content area for left side
     player->layout.content_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(player->layout.content_vbox), 10);
     gtk_box_pack_start(GTK_BOX(player->layout.player_vbox), player->layout.content_vbox, TRUE, TRUE, 0);
     
-    // Create all sections
+    // Create sections in new order:
+    // Left side: visualization at top, controls below
     create_visualization_section(player);
     create_player_controls(player);
     
-    // Create shared equalizer widget FIRST
+    // Create shared equalizer widget FIRST (before queue display)
     create_shared_equalizer(player);
     
-    // Create both layout variants (but only show the active one)
-    create_queue_controls_compact(player);
+    // Create both layout variants for queue controls (but only show the active one)
+    //create_queue_controls_compact(player);
     create_queue_controls_regular(player);
     
     create_icon_section(player);
+    
+    // Right side: queue at top, equalizer at bottom (handled in create_queue_display)
     create_queue_display(player);
     
     // Hide the layout that's not being used
-    hide_unused_layout(player);
+    //hide_unused_layout(player);
     
     // Connect all signals
     connect_widget_signals(player);
@@ -460,7 +455,6 @@ void create_main_window(AudioPlayer *player) {
     printf("Created main window with %s layout (screen-based decision)\n", 
            player->layout.config.is_compact ? "compact" : "regular");
 }
-
 void create_shared_equalizer(AudioPlayer *player) {
     if (!player->layout.shared_equalizer) {
         printf("Creating shared equalizer widget\n");
