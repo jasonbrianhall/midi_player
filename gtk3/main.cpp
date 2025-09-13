@@ -1569,7 +1569,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
             
             // Add each file (with extension validation)
             while (*ptr) {
-                char full_path[1024];
+                char full_path[32768];
                 snprintf(full_path, sizeof(full_path), "%s\\%s", directory, ptr);
                 
                 if (is_supported_extension(full_path)) {
@@ -1718,7 +1718,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
 #ifdef _WIN32
-    char filename[1024];
+    char filename[32768];
     if (open_windows_file_dialog(filename, sizeof(filename))) {
         // Clear queue and add this single file
         clear_queue(&player->queue);
@@ -2112,7 +2112,7 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
 #ifdef _WIN32
-    char filename[1024];
+    char filename[32768];
     OPENFILENAME ofn;
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
@@ -2167,7 +2167,7 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     }
     
 #ifdef _WIN32
-    char filename[1024];
+    char filename[32768];
     OPENFILENAME ofn;
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
