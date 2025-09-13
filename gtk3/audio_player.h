@@ -21,6 +21,48 @@
 #include "equalizer.h"
 #include "visualization.h"
 
+typedef struct {
+    bool is_compact;
+    int window_width;
+    int window_height;
+    int player_width;
+    int vis_width;
+    int vis_height;
+    int queue_width;
+    int queue_height;
+    int icon_size;
+} LayoutConfig;
+
+// Compact layout widgets
+typedef struct {
+    GtkWidget *bottom_controls_hbox;
+    GtkWidget *queue_controls_vbox;
+} CompactLayout;
+
+// Regular layout widgets  
+typedef struct {
+    GtkWidget *queue_button_box;
+    GtkWidget *eq_below_controls;
+} RegularLayout;
+
+// Layout container
+typedef struct {
+    LayoutConfig config;
+    CompactLayout compact;
+    RegularLayout regular;
+    
+    // Common widgets that exist in both layouts
+    GtkWidget *main_hbox;
+    GtkWidget *player_vbox;
+    GtkWidget *content_vbox;
+    GtkWidget *queue_vbox;
+    GtkWidget *nav_button_box;
+    GtkWidget *volume_box;
+    GtkWidget *bottom_box;
+    GtkWidget *shared_equalizer;    
+} LayoutManager;
+
+
 // Conversion Cache Entries.
 typedef struct {
     char *original_path;
@@ -108,7 +150,8 @@ typedef struct {
     GtkWidget *mid_scale;
     GtkWidget *treble_scale;
     GtkWidget *eq_reset_button;
-    
+
+    LayoutManager layout;
 } AudioPlayer;
 
 // External variables from midiplayer
@@ -238,5 +281,8 @@ static gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
                             gint x, gint y, guint time, gpointer user_data);
 
 gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+void on_window_resize(GtkWidget *widget, gpointer user_data);
+void on_window_realize(GtkWidget *widget, gpointer user_data);
+void create_shared_equalizer(AudioPlayer *player);
 
 #endif // AUDIO_PLAYER_H
