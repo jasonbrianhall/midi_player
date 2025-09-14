@@ -780,10 +780,10 @@ jobs:
         <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
                  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
                  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-          <Identity Name="JasonHall.Zenamp"
+          <Identity Name="Zenamp"
                     Version="${{ needs.build-linux.outputs.version }}.0"
                     Publisher="CN=Jason Brian Hall"
-                    ProcessorArchitecture="x64" />
+                    ProcessorArchitecture="x86" />
           
           <Properties>
             <DisplayName>Zenamp</DisplayName>
