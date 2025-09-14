@@ -14,5 +14,3 @@ Data Storage:
 - The application may store user preferences (volume settings, equalizer settings) locally on your device
 - No personal data is transmitted over the internet
 
-Contact:
-For questions about this privacy policy, contact jasonbrianhall@yahoo.com
