@@ -693,8 +693,155 @@ jobs:
         name: Zenamp-Portable.zip
         path: artifacts/Zenamp-Portable.zip
 
+  build-msix-windows:
+    needs: build-linux
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: zenamp-builds
+        path: artifacts
+
+    - name: Create MSIX Package Structure
+      run: |
+        # Create package structure
+        New-Item -ItemType Directory -Path "msix-package" -Force
+        New-Item -ItemType Directory -Path "msix-package/Files" -Force
+        New-Item -ItemType Directory -Path "msix-package/Assets" -Force
+        
+        # Copy application files
+        Copy-Item "artifacts/build/windows/*" "msix-package/Files/" -Recurse -Force
+        
+        # Convert ICO to PNG files for MSIX (requires ImageMagick or similar)
+        # For now, copy ico as placeholder - in production you'd convert to proper PNG sizes
+        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/StoreLogo.scale-100.png" -Force
+        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square150x150Logo.scale-100.png" -Force
+        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square44x44Logo.scale-100.png" -Force
+        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png" -Force
+
+    - name: Create Package Manifest
+      run: |
+        @"
+        <?xml version="1.0" encoding="utf-8"?>
+        <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                 xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                 xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+          <Identity Name="JasonHall.Zenamp"
+                    Version="${{ needs.build-linux.outputs.version }}.0"
+                    Publisher="CN=Jason Brian Hall"
+                    ProcessorArchitecture="x64" />
+          
+          <Properties>
+            <DisplayName>Zenamp</DisplayName>
+            <PublisherDisplayName>Jason Brian Hall</PublisherDisplayName>
+            <Description>Zenamp - Multi-format audio player with retro MIDI synthesis</Description>
+            <Logo>Assets\StoreLogo.scale-100.png</Logo>
+          </Properties>
+          
+          <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22000.0" />
+          </Dependencies>
+          
+          <Capabilities>
+            <rescap:Capability Name="runFullTrust" />
+          </Capabilities>
+          
+          <Applications>
+            <Application Id="Zenamp" Executable="Files\zenamp.exe" EntryPoint="Windows.FullTrustApplication">
+              <uap:VisualElements DisplayName="Zenamp"
+                                  Description="Multi-format audio player with retro MIDI synthesis"
+                                  Square150x150Logo="Assets\Square150x150Logo.scale-100.png"
+                                  Square44x44Logo="Assets\Square44x44Logo.scale-100.png"
+                                  BackgroundColor="#1a73e8">
+                <uap:DefaultTile Wide310x150Logo="Assets\Square150x150Logo.scale-100.png"
+                                ShortName="Zenamp"
+                                ShowNameOnSquare150x150Logo="true">
+                </uap:DefaultTile>
+                <uap:SplashScreen Image="Assets\Square150x150Logo.scale-100.png" />
+              </uap:VisualElements>
+              
+              <Extensions>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                  <uap:FileTypeAssociation Name="zenamp-audio">
+                    <uap:DisplayName>Audio Files</uap:DisplayName>
+                    <uap:Logo>Assets\Square44x44Logo.targetsize-24_altform-unplated.png</uap:Logo>
+                    <uap:SupportedFileTypes>
+                      <uap:FileType ContentType="audio/wav">.wav</uap:FileType>
+                      <uap:FileType ContentType="audio/mpeg">.mp3</uap:FileType>
+                      <uap:FileType ContentType="audio/ogg">.ogg</uap:FileType>
+                      <uap:FileType ContentType="audio/flac">.flac</uap:FileType>
+                      <uap:FileType ContentType="audio/midi">.mid</uap:FileType>
+                      <uap:FileType ContentType="audio/midi">.midi</uap:FileType>
+                      <uap:FileType ContentType="audio/aiff">.aiff</uap:FileType>
+                      <uap:FileType ContentType="audio/aiff">.aif</uap:FileType>
+                      <uap:FileType ContentType="audio/opus">.opus</uap:FileType>
+                      <uap:FileType ContentType="audio/x-mpegurl">.m3u</uap:FileType>
+                      <uap:FileType ContentType="audio/x-mpegurl">.m3u8</uap:FileType>
+                    </uap:SupportedFileTypes>
+                  </uap:FileTypeAssociation>
+                </uap:Extension>
+              </Extensions>
+            </Application>
+          </Applications>
+        </Package>
+        "@ | Out-File -FilePath "msix-package/AppxManifest.xml" -Encoding UTF8
+
+    - name: Build MSIX Package
+      run: |
+        # Use Windows SDK MakeAppx tool to create MSIX
+        $makeAppxPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe"
+        
+        # Try different SDK versions if the specific one doesn't exist
+        if (-not (Test-Path $makeAppxPath)) {
+          $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\" | Where-Object { $_.Name -match "10\.0\.\d+\.\d+" } | Sort-Object Name -Descending
+          foreach ($version in $sdkVersions) {
+            $testPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$($version.Name)\x64\makeappx.exe"
+            if (Test-Path $testPath) {
+              $makeAppxPath = $testPath
+              break
+            }
+          }
+        }
+        
+        if (-not (Test-Path $makeAppxPath)) {
+          Write-Error "MakeAppx.exe not found. Windows SDK may not be installed."
+          exit 1
+        }
+        
+        Write-Host "Using MakeAppx at: $makeAppxPath"
+        
+        # Create the MSIX package
+        & "$makeAppxPath" pack /d "msix-package" /p "Zenamp.msix" /o
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "MSIX package creation failed with exit code $LASTEXITCODE"
+          exit 1
+        }
+        
+        # Verify MSIX was created
+        if (Test-Path "Zenamp.msix") {
+          Write-Host "MSIX package created successfully: Zenamp.msix"
+          $msixSize = (Get-Item "Zenamp.msix").Length
+          Write-Host "MSIX file size: $msixSize bytes"
+        } else {
+          Write-Error "MSIX file was not created!"
+          exit 1
+        }
+
+    - name: Upload MSIX Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: Zenamp.msix
+        path: Zenamp.msix
+
   create-release:
-    needs: [build-linux, build-msi-windows]
+    needs: [build-linux, build-msi-windows, build-msix-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -705,6 +852,12 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: Zenamp.msi
+        path: release
+
+    - name: Download MSIX Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: Zenamp.msix
         path: release
 
     - name: Download Portable Artifact
@@ -718,6 +871,7 @@ jobs:
       with:
         files: |
           release/Zenamp.msi
+          release/Zenamp.msix
           release/Zenamp-Portable.zip
         tag_name: ${{ github.ref == 'refs/heads/master' && format('v{0}', github.run_number) || github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
         name: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && format('Release v{0}', github.run_number) || format('Dev Build v{0}', github.run_number) }}
@@ -733,6 +887,7 @@ jobs:
           
           ### Downloads
           - **Zenamp.msi** - Windows installer with uninstall support and file associations
+          - **Zenamp.msix** - Modern Windows package for Microsoft Store deployment
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
@@ -746,36 +901,43 @@ jobs:
           ### Silent Installation Support
           **For MS Store and automated deployments:**
           ```cmd
-          # Silent install with all features
+          # Silent install with all features (MSI)
           msiexec /i Zenamp.msi /quiet /norestart ASSOCIATE_FILES=1 DESKTOP_SHORTCUT=1
           
-          # Silent install without file associations
+          # Silent install without file associations (MSI)
           msiexec /i Zenamp.msi /quiet /norestart ASSOCIATE_FILES=0 DESKTOP_SHORTCUT=0
           
-          # Silent uninstall
+          # Silent uninstall (MSI)
           msiexec /x Zenamp.msi /quiet /norestart
+          
+          # Install MSIX (PowerShell as Admin)
+          Add-AppxPackage -Path "Zenamp.msix"
+          
+          # Uninstall MSIX (PowerShell as Admin)
+          Remove-AppxPackage -Package "JasonHall.Zenamp"
           ```
           
-          **Command-line Properties:**
+          **Command-line Properties (MSI only):**
           - `ASSOCIATE_FILES=1` - Enable file associations (default: 1)
           - `DESKTOP_SHORTCUT=1` - Create desktop shortcut (default: 1)
           - `INSTALLFOLDER="C:\Program Files\Zenamp"` - Custom install path
           
-          ### Installer Features
-          - **Silent Mode Compatible**: Supports `/quiet` and `/S` switches for MS Store
-          - **Interactive Mode**: Full feature selection when run normally
-          - **File Associations**: Optional association with audio files
-          - **Proper Icons**: Custom icon for file associations and shortcuts
-          - **User/Machine Installation**: Choose installation scope
-          - **Start Menu Integration**: Shortcuts with uninstall option
-          - **Optional Desktop Shortcut**: Create desktop shortcut during install
-          - **Proper Uninstall Support**: Clean removal with registry cleanup
-          - **MIT License Agreement**: Full license display during installation
-          - **Add/Remove Programs Integration**: Proper Windows integration
+          ### Package Comparison
+          | Feature | MSI | MSIX | Portable |
+          |---------|-----|------|----------|
+          | Installation Required | Yes | Yes | No |
+          | File Associations | ✅ | ✅ | ❌ |
+          | Start Menu Integration | ✅ | ✅ | ❌ |
+          | Auto-Update Support | ❌ | ✅ | ❌ |
+          | Microsoft Store Ready | ❌ | ✅ | ❌ |
+          | Enterprise Deployment | ✅ | ✅ | ✅ |
+          | Sandboxed | ❌ | ✅ | ❌ |
+          | Traditional Uninstall | ✅ | ✅ | ❌ |
           
           ### Technical Details
           - Built on: Linux (Fedora 41 container)
           - MSI compiled on: Windows Latest
+          - MSIX compiled on: Windows Latest
           - **Embedded Icon**: Icon properly embedded in executable
           - **Version Information**: Full version details embedded
           - GTK3 runtime included
@@ -783,7 +945,7 @@ jobs:
           - Cross-compiled with MinGW
           
           ### File Association Support
-          When "File Associations" feature is selected during installation:
+          When file associations are enabled during installation:
           - **WAV** - Windows Audio files
           - **MP3** - MPEG Audio Layer 3
           - **OGG** - Ogg Vorbis files
