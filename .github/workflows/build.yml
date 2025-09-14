@@ -780,15 +780,16 @@ jobs:
         <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
                  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
                  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-          <Identity Name="JasonHall.Zenamp"
+          <Identity Name="JasonBrianHall.Zenamp"
                     Version="${{ needs.build-linux.outputs.version }}.0"
-                    Publisher="CN=Jason Brian Hall"
-                    ProcessorArchitecture="x64" />
+                    Publisher="CN=7A3CF65F-504C-42F2-BABD-6A0512A0A017"
+                    ProcessorArchitecture="x86" />
           
           <Properties>
             <DisplayName>Zenamp</DisplayName>
             <PublisherDisplayName>Jason Brian Hall</PublisherDisplayName>
             <Description>Zenamp - Multi-format audio player with retro MIDI synthesis and OPL3 sound</Description>
+            <PackageFamilyName>JasonBrianHall.Zenamp_0vkepcxdqyvhp</PackageFamilyName>
             <Logo>Assets\StoreLogo.scale-100.png</Logo>
           </Properties>
           
