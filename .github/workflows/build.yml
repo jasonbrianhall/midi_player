@@ -161,6 +161,10 @@ jobs:
         cp ../README.md build/windows/ 2>/dev/null || true
         cp icon.ico build/windows/ 2>/dev/null || true
         
+        # Copy PNG assets for MSIX
+        cp icon.png build/windows/ 2>/dev/null || true
+        cp poster.png build/windows/ 2>/dev/null || true
+        
         # For Windows build, collect required DLLs
         cd build/windows
         
@@ -718,12 +722,49 @@ jobs:
         # Copy application files
         Copy-Item "artifacts/build/windows/*" "msix-package/Files/" -Recurse -Force
         
-        # Convert ICO to PNG files for MSIX (requires ImageMagick or similar)
-        # For now, copy ico as placeholder - in production you'd convert to proper PNG sizes
-        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/StoreLogo.scale-100.png" -Force
-        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square150x150Logo.scale-100.png" -Force
-        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square44x44Logo.scale-100.png" -Force
-        Copy-Item "artifacts/build/windows/icon.ico" "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png" -Force
+        # Use existing PNG files and resize them for MSIX requirements
+        $iconPath = "artifacts/build/windows/icon.png"
+        $posterPath = "artifacts/build/windows/poster.png"
+        
+        # Check if files exist
+        if (-not (Test-Path $iconPath)) {
+          Write-Error "icon.png not found in artifacts"
+          exit 1
+        }
+        
+        # Check if ImageMagick is available (should be on GitHub runners)
+        if (Get-Command "magick" -ErrorAction SilentlyContinue) {
+          Write-Host "Using ImageMagick to resize images..."
+          
+          # Create required logo files from your 1024x1024 icon.png
+          & magick "$iconPath" -resize 44x44 "msix-package/Assets/Square44x44Logo.scale-100.png"
+          & magick "$iconPath" -resize 150x150 "msix-package/Assets/Square150x150Logo.scale-100.png"
+          & magick "$iconPath" -resize 24x24 "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png"
+          & magick "$iconPath" -resize 50x50 "msix-package/Assets/StoreLogo.scale-100.png"
+          
+          # Create wide logo from poster.png if it exists, otherwise use icon
+          if (Test-Path $posterPath) {
+            # Create wide logo from poster.png (1024x1536) - crop to 310x150 aspect ratio
+            & magick "$posterPath" -resize 310x150^ -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
+          } else {
+            # Use icon for wide logo as fallback
+            & magick "$iconPath" -resize 310x150^ -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
+          }
+          
+        } else {
+          Write-Host "ImageMagick not available, copying icons as-is..."
+          # Fallback: copy the original files (not ideal but will work)
+          Copy-Item "$iconPath" "msix-package/Assets/Square44x44Logo.scale-100.png" -Force
+          Copy-Item "$iconPath" "msix-package/Assets/Square150x150Logo.scale-100.png" -Force
+          Copy-Item "$iconPath" "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png" -Force
+          Copy-Item "$iconPath" "msix-package/Assets/StoreLogo.scale-100.png" -Force
+          
+          if (Test-Path $posterPath) {
+            Copy-Item "$posterPath" "msix-package/Assets/Wide310x150Logo.scale-100.png" -Force
+          } else {
+            Copy-Item "$iconPath" "msix-package/Assets/Wide310x150Logo.scale-100.png" -Force
+          }
+        }
 
     - name: Create Package Manifest
       run: |
@@ -759,9 +800,8 @@ jobs:
                                   Square150x150Logo="Assets\Square150x150Logo.scale-100.png"
                                   Square44x44Logo="Assets\Square44x44Logo.scale-100.png"
                                   BackgroundColor="#1a73e8">
-                <uap:DefaultTile Wide310x150Logo="Assets\Square150x150Logo.scale-100.png"
-                                ShortName="Zenamp"
-                                ShowNameOnSquare150x150Logo="true">
+                <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.scale-100.png"
+                                ShortName="Zenamp">
                 </uap:DefaultTile>
                 <uap:SplashScreen Image="Assets\Square150x150Logo.scale-100.png" />
               </uap:VisualElements>
