@@ -712,7 +712,7 @@ jobs:
         name: zenamp-builds
         path: artifacts
 
-    - name: Create MSIX Package Structure
+    - name: Create Microsoft Store Assets
       run: |
         # Create package structure
         New-Item -ItemType Directory -Path "msix-package" -Force
@@ -722,49 +722,56 @@ jobs:
         # Copy application files
         Copy-Item "artifacts/build/windows/*" "msix-package/Files/" -Recurse -Force
         
-        # Use existing PNG files and resize them for MSIX requirements
         $iconPath = "artifacts/build/windows/icon.png"
         $posterPath = "artifacts/build/windows/poster.png"
         
-        # Check if files exist
         if (-not (Test-Path $iconPath)) {
           Write-Error "icon.png not found in artifacts"
           exit 1
         }
         
-        # Check if ImageMagick is available (should be on GitHub runners)
-        if (Get-Command "magick" -ErrorAction SilentlyContinue) {
-          Write-Host "Using ImageMagick to resize images..."
-          
-          # Create required logo files from your 1024x1024 icon.png
-          & magick "$iconPath" -resize 44x44 "msix-package/Assets/Square44x44Logo.scale-100.png"
-          & magick "$iconPath" -resize 150x150 "msix-package/Assets/Square150x150Logo.scale-100.png"
-          & magick "$iconPath" -resize 24x24 "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png"
-          & magick "$iconPath" -resize 50x50 "msix-package/Assets/StoreLogo.scale-100.png"
-          
-          # Create wide logo from poster.png if it exists, otherwise use icon
-          if (Test-Path $posterPath) {
-            # Create wide logo from poster.png (1024x1536) - crop to 310x150 aspect ratio
-            & magick "$posterPath" -resize 310x150^ -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
-          } else {
-            # Use icon for wide logo as fallback
-            & magick "$iconPath" -resize 310x150^ -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
-          }
-          
+        Write-Host "Creating Microsoft Store compliant assets..."
+        
+        # Store Logo (50x50)
+        & magick "$iconPath" -resize 50x50 "msix-package/Assets/StoreLogo.scale-100.png"
+        & magick "$iconPath" -resize 63x63 "msix-package/Assets/StoreLogo.scale-125.png"
+        & magick "$iconPath" -resize 75x75 "msix-package/Assets/StoreLogo.scale-150.png"
+        & magick "$iconPath" -resize 100x100 "msix-package/Assets/StoreLogo.scale-200.png"
+        
+        # Square 44x44 Logo (for taskbar, start menu)
+        & magick "$iconPath" -resize 44x44 "msix-package/Assets/Square44x44Logo.scale-100.png"
+        & magick "$iconPath" -resize 55x55 "msix-package/Assets/Square44x44Logo.scale-125.png"
+        & magick "$iconPath" -resize 66x66 "msix-package/Assets/Square44x44Logo.scale-150.png"
+        & magick "$iconPath" -resize 88x88 "msix-package/Assets/Square44x44Logo.scale-200.png"
+        
+        # Target size variants (unplated, for file associations)
+        & magick "$iconPath" -resize 16x16 "msix-package/Assets/Square44x44Logo.targetsize-16_altform-unplated.png"
+        & magick "$iconPath" -resize 24x24 "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png"
+        & magick "$iconPath" -resize 32x32 "msix-package/Assets/Square44x44Logo.targetsize-32_altform-unplated.png"
+        & magick "$iconPath" -resize 48x48 "msix-package/Assets/Square44x44Logo.targetsize-48_altform-unplated.png"
+        & magick "$iconPath" -resize 256x256 "msix-package/Assets/Square44x44Logo.targetsize-256_altform-unplated.png"
+        
+        # Square 150x150 Logo (main tile)
+        & magick "$iconPath" -resize 150x150 "msix-package/Assets/Square150x150Logo.scale-100.png"
+        & magick "$iconPath" -resize 188x188 "msix-package/Assets/Square150x150Logo.scale-125.png"
+        & magick "$iconPath" -resize 225x225 "msix-package/Assets/Square150x150Logo.scale-150.png"
+        & magick "$iconPath" -resize 300x300 "msix-package/Assets/Square150x150Logo.scale-200.png"
+        
+        # Wide 310x150 Logo (wide tile) - from poster if available
+        if (Test-Path $posterPath) {
+          & magick "$posterPath" -resize 310x150^ -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
+          & magick "$posterPath" -resize 388x188^ -gravity center -extent 388x188 "msix-package/Assets/Wide310x150Logo.scale-125.png"
+          & magick "$posterPath" -resize 465x225^ -gravity center -extent 465x225 "msix-package/Assets/Wide310x150Logo.scale-150.png"
+          & magick "$posterPath" -resize 620x300^ -gravity center -extent 620x300 "msix-package/Assets/Wide310x150Logo.scale-200.png"
         } else {
-          Write-Host "ImageMagick not available, copying icons as-is..."
-          # Fallback: copy the original files (not ideal but will work)
-          Copy-Item "$iconPath" "msix-package/Assets/Square44x44Logo.scale-100.png" -Force
-          Copy-Item "$iconPath" "msix-package/Assets/Square150x150Logo.scale-100.png" -Force
-          Copy-Item "$iconPath" "msix-package/Assets/Square44x44Logo.targetsize-24_altform-unplated.png" -Force
-          Copy-Item "$iconPath" "msix-package/Assets/StoreLogo.scale-100.png" -Force
-          
-          if (Test-Path $posterPath) {
-            Copy-Item "$posterPath" "msix-package/Assets/Wide310x150Logo.scale-100.png" -Force
-          } else {
-            Copy-Item "$iconPath" "msix-package/Assets/Wide310x150Logo.scale-100.png" -Force
-          }
+          # Create wide logos from square icon with padding
+          & magick "$iconPath" -resize 150x150 -background "#1a73e8" -gravity center -extent 310x150 "msix-package/Assets/Wide310x150Logo.scale-100.png"
+          & magick "$iconPath" -resize 188x188 -background "#1a73e8" -gravity center -extent 388x188 "msix-package/Assets/Wide310x150Logo.scale-125.png"
+          & magick "$iconPath" -resize 225x225 -background "#1a73e8" -gravity center -extent 465x225 "msix-package/Assets/Wide310x150Logo.scale-150.png"
+          & magick "$iconPath" -resize 300x300 -background "#1a73e8" -gravity center -extent 620x300 "msix-package/Assets/Wide310x150Logo.scale-200.png"
         }
+        
+        Write-Host "All Microsoft Store assets created successfully"
 
     - name: Create Package Manifest
       run: |
@@ -781,7 +788,7 @@ jobs:
           <Properties>
             <DisplayName>Zenamp</DisplayName>
             <PublisherDisplayName>Jason Brian Hall</PublisherDisplayName>
-            <Description>Zenamp - Multi-format audio player with retro MIDI synthesis</Description>
+            <Description>Zenamp - Multi-format audio player with retro MIDI synthesis and OPL3 sound</Description>
             <Logo>Assets\StoreLogo.scale-100.png</Logo>
           </Properties>
           
@@ -790,6 +797,15 @@ jobs:
           </Dependencies>
           
           <Capabilities>
+            <!-- Standard capabilities for media player -->
+            <Capability Name="internetClient" />
+            <uap:Capability Name="musicLibrary" />
+            <uap:Capability Name="videosLibrary" />
+            <uap:Capability Name="documentsLibrary" />
+            <uap:Capability Name="removableStorage" />
+            <uap:Capability Name="picturesLibrary" />
+            
+            <!-- Required for desktop bridge apps -->
             <rescap:Capability Name="runFullTrust" />
           </Capabilities>
           
@@ -856,7 +872,7 @@ jobs:
         
         Write-Host "Using MakeAppx at: $makeAppxPath"
         
-        # Create the MSIX package
+        # Create the MSIX package (unsigned for Store submission)
         & "$makeAppxPath" pack /d "msix-package" /p "Zenamp.msix" /o
         
         if ($LASTEXITCODE -ne 0) {
@@ -869,6 +885,7 @@ jobs:
           Write-Host "MSIX package created successfully: Zenamp.msix"
           $msixSize = (Get-Item "Zenamp.msix").Length
           Write-Host "MSIX file size: $msixSize bytes"
+          Write-Host "Package is unsigned and ready for Microsoft Store submission"
         } else {
           Write-Error "MSIX file was not created!"
           exit 1
@@ -927,7 +944,7 @@ jobs:
           
           ### Downloads
           - **Zenamp.msi** - Windows installer with uninstall support and file associations
-          - **Zenamp.msix** - Modern Windows package for Microsoft Store deployment
+          - **Zenamp.msix** - Unsigned package ready for Microsoft Store submission
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
@@ -938,8 +955,13 @@ jobs:
           - Progress tracking with timestamps
           - GTK3 interface for modern desktop integration
           
+          ### Microsoft Store Submission
+          The MSIX package in this release is **unsigned** and ready for Microsoft Store submission through Partner Center. Before uploading:
+          1. Update the Identity Name and Publisher in the manifest with values from Partner Center
+          2. Upload the unsigned MSIX file - Microsoft handles signing during certification
+          
           ### Silent Installation Support
-          **For MS Store and automated deployments:**
+          **For enterprise and automated deployments:**
           ```cmd
           # Silent install with all features (MSI)
           msiexec /i Zenamp.msi /quiet /norestart ASSOCIATE_FILES=1 DESKTOP_SHORTCUT=1
@@ -949,12 +971,6 @@ jobs:
           
           # Silent uninstall (MSI)
           msiexec /x Zenamp.msi /quiet /norestart
-          
-          # Install MSIX (PowerShell as Admin)
-          Add-AppxPackage -Path "Zenamp.msix"
-          
-          # Uninstall MSIX (PowerShell as Admin)
-          Remove-AppxPackage -Package "JasonHall.Zenamp"
           ```
           
           **Command-line Properties (MSI only):**
@@ -973,6 +989,7 @@ jobs:
           | Enterprise Deployment | ✅ | ✅ | ✅ |
           | Sandboxed | ❌ | ✅ | ❌ |
           | Traditional Uninstall | ✅ | ✅ | ❌ |
+          | Code Signing Required | ✅ | Store | ❌ |
           
           ### Technical Details
           - Built on: Linux (Fedora 41 container)
@@ -980,6 +997,7 @@ jobs:
           - MSIX compiled on: Windows Latest
           - **Embedded Icon**: Icon properly embedded in executable
           - **Version Information**: Full version details embedded
+          - **Store-Compliant Assets**: Multiple scale factors (100%, 125%, 150%, 200%)
           - GTK3 runtime included
           - All dependencies bundled
           - Cross-compiled with MinGW
