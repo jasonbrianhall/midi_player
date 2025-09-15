@@ -20,6 +20,9 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     gboolean shift_pressed = (event->state & GDK_SHIFT_MASK) != 0;
     
     switch (event->keyval) {
+        case GDK_KEY_F9:
+            toggle_vis_fullscreen(player);
+            return TRUE;
         case GDK_KEY_space:
             // Space: Play/Pause toggle
             if (player->is_playing) {

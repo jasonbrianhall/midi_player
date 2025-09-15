@@ -34,6 +34,11 @@ AudioPlayer *player = NULL;
 // Global variable to track drag source row
 int drag_source_index = -1;
 
+static GtkWidget *vis_fullscreen_window = NULL;
+static bool is_vis_fullscreen = false;
+static GtkWidget *original_vis_parent = NULL;
+static int original_vis_width = 0;
+static int original_vis_height = 0;
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1399,6 +1404,124 @@ void toggle_pause(AudioPlayer *player) {
     gtk_button_set_label(GTK_BUTTON(player->pause_button), player->is_paused ? "⏯" : "⏸");
 }
 
+gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    if (event->keyval == GDK_KEY_F9 || event->keyval == GDK_KEY_Escape) {
+        toggle_vis_fullscreen(player);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+gboolean on_vis_fullscreen_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    toggle_vis_fullscreen(player);
+    return TRUE; // Prevent actual close, just exit fullscreen
+}
+
+void toggle_vis_fullscreen(AudioPlayer *player) {
+    if (!player->visualizer || !player->visualizer->drawing_area) {
+        printf("No visualizer available for fullscreen mode\n");
+        return;
+    }
+    
+    if (!is_vis_fullscreen) {
+        // Enter visualization fullscreen mode
+        printf("Entering visualization fullscreen mode\n");
+        
+        // Store original parent and size
+        original_vis_parent = gtk_widget_get_parent(player->visualizer->drawing_area);
+        gtk_widget_get_size_request(player->visualizer->drawing_area, &original_vis_width, &original_vis_height);
+        
+        // Create dedicated fullscreen window for visualization only
+        vis_fullscreen_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+        gtk_window_set_title(GTK_WINDOW(vis_fullscreen_window), "Audio Visualizer - Press F9 to exit");
+        gtk_window_fullscreen(GTK_WINDOW(vis_fullscreen_window));
+        gtk_window_set_decorated(GTK_WINDOW(vis_fullscreen_window), FALSE);
+        gtk_window_set_keep_above(GTK_WINDOW(vis_fullscreen_window), TRUE);
+        
+        // Set black background for better visualization contrast
+        GdkRGBA black = {0.0, 0.0, 0.0, 1.0};
+        gtk_widget_override_background_color(vis_fullscreen_window, GTK_STATE_FLAG_NORMAL, &black);
+        
+        // Reparent the visualization drawing area
+        if (original_vis_parent) {
+            g_object_ref(player->visualizer->drawing_area);
+            gtk_container_remove(GTK_CONTAINER(original_vis_parent), player->visualizer->drawing_area);
+        }
+        
+        gtk_container_add(GTK_CONTAINER(vis_fullscreen_window), player->visualizer->drawing_area);
+        g_object_unref(player->visualizer->drawing_area);
+        
+        // Set visualization to full screen size
+        GdkScreen *screen = gtk_window_get_screen(GTK_WINDOW(vis_fullscreen_window));
+        int screen_width = gdk_screen_get_width(screen);
+        int screen_height = gdk_screen_get_height(screen);
+        gtk_widget_set_size_request(player->visualizer->drawing_area, screen_width, screen_height);
+        
+        // Set up key handler for F9 and Escape to exit fullscreen
+        g_signal_connect(vis_fullscreen_window, "key-press-event", 
+                        G_CALLBACK(on_vis_fullscreen_key_press), player);
+        
+        // Handle window close button
+        g_signal_connect(vis_fullscreen_window, "delete-event", 
+                        G_CALLBACK(on_vis_fullscreen_delete_event), player);
+        
+        // Show fullscreen window
+        gtk_widget_show_all(vis_fullscreen_window);
+        gtk_window_present(GTK_WINDOW(vis_fullscreen_window));
+        
+        is_vis_fullscreen = true;
+        printf("Visualization fullscreen activated (F9 or Escape to exit)\n");
+        
+    } else {
+        // Exit visualization fullscreen mode
+        printf("Exiting visualization fullscreen mode\n");
+        
+        if (vis_fullscreen_window && player->visualizer && player->visualizer->drawing_area) {
+            // Reparent visualization back to original location
+            g_object_ref(player->visualizer->drawing_area);
+            gtk_container_remove(GTK_CONTAINER(vis_fullscreen_window), player->visualizer->drawing_area);
+            
+            if (original_vis_parent) {
+                gtk_container_add(GTK_CONTAINER(original_vis_parent), player->visualizer->drawing_area);
+                
+                // Restore original size
+                gtk_widget_set_size_request(player->visualizer->drawing_area, 
+                                           original_vis_width, original_vis_height);
+            }
+            
+            g_object_unref(player->visualizer->drawing_area);
+            
+            // Destroy fullscreen window
+            gtk_widget_destroy(vis_fullscreen_window);
+            vis_fullscreen_window = NULL;
+        }
+        
+        // Reset state
+        is_vis_fullscreen = false;
+        original_vis_parent = NULL;
+        original_vis_width = 0;
+        original_vis_height = 0;
+        
+        printf("Visualization returned to normal view\n");
+    }
+}
+
+
+void cleanup_vis_fullscreen() {
+    if (is_vis_fullscreen && vis_fullscreen_window) {
+        // Force exit visualization fullscreen before cleanup
+        if (player) {
+            toggle_vis_fullscreen(player);
+        } else if (vis_fullscreen_window) {
+            gtk_widget_destroy(vis_fullscreen_window);
+            vis_fullscreen_window = NULL;
+            is_vis_fullscreen = false;
+        }
+    }
+}
+
 void stop_playback(AudioPlayer *player) {
     pthread_mutex_lock(&player->audio_mutex);
     player->is_playing = false;
@@ -2249,6 +2372,8 @@ gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointe
     
     return TRUE; // Event handled
 }
+
+
 
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
