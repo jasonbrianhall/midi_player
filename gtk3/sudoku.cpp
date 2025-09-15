@@ -2236,6 +2236,7 @@ int Sudoku::FindSimpleColoring() {
 void Sudoku::print_debug(const char* format, ...) {}
 
 void init_sudoku_system(Visualizer *vis) {
+    printf("Here\n");
     vis->sudoku_solver = new Sudoku();
     vis->puzzle_generator = new PuzzleGenerator(*vis->sudoku_solver);
     
@@ -2272,7 +2273,7 @@ void init_sudoku_system(Visualizer *vis) {
     memset(vis->sudoku_volume_history, 0, sizeof(vis->sudoku_volume_history));
     
     // Generate initial puzzle
-    sudoku_generate_new_puzzle(vis);
+    //sudoku_generate_new_puzzle(vis);
     
     // Start background generation immediately
     sudoku_start_background_generation(vis);
