@@ -2309,18 +2309,23 @@ void draw_sudoku_solver(Visualizer *vis, cairo_t *cr) {
     // Draw visual effects
     sudoku_draw_effects(vis, cr);
     
-    // Draw status text
+    // Draw status text on two lines
     cairo_set_source_rgba(cr, vis->fg_r, vis->fg_g, vis->fg_b, 0.8);
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 14);
     
-    char status_text[256];
-    snprintf(status_text, sizeof(status_text), "Difficulty: %s | %s", 
-             vis->sudoku_difficulty,
+    // Line 1: Difficulty
+    char difficulty_text[128];
+    snprintf(difficulty_text, sizeof(difficulty_text), "Difficulty: %s", vis->sudoku_difficulty);
+    cairo_move_to(cr, 10, vis->height - 35);
+    cairo_show_text(cr, difficulty_text);
+    
+    // Line 2: Status
+    char status_text[128];
+    snprintf(status_text, sizeof(status_text), "%s", 
              vis->sudoku_is_solving ? "Solving..." : 
              vis->sudoku_puzzle_complete ? "Complete!" : "Waiting for beat...");
-    
-    cairo_move_to(cr, 10, vis->height - 10);
+    cairo_move_to(cr, 10, vis->height - 15);
     cairo_show_text(cr, status_text);
 }
 
