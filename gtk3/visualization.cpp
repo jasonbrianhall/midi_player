@@ -55,6 +55,11 @@ Visualizer* visualizer_new(void) {
     init_dna_system(vis);
     init_dna2_system(vis);
 
+    // Sudoku timer
+    init_sudoku_system(vis);  // Initialize Sudoku system
+
+    return vis;
+
     return vis;
 }
 
@@ -84,6 +89,16 @@ void visualizer_free(Visualizer *vis) {
         cairo_surface_destroy(vis->surface);
     }
     
+    if (vis->sudoku_solver) {
+        delete vis->sudoku_solver;
+        vis->sudoku_solver = NULL;
+    }
+    
+    if (vis->puzzle_generator) {
+        delete vis->puzzle_generator;
+        vis->puzzle_generator = NULL;
+    }
+
     g_free(vis);
 }
 
@@ -270,6 +285,9 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
            break; 
         case VIS_DNA2_HELIX:
            draw_dna2_helix(vis, cr);
+           break; 
+        case VIS_SUDOKU_SOLVER:
+           draw_sudoku_solver(vis, cr);
            break; 
 
     }
@@ -571,6 +589,9 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_DNA2_HELIX:
                 update_dna2_helix(vis, 0.033);
                 break;
+            case VIS_SUDOKU_SOLVER:  // ADD THIS CASE
+                update_sudoku_solver(vis, 0.033);
+                break;                
             default:
                 // No update function needed for other visualization types
                 break;
@@ -643,6 +664,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fireworks");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix Alternative");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Sudoku");    
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     

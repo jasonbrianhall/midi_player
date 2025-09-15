@@ -84,7 +84,9 @@ SOURCES_CPP = dbopl.cpp \
 	equalizer.cpp \
 	m3u.cpp \
 	help.cpp \
-	layout.cpp
+	layout.cpp \
+	sudoku.cpp \
+	generatepuzzle.cpp
 
 SOURCES_C = 
 

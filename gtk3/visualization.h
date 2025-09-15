@@ -5,6 +5,9 @@
 #include <cairo.h>
 #include <math.h>
 #include <string.h>
+#include "sudoku.h"
+#include "generatepuzzle.h"
+
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -95,7 +98,8 @@ typedef enum {
     VIS_MATRIX,
     VIS_FIREWORKS,
     VIS_DNA_HELIX,
-    VIS_DNA2_HELIX
+    VIS_DNA2_HELIX,
+    VIS_SUDOKU_SOLVER
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -191,6 +195,56 @@ typedef struct {
     double dna_spine_offset;
     double dna_base_pulse[DNA_BASE_PAIRS]; // Pulse intensity for each base type    
 
+    // Sudoku visualization
+    Sudoku* sudoku_solver;
+    PuzzleGenerator* puzzle_generator;
+    double sudoku_solve_timer;
+    double sudoku_beat_threshold;
+    int sudoku_solving_speed;  // milliseconds per move
+    bool sudoku_is_solving;
+    bool sudoku_puzzle_complete;
+    int sudoku_current_step;
+    double sudoku_last_beat;
+    char sudoku_difficulty[32];
+    
+    // Visual state
+    int sudoku_highlight_x, sudoku_highlight_y;
+    double sudoku_highlight_intensity;
+    int sudoku_last_changed_x, sudoku_last_changed_y;
+    double sudoku_change_glow;
+    
+    // Beat detection for solving steps
+    double sudoku_volume_history[10];
+    int sudoku_volume_index;
+    int sudoku_last_placed_value;     // The number that was just placed
+    double sudoku_completion_glow;    // Celebration effect when puzzle completes    
+
+    // Sudoku pre-solved data
+    int sudoku_original_puzzle[9][9];    // The starting puzzle  
+    int sudoku_complete_solution[9][9];  // The complete solution
+    int sudoku_reveal_order[81][2];      // Order to reveal cells (x,y pairs)
+    int sudoku_reveal_index;             // Current position in reveal order
+    int sudoku_total_empty_cells;        // How many cells need to be filled
+    
+    // Background puzzle generation
+    Sudoku* background_solver;           // Secondary solver for background generation
+    PuzzleGenerator* background_generator; // Background puzzle generator
+    bool background_puzzle_ready;        // Is background puzzle ready?
+    int background_original_puzzle[9][9]; // Background puzzle state
+    int background_complete_solution[9][9]; // Background complete solution
+    int background_reveal_order[81][2];   // Background reveal order
+    int background_total_empty_cells;    // Background empty cell count
+    char background_difficulty[32];      // Background puzzle difficulty
+    bool generating_background_puzzle;   // Currently generating?
+    
+    // Beat synchronization
+    double last_real_beat;               // Last detected beat timestamp
+    double beat_interval;                // Average time between beats
+    double beat_sync_timer;              // Timer for beat synchronization
+    bool waiting_for_beat_sync;          // Should wait for next beat?
+    
+
+
 } Visualizer;
 
 // Function declarations
@@ -246,5 +300,23 @@ void update_dna2_helix(Visualizer *vis, double dt);
 void draw_dna2_helix(Visualizer *vis, cairo_t *cr);
 void get_base_color(int base_type, double intensity, double *r, double *g, double *b);
 void on_visualizer_realize(GtkWidget *widget, gpointer user_data);
+
+// Function declarations
+void init_sudoku_system(Visualizer *vis);
+void update_sudoku_solver(Visualizer *vis, double dt);
+void draw_sudoku_solver(Visualizer *vis, cairo_t *cr);
+void sudoku_generate_new_puzzle(Visualizer *vis);
+bool sudoku_detect_beat(Visualizer *vis);
+void sudoku_solve_step(Visualizer *vis);
+void sudoku_draw_grid(Visualizer *vis, cairo_t *cr);
+void sudoku_draw_numbers(Visualizer *vis, cairo_t *cr);
+void sudoku_draw_effects(Visualizer *vis, cairo_t *cr);
+int sudoku_find_naked_single(Visualizer *vis);
+int sudoku_place_single_from_technique(Visualizer *vis, const char* technique);
+void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
+void sudoku_start_background_generation(Visualizer *vis);
+void sudoku_update_background_generation(Visualizer *vis);
+bool sudoku_detect_beat_with_tempo(Visualizer *vis);
+void sudoku_generate_new_puzzle_from_background(Visualizer *vis);
 
 #endif
