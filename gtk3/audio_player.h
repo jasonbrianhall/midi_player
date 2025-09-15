@@ -288,4 +288,5 @@ void toggle_vis_fullscreen(AudioPlayer *player);
 void cleanup_vis_fullscreen();
 gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
 gboolean on_vis_fullscreen_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data);
+gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 #endif // AUDIO_PLAYER_H

@@ -273,7 +273,8 @@ void show_keyboard_help(AudioPlayer *player) {
             "R - Toggle repeat    1-9 - Jump to #\n\n"
             "Ctrl+O - Open    Ctrl+A - Add queue\n"
             "Ctrl+C - Clear    Ctrl+Q - Quit\n"
-            "F1 - This help    F11 - Fullscreen"
+            "F1 - This help    F11 - Fullscreen\n"
+            "F9 - Visualization Fullscreen"
         );
         
         gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
@@ -309,6 +310,7 @@ void show_keyboard_help(AudioPlayer *player) {
             "Display:\n"
             "  F1\t\t- Show this help\n"
             "  F11\t\t- Toggle fullscreen\n"
+            "  F9\t\t- Toggle Visualization Fullscreen"
             
         );
         

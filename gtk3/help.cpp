@@ -117,10 +117,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "• << and >> buttons for 5-second rewind/fast-forward\n"
         "• |< and >| buttons for previous/next song\n"
         "• Volume control\n"
-        "• GTK interface\n"
-        "Shortcuts:\n"
-        "• F11 Fullscreen\n"
-        "• F9 Visualization Fullscreen"; 
+        "• GTK interface\n";
     
     GtkWidget *desc_label = gtk_label_new(description);
     gtk_label_set_justify(GTK_LABEL(desc_label), GTK_JUSTIFY_LEFT);

@@ -193,12 +193,26 @@ static void create_visualization_section(AudioPlayer *player) {
                                 player->layout.config.vis_width, 
                                 player->layout.config.vis_height);
     
-    // Add visualization drawing area
-    gtk_box_pack_start(GTK_BOX(vis_vbox), player->visualizer->drawing_area, TRUE, TRUE, 0);
+    // Create event box to handle double-click events
+    GtkWidget *vis_event_box = gtk_event_box_new();
+    gtk_event_box_set_visible_window(GTK_EVENT_BOX(vis_event_box), FALSE);
+    
+    // Add visualization drawing area to event box
+    gtk_container_add(GTK_CONTAINER(vis_event_box), player->visualizer->drawing_area);
+    
+    // Set up double-click handling
+    gtk_widget_add_events(vis_event_box, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(vis_event_box, "button-press-event", 
+                    G_CALLBACK(on_visualizer_button_press), player);
+    
+    // Add event box (containing drawing area) to the layout
+    gtk_box_pack_start(GTK_BOX(vis_vbox), vis_event_box, TRUE, TRUE, 0);
     
     // Add visualization controls
     player->vis_controls = create_visualization_controls(player->visualizer);
     gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
+    
+    printf("Double-click handler added to visualizer\n");
 }
 
 static void create_player_controls(AudioPlayer *player) {
@@ -461,4 +475,17 @@ void create_shared_equalizer(AudioPlayer *player) {
         printf("Creating shared equalizer widget\n");
         player->layout.shared_equalizer = create_equalizer_controls(player);
     }
+}
+
+gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Check for double-click (type will be GDK_2BUTTON_PRESS for double-click)
+    if (event->type == GDK_2BUTTON_PRESS && event->button == 1) {
+        printf("Visualizer double-clicked, toggling fullscreen\n");
+        toggle_vis_fullscreen(player);
+        return TRUE; // Event handled
+    }
+    
+    return FALSE; // Let other handlers process single clicks, etc.
 }
