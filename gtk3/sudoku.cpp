@@ -2362,7 +2362,7 @@ int sudoku_find_naked_single(Visualizer *vis) {
     for (int row = 0; row < 9; row++) {
         for (int col = 0; col < 9; col++) {
             if (vis->sudoku_solver->GetValue(row, col) == -1) {
-                int candidates[9];
+                //int candidates[9];
                 int candidate_count = 0;
                 int valid_value = -1;
                 
@@ -2370,7 +2370,7 @@ int sudoku_find_naked_single(Visualizer *vis) {
                 for (int val = 0; val < 9; val++) {
                     if (vis->sudoku_solver->board[row][col][val] == val && 
                         vis->sudoku_solver->LegalValue(row, col, val)) {
-                        candidates[candidate_count++] = val;
+                        //candidates[candidate_count++] = val;
                         valid_value = val;
                     }
                 }
