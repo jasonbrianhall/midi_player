@@ -21,7 +21,6 @@
 #include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
-#include "themes.h"
 
 extern double playTime;
 extern bool isPlaying;
@@ -2395,8 +2394,7 @@ int main(int argc, char *argv[]) {
         cleanup_virtual_filesystem();
         return 1;
     }
-    player->current_theme_index = 1;
-
+    
     player->equalizer = equalizer_new(SAMPLE_RATE);
     if (!player->equalizer) {
         printf("Failed to initialize equalizer\n");
