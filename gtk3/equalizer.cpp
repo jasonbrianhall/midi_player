@@ -108,7 +108,7 @@ int16_t equalizer_process_sample(Equalizer *eq, int16_t input) {
     return (int16_t)output;
 }
 
-void equalizer_process_buffer(Equalizer *eq, int16_t *buffer, size_t length, int channels) {
+void equalizer_process_buffer(Equalizer *eq, int16_t *buffer, size_t length) {
     if (!eq || !eq->enabled || !buffer) return;
     
     for (size_t i = 0; i < length; i++) {
@@ -116,7 +116,7 @@ void equalizer_process_buffer(Equalizer *eq, int16_t *buffer, size_t length, int
     }
 }
 
-static void calculate_biquad_coefficients(EQBand *band, double frequency, double gain_db, double q, int sample_rate) {
+void calculate_biquad_coefficients(EQBand *band, double frequency, double gain_db, double q, int sample_rate) {
     if (!band) return;
     
     double w = 2.0 * M_PI * frequency / sample_rate;
@@ -146,11 +146,11 @@ static void calculate_biquad_coefficients(EQBand *band, double frequency, double
     band->gain = db_to_linear(gain_db);
 }
 
-static double db_to_linear(double db) {
+double db_to_linear(double db) {
     return pow(10.0, db / 20.0);
 }
 
-static double biquad_filter(EQBand *band, double input) {
+double biquad_filter(EQBand *band, double input) {
     if (!band) return input;
     
     // Biquad filter implementation (Direct Form II)

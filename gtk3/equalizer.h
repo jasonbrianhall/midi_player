@@ -44,11 +44,11 @@ void equalizer_set_mid(Equalizer *eq, double gain_db);
 void equalizer_set_treble(Equalizer *eq, double gain_db);
 void equalizer_reset(Equalizer *eq);
 int16_t equalizer_process_sample(Equalizer *eq, int16_t input);
-void equalizer_process_buffer(Equalizer *eq, int16_t *buffer, size_t length, int channels);
+void equalizer_process_buffer(Equalizer *eq, int16_t *buffer, size_t length);
 
 // Internal functions
-static void calculate_biquad_coefficients(EQBand *band, double frequency, double gain_db, double q, int sample_rate);
-static double db_to_linear(double db);
-static double biquad_filter(EQBand *band, double input);
+void calculate_biquad_coefficients(EQBand *band, double frequency, double gain_db, double q, int sample_rate);
+double db_to_linear(double db);
+double biquad_filter(EQBand *band, double input);
 
 #endif
