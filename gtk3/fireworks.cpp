@@ -47,7 +47,7 @@ void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
 }
 
 // Get color hue based on frequency band
-static double get_hue_for_frequency(int frequency_band) {
+double get_hue_for_frequency(int frequency_band) {
     // Map frequency bands to visually distinct colors
     double normalized = (double)frequency_band / (VIS_FREQUENCY_BARS - 1);
     
@@ -65,7 +65,7 @@ static double get_hue_for_frequency(int frequency_band) {
 
 
 // Spawn a new firework
-static void spawn_firework(Visualizer *vis, double intensity, int frequency_band) {
+void spawn_firework(Visualizer *vis, double intensity, int frequency_band) {
     // Find an inactive firework slot
     int slot = -1;
     for (int i = 0; i < MAX_FIREWORKS; i++) {
@@ -105,7 +105,7 @@ static void spawn_firework(Visualizer *vis, double intensity, int frequency_band
 }
 
 // Spawn a particle
-static void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
+void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
                           double r, double g, double b, double life) {
     // Find an inactive particle slot
     int slot = -1;
@@ -140,7 +140,7 @@ static void spawn_particle(Visualizer *vis, double x, double y, double vx, doubl
 }
 
 // Explode a firework into particles
-static void explode_firework(Visualizer *vis, Firework *firework) {
+void explode_firework(Visualizer *vis, Firework *firework) {
     if (firework->exploded) return;
     
     double hue = firework->hue;

@@ -280,40 +280,41 @@ void visualizer_set_enabled(Visualizer *vis, gboolean enabled);
 GtkWidget* create_visualization_controls(Visualizer *vis);
 
 // Internal functions
-static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data);
-static gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gpointer user_data);
-static gboolean visualizer_timer_callback(gpointer user_data);
-static void draw_waveform(Visualizer *vis, cairo_t *cr);
-static void draw_oscilloscope(Visualizer *vis, cairo_t *cr);
-static void draw_bars(Visualizer *vis, cairo_t *cr);
-static void draw_circle(Visualizer *vis, cairo_t *cr);
-static void draw_volume_meter(Visualizer *vis, cairo_t *cr);
+gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data);
+gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gpointer user_data);
+gboolean visualizer_timer_callback(gpointer user_data);
+void draw_waveform(Visualizer *vis, cairo_t *cr);
+void draw_oscilloscope(Visualizer *vis, cairo_t *cr);
+void draw_bars(Visualizer *vis, cairo_t *cr);
+void draw_circle(Visualizer *vis, cairo_t *cr);
+void draw_volume_meter(Visualizer *vis, cairo_t *cr);
 void draw_bubbles(Visualizer *vis, cairo_t *cr);
-static void process_audio_simple(Visualizer *vis);
-static void init_frequency_bands(Visualizer *vis);
+void process_audio_simple(Visualizer *vis);
+void init_frequency_bands(Visualizer *vis);
 
 // Bubble system function declarations
-static void init_bubble_system(Visualizer *vis);
-static void spawn_bubble(Visualizer *vis, double intensity);
-static void create_pop_effect(Visualizer *vis, Bubble *bubble);
-static void update_bubbles(Visualizer *vis, double dt);
+void init_bubble_system(Visualizer *vis);
+void spawn_bubble(Visualizer *vis, double intensity);
+void create_pop_effect(Visualizer *vis, Bubble *bubble);
+void update_bubbles(Visualizer *vis, double dt);
+
 
 // Matrix
-static void init_matrix_system(Visualizer *vis);
-static void spawn_matrix_column(Visualizer *vis, int frequency_band);
-static void update_matrix(Visualizer *vis, double dt);
+void init_matrix_system(Visualizer *vis);
+void spawn_matrix_column(Visualizer *vis, int frequency_band);
+void update_matrix(Visualizer *vis, double dt);
 void draw_matrix(Visualizer *vis, cairo_t *cr);
-static const char* get_random_matrix_char(void);
+const char* get_random_matrix_char(void);
 
 // Fireworks
 void init_fireworks_system(Visualizer *vis);
-static void spawn_firework(Visualizer *vis, double intensity, int frequency_band);
-static void explode_firework(Visualizer *vis, Firework *firework);
+void spawn_firework(Visualizer *vis, double intensity, int frequency_band);
+void explode_firework(Visualizer *vis, Firework *firework);
 void update_fireworks(Visualizer *vis, double dt);
 void draw_fireworks(Visualizer *vis, cairo_t *cr);
-static void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
+void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
                           double r, double g, double b, double life);
-static double get_hue_for_frequency(int frequency_band);
+double get_hue_for_frequency(int frequency_band);
 
 // DNA
 void init_dna_system(Visualizer *vis);

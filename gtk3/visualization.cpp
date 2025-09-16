@@ -164,7 +164,7 @@ void visualizer_set_enabled(Visualizer *vis, gboolean enabled) {
     }
 }
 
-static void init_frequency_bands(Visualizer *vis) {
+void init_frequency_bands(Visualizer *vis) {
     // Create simple frequency band filters using moving averages
     // This is a basic approximation without FFT
     for (int band = 0; band < VIS_FREQUENCY_BARS; band++) {
@@ -183,7 +183,7 @@ static void init_frequency_bands(Visualizer *vis) {
     }
 }
 
-static void process_audio_simple(Visualizer *vis) {
+void process_audio_simple(Visualizer *vis) {
     // Simple frequency band analysis using filtering
     for (int band = 0; band < VIS_FREQUENCY_BARS; band++) {
         double band_energy = 0.0;
@@ -232,7 +232,7 @@ static void process_audio_simple(Visualizer *vis) {
     vis->history_index = (vis->history_index + 1) % VIS_HISTORY_SIZE;
 }
 
-static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     
     if (!vis->enabled) {
@@ -298,7 +298,7 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
     return FALSE;
 }
 
-static void draw_waveform(Visualizer *vis, cairo_t *cr) {
+void draw_waveform(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     cairo_set_source_rgba(cr, vis->fg_r, vis->fg_g, vis->fg_b, 0.8);
@@ -348,7 +348,7 @@ static void draw_waveform(Visualizer *vis, cairo_t *cr) {
     cairo_stroke(cr);
 }
 
-static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
+void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     // Draw grid
@@ -391,7 +391,7 @@ static void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
     cairo_stroke(cr);
 }
 
-static void draw_bars(Visualizer *vis, cairo_t *cr) {
+void draw_bars(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     double bar_width = (double)vis->width / VIS_FREQUENCY_BARS;
@@ -428,7 +428,7 @@ static void draw_bars(Visualizer *vis, cairo_t *cr) {
     }
 }
 
-static void draw_circle(Visualizer *vis, cairo_t *cr) {
+void draw_circle(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     double center_x = vis->width / 2.0;
@@ -479,7 +479,7 @@ static void draw_circle(Visualizer *vis, cairo_t *cr) {
     }
 }
 
-static void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
+void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     // Draw VU meter style visualization
@@ -554,7 +554,7 @@ static void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
     }
 }
 
-static gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gpointer user_data) {
+gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     
     vis->width = gtk_widget_get_allocated_width(widget);
@@ -571,7 +571,7 @@ static gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *ev
     return TRUE;
 }
 
-static gboolean visualizer_timer_callback(gpointer user_data) {
+gboolean visualizer_timer_callback(gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     
     if (vis->enabled) {
@@ -615,19 +615,19 @@ void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
 
 
 // Callback functions for controls
-static void on_vis_type_changed(GtkComboBox *combo, gpointer user_data) {
+void on_vis_type_changed(GtkComboBox *combo, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     int active = gtk_combo_box_get_active(combo);
     visualizer_set_type(vis, (VisualizationType)active);
 }
 
-static void on_vis_enabled_toggled(GtkToggleButton *button, gpointer user_data) {
+void on_vis_enabled_toggled(GtkToggleButton *button, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     gboolean enabled = gtk_toggle_button_get_active(button);
     visualizer_set_enabled(vis, enabled);
 }
 
-static void on_sensitivity_changed(GtkRange *range, gpointer user_data) {
+void on_sensitivity_changed(GtkRange *range, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
     vis->sensitivity = gtk_range_get_value(range);
 }

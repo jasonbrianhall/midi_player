@@ -4,7 +4,7 @@
 #include "visualization.h"
 
 // Enhanced ASCII character sets for more variety
-static const char* get_random_matrix_char(void) {
+const char* get_random_matrix_char(void) {
     static const char* matrix_chars[] = {
         // Numbers (weighted more heavily for that digital feel)
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
@@ -44,7 +44,7 @@ static const char* get_power_matrix_char(void) {
     return power_chars[index];
 }
 
-static void init_matrix_system(Visualizer *vis) {
+void init_matrix_system(Visualizer *vis) {
     vis->matrix_column_count = 0;
     vis->matrix_spawn_timer = 0.0;
     vis->matrix_char_size = 12;
@@ -61,7 +61,7 @@ static void init_matrix_system(Visualizer *vis) {
     }
 }
 
-static void create_matrix_column_at_position(Visualizer *vis, int x_position) {
+void create_matrix_column_at_position(Visualizer *vis, int x_position) {
     if (vis->matrix_column_count >= MAX_MATRIX_COLUMNS) return;
     
     // Find inactive column slot
@@ -108,7 +108,7 @@ static void create_matrix_column_at_position(Visualizer *vis, int x_position) {
     vis->matrix_column_count++;
 }
 
-static void update_matrix(Visualizer *vis, double dt) {
+void update_matrix(Visualizer *vis, double dt) {
     vis->matrix_spawn_timer += dt;
     
     // Calculate audio energy

@@ -3,7 +3,7 @@
 
 #include "visualization.h"
 
-static void init_bubble_system(Visualizer *vis) {
+void init_bubble_system(Visualizer *vis) {
     vis->bubble_count = 0;
     vis->pop_effect_count = 0;
     vis->bubble_spawn_timer = 0.0;
@@ -20,7 +20,7 @@ static void init_bubble_system(Visualizer *vis) {
     }
 }
 
-static void spawn_bubble(Visualizer *vis, double intensity) {
+void spawn_bubble(Visualizer *vis, double intensity) {
     if (vis->bubble_count >= MAX_BUBBLES) return;
     
     // Find inactive bubble slot
@@ -58,7 +58,7 @@ static void spawn_bubble(Visualizer *vis, double intensity) {
     vis->bubble_count++;
 }
 
-static void create_pop_effect(Visualizer *vis, Bubble *bubble) {
+void create_pop_effect(Visualizer *vis, Bubble *bubble) {
     // Find inactive pop effect slot
     int slot = -1;
     for (int i = 0; i < MAX_POP_EFFECTS; i++) {
@@ -83,7 +83,7 @@ static void create_pop_effect(Visualizer *vis, Bubble *bubble) {
     vis->pop_effect_count++;
 }
 
-static void update_bubbles(Visualizer *vis, double dt) {
+void update_bubbles(Visualizer *vis, double dt) {
     // Update spawn timer
     vis->bubble_spawn_timer += dt;
     
