@@ -86,7 +86,8 @@ SOURCES_CPP = dbopl.cpp \
 	help.cpp \
 	layout.cpp \
 	sudoku.cpp \
-	generatepuzzle.cpp
+	generatepuzzle.cpp \
+	fourier.cpp
 
 SOURCES_C = 
 

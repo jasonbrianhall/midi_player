@@ -2635,7 +2635,7 @@ bool sudoku_detect_beat_with_tempo(Visualizer *vis) {
     return false;
 }
 
-void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
+/*void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
     double c = v * s;
     double x = c * (1 - fabs(fmod(h * 6.0, 2.0) - 1));
     double m = v - c;
@@ -2659,7 +2659,7 @@ void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
     *r = r_temp + m;
     *g = g_temp + m;
     *b = b_temp + m;
-}
+}*/
 
 void sudoku_create_spiral_reveal_order(Visualizer *vis) {
     int spiral_order[81][2];

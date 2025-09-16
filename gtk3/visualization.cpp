@@ -289,6 +289,9 @@ static gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user
         case VIS_SUDOKU_SOLVER:
            draw_sudoku_solver(vis, cr);
            break; 
+        case VIS_FOURIER_TRANSFORM:
+           draw_fourier_transform(vis, cr);
+           break;
 
     }
     
@@ -592,6 +595,9 @@ static gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_SUDOKU_SOLVER:  // ADD THIS CASE
                 update_sudoku_solver(vis, 0.033);
                 break;                
+            case VIS_FOURIER_TRANSFORM:
+                update_fourier_transform(vis, 0.033);
+                break;
             default:
                 // No update function needed for other visualization types
                 break;
@@ -665,6 +671,8 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix Alternative");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Sudoku");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fourier Transform");    
+
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     

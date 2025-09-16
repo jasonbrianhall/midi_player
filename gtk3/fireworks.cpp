@@ -24,7 +24,7 @@ void init_fireworks_system(Visualizer *vis) {
 }
 
 // Convert HSV to RGB color space
-static void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
+void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b) {
     double c = v * s;
     double x = c * (1.0 - fabs(fmod(h / 60.0, 2.0) - 1.0));
     double m = v - c;

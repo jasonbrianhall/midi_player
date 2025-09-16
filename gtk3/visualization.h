@@ -28,6 +28,21 @@
 #define MAX_DNA_SEGMENTS 80
 #define DNA_BASE_PAIRS 4
 
+#define FOURIER_POINTS 64  // Number of frequency bins to visualize
+#define FOURIER_HISTORY 128 // History length for trails
+
+typedef struct {
+    double real, imag;     // Complex number components
+    double magnitude;      // Magnitude of this frequency bin
+    double phase;          // Phase angle
+    double x, y;           // Current position on circle
+    double trail_x[FOURIER_HISTORY];  // Position history for trails
+    double trail_y[FOURIER_HISTORY];  // Position history for trails
+    int trail_index;       // Current position in trail buffer
+    double hue;            // Color hue for this frequency
+    double intensity;      // Visual intensity
+} FourierBin;
+
 typedef struct {
     double x, y, z;        // 3D position (z for depth simulation)
     double intensity;      // Audio intensity affecting this segment
@@ -99,7 +114,8 @@ typedef enum {
     VIS_FIREWORKS,
     VIS_DNA_HELIX,
     VIS_DNA2_HELIX,
-    VIS_SUDOKU_SOLVER
+    VIS_SUDOKU_SOLVER,
+    VIS_FOURIER_TRANSFORM
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -242,7 +258,15 @@ typedef struct {
     double beat_interval;                // Average time between beats
     double beat_sync_timer;              // Timer for beat synchronization
     bool waiting_for_beat_sync;          // Should wait for next beat?
-    
+
+    // Fourier
+    FourierBin fourier_bins[FOURIER_POINTS];
+    double fourier_time;
+    double fourier_rotation_speed;
+    double fourier_zoom;
+    int fourier_display_mode; // 0=circular, 1=linear, 2=3D perspective
+    double fourier_trail_fade;
+    gboolean show_fourier_math; // Show frequency labels and values    
 
 
 } Visualizer;
@@ -290,8 +314,8 @@ void draw_fireworks(Visualizer *vis, cairo_t *cr);
 static void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
                           double r, double g, double b, double life);
 static double get_hue_for_frequency(int frequency_band);
-static void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
 
+// DNA
 void init_dna_system(Visualizer *vis);
 void update_dna_helix(Visualizer *vis, double dt);
 void draw_dna_helix(Visualizer *vis, cairo_t *cr);
@@ -301,7 +325,7 @@ void draw_dna2_helix(Visualizer *vis, cairo_t *cr);
 void get_base_color(int base_type, double intensity, double *r, double *g, double *b);
 void on_visualizer_realize(GtkWidget *widget, gpointer user_data);
 
-// Function declarations
+// Function declarations (Sudoku)
 void init_sudoku_system(Visualizer *vis);
 void update_sudoku_solver(Visualizer *vis, double dt);
 void draw_sudoku_solver(Visualizer *vis, cairo_t *cr);
@@ -313,10 +337,21 @@ void sudoku_draw_numbers(Visualizer *vis, cairo_t *cr);
 void sudoku_draw_effects(Visualizer *vis, cairo_t *cr);
 int sudoku_find_naked_single(Visualizer *vis);
 int sudoku_place_single_from_technique(Visualizer *vis, const char* technique);
-void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
 void sudoku_start_background_generation(Visualizer *vis);
 void sudoku_update_background_generation(Visualizer *vis);
 bool sudoku_detect_beat_with_tempo(Visualizer *vis);
 void sudoku_generate_new_puzzle_from_background(Visualizer *vis);
+
+// Fourier
+void update_fourier_mode(Visualizer *vis, double dt);
+void draw_fourier_math_overlay(Visualizer *vis, cairo_t *cr, double center_x, double center_y);
+void draw_fourier_points(Visualizer *vis, cairo_t *cr);
+void draw_fourier_trails(Visualizer *vis, cairo_t *cr);
+void draw_fourier_background(Visualizer *vis, cairo_t *cr, double center_x, double center_y);
+void draw_fourier_transform(Visualizer *vis, cairo_t *cr);
+void update_fourier_transform(Visualizer *vis, double dt);
+void init_fourier_system(Visualizer *vis);
+
+void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
 
 #endif
