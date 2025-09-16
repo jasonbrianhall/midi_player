@@ -21,7 +21,7 @@
 #include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
-
+#include "themes.h"
 
 // Helper functions for layout management
 static void calculate_layout_config(LayoutManager *layout) {
@@ -160,6 +160,30 @@ static void create_menu_bar(AudioPlayer *player) {
     GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
     g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
+
+    // === ADD THEMES MENU HERE ===
+    // Themes menu
+    GtkWidget *themes_menu_item = gtk_menu_item_new_with_label("Themes");
+    GtkWidget *themes_menu = create_theme_menu(player);
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(themes_menu_item), themes_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menubar), themes_menu_item);
+    
+    // Add separator in themes menu
+    GtkWidget *theme_separator = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(themes_menu), theme_separator);
+    
+    // Add theme cycling options
+    GtkWidget *next_theme_item = gtk_menu_item_new_with_label("Next Theme (Ctrl+T)");
+    g_signal_connect(next_theme_item, "activate", G_CALLBACK(on_next_theme_menu_activate), player);
+    gtk_menu_shell_append(GTK_MENU_SHELL(themes_menu), next_theme_item);
+    
+    GtkWidget *prev_theme_item = gtk_menu_item_new_with_label("Previous Theme (Ctrl+Shift+T)");
+    g_signal_connect(prev_theme_item, "activate", G_CALLBACK(on_prev_theme_menu_activate), player);
+    gtk_menu_shell_append(GTK_MENU_SHELL(themes_menu), prev_theme_item);
+    
+    GtkWidget *random_theme_item = gtk_menu_item_new_with_label("Random Theme (Ctrl+Shift+R)");
+    g_signal_connect(random_theme_item, "activate", G_CALLBACK(on_random_theme_menu_activate), player);
+    gtk_menu_shell_append(GTK_MENU_SHELL(themes_menu), random_theme_item);
     
     // Help menu
     GtkWidget *help_menu = gtk_menu_new();
@@ -488,4 +512,25 @@ gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gp
     }
     
     return FALSE; // Let other handlers process single clicks, etc.
+}
+
+void on_next_theme_menu_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    cycle_theme(player);
+    printf("Switched to next theme: %s\n", get_current_theme_name(player));
+}
+
+void on_prev_theme_menu_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    cycle_theme_backwards(player);
+    printf("Switched to previous theme: %s\n", get_current_theme_name(player));
+}
+
+void on_random_theme_menu_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    apply_random_theme(player);
+    printf("Applied random theme: %s\n", get_current_theme_name(player));
 }
