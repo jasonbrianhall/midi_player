@@ -345,7 +345,7 @@ void sudoku_generate_new_puzzle_from_background(Visualizer *vis);
 
 // Fourier
 void update_fourier_mode(Visualizer *vis, double dt);
-void draw_fourier_math_overlay(Visualizer *vis, cairo_t *cr, double center_x, double center_y);
+void draw_fourier_math_overlay(Visualizer *vis, cairo_t *cr);
 void draw_fourier_points(Visualizer *vis, cairo_t *cr);
 void draw_fourier_trails(Visualizer *vis, cairo_t *cr);
 void draw_fourier_background(Visualizer *vis, cairo_t *cr, double center_x, double center_y);

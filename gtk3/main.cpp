@@ -399,7 +399,7 @@ bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index) {
 }
 
 // Drag begin callback
-static void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
+void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
     // Get the row being dragged
@@ -418,7 +418,7 @@ static void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer u
 }
 
 // Drag data get callback
-static void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
+void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
                            GtkSelectionData *selection_data, guint target_type,
                            guint time, gpointer user_data) {
     (void)widget;
@@ -435,7 +435,7 @@ static void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
 }
 
 // Drag motion callback (for visual feedback)
-static gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
+gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
                               gint x, gint y, guint time, gpointer user_data) {
     (void)widget;
     (void)x;
@@ -449,7 +449,7 @@ static gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
 }
 
 // Drag data received callback
-static void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
+void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
                                 gint x, gint y, GtkSelectionData *selection_data,
                                 guint target_type, guint time, gpointer user_data) {
     (void)x;
@@ -485,7 +485,7 @@ static void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
 }
 
 
-static gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
+gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
                             gint x, gint y, guint time, gpointer user_data) {
     (void)widget;
     (void)x;
@@ -2075,7 +2075,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
 
 }
 
-static void on_window_realize(GtkWidget *widget, gpointer user_data) {
+void on_window_realize(GtkWidget *widget, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
 }
 

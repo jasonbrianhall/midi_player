@@ -281,6 +281,7 @@ bool loadMidiFile(const char* filename) {
 }
 
 void handle_sigint(int sig) {
+    if (sig == SIGINT) {
     keep_running = 0;
     
 #ifndef _WIN32
@@ -297,13 +298,16 @@ void handle_sigint(int sig) {
     
     // Exit the program
     exit(0);
+    } else {
+        fprintf(stderr, "Unexpected signal %d received\n", sig);
+    }
 }
 
 
 // Handle a single MIDI event
 void handleMidiEvent(int tk) {
     unsigned char status, data1, data2;
-    unsigned char buffer[256];
+    //unsigned char buffer[256];
     unsigned char evtype;
     unsigned long len;
     
@@ -660,7 +664,7 @@ void generateAudio(void* userdata, Uint8* stream, int len) {
     }
     
     // Mix channels
-    size_t mixed_samples = mixer_mix_channels(g_midi_mixer);
+    //size_t mixed_samples = mixer_mix_channels(g_midi_mixer);
     
     // Get mixed output
     size_t output_size;

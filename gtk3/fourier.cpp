@@ -126,7 +126,7 @@ void draw_fourier_transform(Visualizer *vis, cairo_t *cr) {
     
     // Draw mathematical overlay if enabled
     if (vis->show_fourier_math) {
-        draw_fourier_math_overlay(vis, cr, center_x, center_y);
+        draw_fourier_math_overlay(vis, cr);
     }
 }
 
@@ -236,7 +236,7 @@ void draw_fourier_points(Visualizer *vis, cairo_t *cr) {
     }
 }
 
-void draw_fourier_math_overlay(Visualizer *vis, cairo_t *cr, double center_x, double center_y) {
+void draw_fourier_math_overlay(Visualizer *vis, cairo_t *cr) {
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.8);
     cairo_select_font_face(cr, "Monospace", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 12);
