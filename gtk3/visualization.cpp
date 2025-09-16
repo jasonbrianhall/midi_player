@@ -57,7 +57,7 @@ Visualizer* visualizer_new(void) {
 
     // Sudoku timer
     init_sudoku_system(vis);  // Initialize Sudoku system
-
+    init_ripple_system(vis);
     return vis;
 
     return vis;
@@ -292,6 +292,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_FOURIER_TRANSFORM:
            draw_fourier_transform(vis, cr);
            break;
+        case VIS_RIPPLES:
+           draw_ripples(vis, cr);
+           break;           
 
     }
     
@@ -598,6 +601,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_FOURIER_TRANSFORM:
                 update_fourier_transform(vis, 0.033);
                 break;
+            case VIS_RIPPLES:
+                update_ripples(vis, 0.033);
+                break;                
             default:
                 // No update function needed for other visualization types
                 break;
@@ -672,6 +678,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "DNA Helix Alternative");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Sudoku");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fourier Transform");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Ripples");    
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);

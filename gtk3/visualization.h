@@ -31,6 +31,22 @@
 #define FOURIER_POINTS 64  // Number of frequency bins to visualize
 #define FOURIER_HISTORY 128 // History length for trails
 
+#define MAX_RIPPLES 20
+
+typedef struct {
+    double center_x, center_y;    // Ripple center position
+    double radius;                // Current radius
+    double max_radius;            // Maximum radius before fading out
+    double speed;                 // Expansion speed
+    double intensity;             // Audio intensity that created it
+    double life;                  // Life remaining (1.0 to 0.0)
+    double hue;                   // Color hue
+    double thickness;             // Ring thickness
+    gboolean active;              // Is ripple active
+    int frequency_band;           // Which frequency band triggered it
+} Ripple;
+
+
 typedef struct {
     double real, imag;     // Complex number components
     double magnitude;      // Magnitude of this frequency bin
@@ -115,7 +131,8 @@ typedef enum {
     VIS_DNA_HELIX,
     VIS_DNA2_HELIX,
     VIS_SUDOKU_SOLVER,
-    VIS_FOURIER_TRANSFORM
+    VIS_FOURIER_TRANSFORM,
+    VIS_RIPPLES
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -268,6 +285,12 @@ typedef struct {
     double fourier_trail_fade;
     gboolean show_fourier_math; // Show frequency labels and values    
 
+    // Ripple
+    Ripple ripples[MAX_RIPPLES];
+    int ripple_count;
+    double ripple_spawn_timer;
+    double last_ripple_volume;
+    double ripple_beat_threshold;
 
 } Visualizer;
 
@@ -354,5 +377,11 @@ void update_fourier_transform(Visualizer *vis, double dt);
 void init_fourier_system(Visualizer *vis);
 
 void hsv_to_rgb(double h, double s, double v, double *r, double *g, double *b);
+
+// Ripples
+void init_ripple_system(Visualizer *vis);
+void spawn_ripple(Visualizer *vis, double x, double y, double intensity, int frequency_band);
+void update_ripples(Visualizer *vis, double dt);
+void draw_ripples(Visualizer *vis, cairo_t *cr);
 
 #endif
