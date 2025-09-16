@@ -32,9 +32,33 @@ void spawn_ripple(Visualizer *vis, double x, double y, double intensity, int fre
             ripple->intensity = intensity;
             ripple->life = 1.0;
             
-            // Color based on frequency band
-            ripple->hue = (double)frequency_band / VIS_FREQUENCY_BARS;
-
+            // FORCE BRIGHT COLOR VARIETY - use predefined bright colors
+            // Define specific bright hues for green, purple, blue, cyan, magenta, yellow
+            double bright_hues[] = {
+                0.33,   // Bright green
+                0.75,   // Bright purple/violet
+                0.67,   // Bright blue
+                0.50,   // Bright cyan
+                0.83,   // Bright magenta
+                0.17,   // Bright yellow-green
+                0.92,   // Bright pink
+                0.58,   // Bright blue-cyan
+                0.08,   // Bright orange
+                0.42    // Bright teal
+            };
+            
+            // Use different selection methods for maximum variety
+            int color_index;
+            if (frequency_band < 10) {
+                // Use frequency band for low frequencies
+                color_index = frequency_band % 10;
+            } else {
+                // Use time-based cycling for higher frequencies
+                color_index = ((int)(vis->time_offset * 5) + i) % 10;
+            }
+            
+            ripple->hue = bright_hues[color_index];
+            
             // MUCH thicker rings for visibility
             ripple->thickness = 4.0 + intensity * 12.0;
             
@@ -121,6 +145,7 @@ void update_ripples(Visualizer *vis, double dt) {
     }
 }
 
+
 void draw_ripples(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
@@ -129,38 +154,48 @@ void draw_ripples(Visualizer *vis, cairo_t *cr) {
         if (vis->ripples[i].active) {
             Ripple *ripple = &vis->ripples[i];
             
-            // Convert hue to RGB with MUCH brighter colors
+            // DEBUG: Force specific colors to test
             double r, g, b;
-            // Use fixed high brightness (0.9) instead of low intensity
-            hsv_to_rgb(ripple->hue, 0.8, 0.9, &r, &g, &b);
             
-            // Boost alpha significantly - use life directly, not scaled down
-            double alpha = ripple->life;
+            // Test with hardcoded bright colors first
+            if (i % 5 == 0) {
+                r = 0.0; g = 1.0; b = 0.0; // Bright green
+            } else if (i % 5 == 1) {
+                r = 0.5; g = 0.0; b = 1.0; // Bright purple
+            } else if (i % 5 == 2) {
+                r = 0.0; g = 0.0; b = 1.0; // Bright blue
+            } else if (i % 5 == 3) {
+                r = 0.0; g = 1.0; b = 1.0; // Bright cyan
+            } else {
+                r = 1.0; g = 0.0; b = 1.0; // Bright magenta
+            }
+            
+            // Strong alpha for bright visibility
+            double alpha = ripple->life * 0.9;
             if (alpha > 0.1) {
                 
-                // Draw main ripple ring - MUCH more visible
+                // Draw main ripple ring - BRIGHT and SATURATED
                 cairo_set_source_rgba(cr, r, g, b, alpha);
                 cairo_set_line_width(cr, ripple->thickness);
                 cairo_arc(cr, ripple->center_x, ripple->center_y, ripple->radius, 0, 2 * M_PI);
                 cairo_stroke(cr);
                 
-                // Draw inner glow effect - brighter
-                cairo_set_source_rgba(cr, r, g, b, alpha * 0.6);
+                // Draw inner glow effect - even brighter
+                cairo_set_source_rgba(cr, 
+                                     fmin(1.0, r * 1.3), 
+                                     fmin(1.0, g * 1.3), 
+                                     fmin(1.0, b * 1.3), 
+                                     alpha * 0.7);
                 cairo_set_line_width(cr, ripple->thickness * 0.5);
                 cairo_arc(cr, ripple->center_x, ripple->center_y, 
                          ripple->radius - ripple->thickness * 0.5, 0, 2 * M_PI);
                 cairo_stroke(cr);
                 
-                // Draw outer fade - more visible
-                cairo_set_source_rgba(cr, r, g, b, alpha * 0.4);
-                cairo_set_line_width(cr, ripple->thickness * 2.0);
-                cairo_arc(cr, ripple->center_x, ripple->center_y, 
-                         ripple->radius + ripple->thickness, 0, 2 * M_PI);
-                cairo_stroke(cr);
+                // Skip complementary color for now - just test basic colors
                 
                 // Add center dot when ripple starts (for debugging)
                 if (ripple->radius < 20.0) {
-                    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha);
+                    cairo_set_source_rgba(cr, r, g, b, alpha);
                     cairo_arc(cr, ripple->center_x, ripple->center_y, 3.0, 0, 2 * M_PI);
                     cairo_fill(cr);
                 }
@@ -168,3 +203,4 @@ void draw_ripples(Visualizer *vis, cairo_t *cr) {
         }
     }
 }
+
