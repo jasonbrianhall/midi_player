@@ -1,9 +1,19 @@
 #ifndef SUDOKU_DISPLAY_H
 #define SUDOKU_DISPLAY_H
 
+// Solution 1: Conditional includes and namespace resolution
 #ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
+    #define NOMINMAX             // Prevent Windows from defining min/max macros
     #include <windows.h>
-        struct DebugQueue {
+    
+    // Resolve the byte conflict by using the Windows typedef explicitly
+    #ifdef byte
+        #undef byte
+    #endif
+    typedef unsigned char win_byte;  // Use our own name for Windows byte type
+    
+    struct DebugQueue {
         static const int MAX_SIZE = 1024;
         char messages[MAX_SIZE][256];
         int front = 0;
@@ -15,7 +25,6 @@
         #include <stdarg.h>  // Required for va_list, va_start, va_end
         #include <stdio.h>   // Required for vsprintf
     #endif
-
 #endif
 
 #include <iostream>
@@ -76,8 +85,6 @@ public:
     DebugQueue debugQueue;
     char* get_next_debug_message();
     #endif
-    
-
 
 private:
     static int debug_line;
@@ -92,8 +99,6 @@ private:
     // Candidate Management
     std::vector<int> GetCellCandidates(int x, int y);
     bool VectorsEqual(const std::vector<int>& v1, const std::vector<int>& v2);
-
- 
 };
 
 #endif // SUDOKU_H
