@@ -131,7 +131,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             {
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current + 0.1;
-                if (new_vol > 3.0) new_vol = 3.0;
+                if (new_vol > 5.0) new_vol = 5.0;
                 gtk_range_set_value(GTK_RANGE(player->volume_scale), new_vol);
                 return TRUE;
             }
@@ -143,7 +143,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                 // Shift+Down: Volume down by 10%
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current - 0.1;
-                if (new_vol < 0.1) new_vol = 0.1;
+                if (new_vol < 0.0) new_vol = 0.0;
                 gtk_range_set_value(GTK_RANGE(player->volume_scale), new_vol);
                 return TRUE;
             }

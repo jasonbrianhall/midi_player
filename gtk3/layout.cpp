@@ -256,7 +256,7 @@ static void create_player_controls(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.volume_box, FALSE, FALSE, 0);
     
     GtkWidget *volume_label = gtk_label_new("Volume:");
-    player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 3.0, 0.1);
+    player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(player->volume_scale), (double)globalVolume / 100.0);
     
     gtk_box_pack_start(GTK_BOX(player->layout.volume_box), volume_label, FALSE, FALSE, 0);
