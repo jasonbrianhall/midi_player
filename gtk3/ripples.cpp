@@ -83,7 +83,7 @@ void update_ripples(Visualizer *vis, double dt) {
     int spawn_frequency_band = 0;
     double spawn_intensity = vis->volume_level;
     
-    // Method 1: Volume spike detection
+    // Method 1: Volume spike detection (KEEP THIS)
     if (volume_diff > vis->ripple_beat_threshold && vis->volume_level > 0.1) {
         should_spawn = TRUE;
         spawn_intensity = volume_diff * 2.0;
@@ -98,13 +98,15 @@ void update_ripples(Visualizer *vis, double dt) {
         }
     }
     
-    // Method 2: Timer-based spawning for consistent ripples
+    // Method 2: Timer-based spawning - REMOVE THIS ENTIRE SECTION
+    /*
     if (vis->ripple_spawn_timer > 0.3 && vis->volume_level > 0.05) {
         should_spawn = TRUE;
         vis->ripple_spawn_timer = 0.0;
         spawn_intensity = vis->volume_level;
         spawn_frequency_band = (int)(vis->time_offset * 3) % VIS_FREQUENCY_BARS;
     }
+    */
     
     if (should_spawn) {
         // Spawn ripple at center, or offset based on stereo/frequency data
