@@ -2557,33 +2557,6 @@ void update_sudoku_solver(Visualizer *vis, double dt) {
         vis->sudoku_last_beat = vis->sudoku_solve_timer;
     }
     
-    // Secondary trigger: Predicted beat timing (when no real beat detected)
-    if (!should_solve_step && vis->last_real_beat > 0) {
-        double expected_beat_time = vis->beat_interval * 0.9; // Slightly faster than detected tempo
-        
-        if (vis->beat_sync_timer >= expected_beat_time) {
-            // Only trigger if there's some audio activity
-            if (vis->volume_level > 0.02) {
-                should_solve_step = true;
-                vis->beat_sync_timer = 0.0;
-                vis->sudoku_last_beat = vis->sudoku_solve_timer;
-                printf("Synthetic beat at %.1f BPM\n", 60.0 / expected_beat_time);
-            }
-        }
-    }
-    
-    // Fallback trigger: Time-based (much slower, only when very quiet)
-    if (!should_solve_step) {
-        double time_since_last_action = vis->sudoku_solve_timer - vis->sudoku_last_beat;
-        double fallback_interval = 1.5; // 40 BPM fallback
-        
-        if (time_since_last_action > fallback_interval && vis->volume_level < 0.02) {
-            should_solve_step = true;
-            vis->sudoku_last_beat = vis->sudoku_solve_timer;
-            printf("Fallback beat trigger\n");
-        }
-    }
-    
     // Execute solving step
     if (should_solve_step && !vis->sudoku_puzzle_complete) {
         if (!vis->sudoku_is_solving) {
