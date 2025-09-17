@@ -33,6 +33,27 @@
 
 #define MAX_RIPPLES 20
 
+#define MAX_KALEIDOSCOPE_SHAPES 20
+#define KALEIDOSCOPE_MIRRORS 6  // Number of mirror segments (creates 6-fold symmetry)
+
+typedef struct {
+    double x, y;               // Position in the base triangle
+    double vx, vy;             // Velocity
+    double rotation;           // Current rotation angle
+    double rotation_speed;     // Rotation speed
+    double scale;              // Size scale
+    double scale_speed;        // Scale pulsing speed
+    double hue;                // Color hue
+    double saturation;         // Color saturation
+    double brightness;         // Current brightness
+    double base_brightness;    // Base brightness level
+    int shape_type;            // 0=circle, 1=triangle, 2=square, 3=star, 4=hexagon
+    double life;               // Shape lifetime (for fading)
+    double pulse_phase;        // Phase for pulsing effects
+    int frequency_band;        // Which frequency band controls this shape
+    gboolean active;           // Is shape active
+} KaleidoscopeShape;
+
 typedef struct {
     double center_x, center_y;    // Ripple center position
     double radius;                // Current radius
@@ -132,7 +153,8 @@ typedef enum {
     VIS_DNA2_HELIX,
     VIS_SUDOKU_SOLVER,
     VIS_FOURIER_TRANSFORM,
-    VIS_RIPPLES
+    VIS_RIPPLES,
+    VIS_KALEIDOSCOPE
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -292,6 +314,19 @@ typedef struct {
     double last_ripple_volume;
     double ripple_beat_threshold;
 
+    // Kaleidoscope system
+    KaleidoscopeShape kaleidoscope_shapes[MAX_KALEIDOSCOPE_SHAPES];
+    int kaleidoscope_shape_count;
+    double kaleidoscope_rotation;          // Global rotation
+    double kaleidoscope_rotation_speed;    // Rotation speed based on tempo
+    double kaleidoscope_zoom;              // Zoom level
+    double kaleidoscope_zoom_target;       // Target zoom level
+    double kaleidoscope_spawn_timer;       // Timer for spawning new shapes
+    double kaleidoscope_mirror_offset;     // Offset for mirror positioning
+    int kaleidoscope_mirror_count;         // Number of mirrors (3-12)
+    double kaleidoscope_color_shift;       // Global color shift
+    gboolean kaleidoscope_auto_shapes;     // Automatically spawn shapes on beats
+
 } Visualizer;
 
 // Function declarations
@@ -383,5 +418,12 @@ void init_ripple_system(Visualizer *vis);
 void spawn_ripple(Visualizer *vis, double x, double y, double intensity, int frequency_band);
 void update_ripples(Visualizer *vis, double dt);
 void draw_ripples(Visualizer *vis, cairo_t *cr);
+
+// Kaleidoscope
+void init_kaleidoscope_system(Visualizer *vis);
+void spawn_kaleidoscope_shape(Visualizer *vis, double intensity, int frequency_band);
+void update_kaleidoscope(Visualizer *vis, double dt);
+void draw_kaleidoscope_shape(cairo_t *cr, KaleidoscopeShape *shape, double scale_factor);
+void draw_kaleidoscope(Visualizer *vis, cairo_t *cr);
 
 #endif

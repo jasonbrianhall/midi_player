@@ -88,7 +88,8 @@ SOURCES_CPP = dbopl.cpp \
 	sudoku.cpp \
 	generatepuzzle.cpp \
 	fourier.cpp \
-	ripples.cpp
+	ripples.cpp \
+	kaleidoscope.cpp
 
 SOURCES_C = 
 

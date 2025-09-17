@@ -295,6 +295,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_RIPPLES:
            draw_ripples(vis, cr);
            break;           
+        case VIS_KALEIDOSCOPE:
+           draw_kaleidoscope(vis, cr);
+           break;
 
     }
     
@@ -603,7 +606,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_RIPPLES:
                 update_ripples(vis, 0.033);
-                break;                
+                break;
+            case VIS_KALEIDOSCOPE:
+                update_kaleidoscope(vis, 0.033);
+                break;                                
             default:
                 // No update function needed for other visualization types
                 break;
@@ -679,6 +685,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Sudoku");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fourier Transform");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Ripples");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Kaleidoscope");    
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
