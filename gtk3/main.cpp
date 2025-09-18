@@ -55,7 +55,7 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
     ofn.lStructSize = sizeof(ofn);
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.aiff;*.aif;*.ogg;*.flac;*.opus\0"
+    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.m4a;*.aiff;*.aif;*.ogg;*.flac;*.opus\0"
                       "MIDI Files\0*.mid;*.midi\0"
                       "WAV Files\0*.wav\0"
                       "MP3 Files\0*.mp3\0"
