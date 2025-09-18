@@ -59,6 +59,7 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
                       "MIDI Files\0*.mid;*.midi\0"
                       "WAV Files\0*.wav\0"
                       "MP3 Files\0*.mp3\0"
+                      "M4A Files\0*.m4a\0"
                       "OGG Files\0*.ogg\0"
                       "FLAC Files\0*.flac\0"
                       "AIFF Files\0*.aiff\0"
@@ -1158,6 +1159,12 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
+    } else if (strcmp(ext_lower, ".m4a") == 0) {
+        printf("Loading M4A file: %s\n", filename);
+        if (convert_m4a_to_wav(player, filename)) {
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
+        }
     } else {
         printf("Unsupported file type: %s\n", ext);
         return false;
@@ -1669,6 +1676,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
                     strcmp(ext_lower, ".midi") == 0 ||
                     strcmp(ext_lower, ".wav") == 0 ||
                     strcmp(ext_lower, ".mp3") == 0 ||
+                    strcmp(ext_lower, ".m4a") == 0 ||
                     strcmp(ext_lower, ".ogg") == 0 ||
                     strcmp(ext_lower, ".aif") == 0 ||
                     strcmp(ext_lower, ".aiff") == 0 ||
@@ -1742,6 +1750,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.midi");
     gtk_file_filter_add_pattern(all_filter, "*.wav");
     gtk_file_filter_add_pattern(all_filter, "*.mp3");
+    gtk_file_filter_add_pattern(all_filter, "*.m4a");
     gtk_file_filter_add_pattern(all_filter, "*.ogg");
     gtk_file_filter_add_pattern(all_filter, "*.flac");
     gtk_file_filter_add_pattern(all_filter, "*.aif");
@@ -1784,6 +1793,11 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_set_name(opus_filter, "OPUS Files (*.opus)");
     gtk_file_filter_add_pattern(opus_filter, "*.opus");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), opus_filter);
+
+    GtkFileFilter *m4a_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(m4a_filter, "M4A Files (*.m4a)");
+    gtk_file_filter_add_pattern(m4a_filter, "*.m4a");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), m4a_filter);
 
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
@@ -1874,6 +1888,8 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.aiff");
     gtk_file_filter_add_pattern(all_filter, "*.aif");
     gtk_file_filter_add_pattern(all_filter, "*.opus");
+    gtk_file_filter_add_pattern(all_filter, "*.m4a");
+
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1911,6 +1927,11 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_set_name(opus_filter, "OPUS Files (*.opus)");
     gtk_file_filter_add_pattern(opus_filter, "*.opus");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), opus_filter);
+
+    GtkFileFilter *m4a_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(m4a_filter, "M4A Files (*.m4a)");
+    gtk_file_filter_add_pattern(m4a_filter, "*.m4a");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), m4a_filter);
 
 
     
