@@ -17,6 +17,8 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
+bool convert_audio_to_wav(AudioPlayer *player, const char* filename);
+
 // FFmpeg initialization helper
 static bool g_ffmpeg_initialized = false;
 
@@ -471,6 +473,15 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
 }
 
 bool convert_m4a_to_wav(AudioPlayer *player, const char* filename) {
+    return convert_audio_to_wav(player, filename);
+}
+
+bool convert_wma_to_wav(AudioPlayer *player, const char* filename) {
+    return convert_audio_to_wav(player, filename);
+}
+
+
+bool convert_audio_to_wav(AudioPlayer *player, const char* filename) {
     // Check cache first
     const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
     if (cached_file) {

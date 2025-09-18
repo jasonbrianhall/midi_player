@@ -58,88 +58,33 @@ static std::wstring stringToWString(const std::string& str) {
     return result;
 }
 
-bool convertM4aToWavInMemory(const std::vector<uint8_t>& m4a_data, std::vector<uint8_t>& wav_data) {
-    // Media Foundation requires actual file access for M4A files
-    // Create a temporary file for the conversion process
-    char temp_path[MAX_PATH];
-    char temp_m4a_file[MAX_PATH];
-    
-    if (GetTempPathA(MAX_PATH, temp_path) == 0 ||
-        GetTempFileNameA(temp_path, "m4a", 0, temp_m4a_file) == 0) {
-        printf("Failed to create temporary file path\n");
-        return false;
-    }
-    
-    // Write M4A data to temporary file
-    FILE* temp_file = fopen(temp_m4a_file, "wb");
-    if (!temp_file) {
-        printf("Failed to create temporary M4A file\n");
-        return false;
-    }
-    
-    if (fwrite(m4a_data.data(), 1, m4a_data.size(), temp_file) != m4a_data.size()) {
-        printf("Failed to write M4A data to temporary file\n");
-        fclose(temp_file);
-        DeleteFileA(temp_m4a_file);
-        return false;
-    }
-    fclose(temp_file);
-    
-    // Create temporary WAV file
-    char temp_wav_file[MAX_PATH];
-    if (GetTempFileNameA(temp_path, "wav", 0, temp_wav_file) == 0) {
-        printf("Failed to create temporary WAV file path\n");
-        DeleteFileA(temp_m4a_file);
-        return false;
-    }
-    
-    // Convert using file-based method
-    bool success = convertM4aToWav(temp_m4a_file, temp_wav_file);
-    
-    if (success) {
-        // Read converted WAV data back into memory
-        FILE* wav_file = fopen(temp_wav_file, "rb");
-        if (wav_file) {
-            fseek(wav_file, 0, SEEK_END);
-            long wav_size = ftell(wav_file);
-            fseek(wav_file, 0, SEEK_SET);
-            
-            wav_data.resize(wav_size);
-            if (fread(wav_data.data(), 1, wav_size, wav_file) == (size_t)wav_size) {
-                printf("M4A to WAV memory conversion complete (%zu bytes)\n", wav_data.size());
-            } else {
-                success = false;
-                printf("Failed to read converted WAV data\n");
-            }
-            fclose(wav_file);
-        } else {
-            success = false;
-            printf("Failed to read converted WAV file\n");
-        }
-    }
-    
-    // Clean up temporary files
-    DeleteFileA(temp_m4a_file);
-    DeleteFileA(temp_wav_file);
-    
-    return success;
+// Function to detect audio file format
+static bool isWmaFile(const char* filename) {
+    const char* ext = strrchr(filename, '.');
+    return ext && (_stricmp(ext, ".wma") == 0);
 }
 
-bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
+static bool isM4aFile(const char* filename) {
+    const char* ext = strrchr(filename, '.');
+    return ext && (_stricmp(ext, ".m4a") == 0 || _stricmp(ext, ".m4p") == 0);
+}
+
+// Generic function that works for both M4A and WMA
+static bool convertAudioToWav(const char* input_filename, const char* wav_filename) {
     if (!initializeMediaFoundation()) {
         return false;
     }
     
     // Convert filename to wide string
-    std::wstring wide_filename = stringToWString(m4a_filename);
+    std::wstring wide_filename = stringToWString(input_filename);
     
     HRESULT hr;
     IMFSourceReader* pReader = nullptr;
     
-    // Create source reader from file
+    // Create source reader from file - works for both M4A and WMA
     hr = MFCreateSourceReaderFromURL(wide_filename.c_str(), nullptr, &pReader);
     if (FAILED(hr)) {
-        printf("Cannot open M4A file: %s (Error: 0x%lx)\n", m4a_filename, hr);
+        printf("Cannot open audio file: %s (Error: 0x%lx)\n", input_filename, hr);
         return false;
     }
     
@@ -159,9 +104,12 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
     pOriginalType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &originalSampleRate);
     pOriginalType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &originalChannels);
     
-    printf("Original M4A: %d Hz, %d channels\n", originalSampleRate, originalChannels);
+    // Determine file type for logging
+    const char* fileType = isWmaFile(input_filename) ? "WMA" : 
+                          isM4aFile(input_filename) ? "M4A" : "Audio";
+    printf("Original %s: %d Hz, %d channels\n", fileType, originalSampleRate, originalChannels);
     
-    // Now configure source reader for PCM output WITH ORIGINAL SAMPLE RATE
+    // Configure source reader for PCM output WITH ORIGINAL SAMPLE RATE
     IMFMediaType* pType = nullptr;
     hr = MFCreateMediaType(&pType);
     if (FAILED(hr)) {
@@ -322,11 +270,97 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
     pType->Release();
     pReader->Release();
     
-    printf("M4A conversion complete\n");
+    printf("%s conversion complete\n", fileType);
     return true;
 }
 
-bool convert_m4a_to_wav(AudioPlayer *player, const char* filename) {
+// Memory-based conversion for any supported audio format
+static bool convertAudioToWavInMemory(const std::vector<uint8_t>& audio_data, std::vector<uint8_t>& wav_data, const char* file_extension) {
+    // Media Foundation requires actual file access for audio files
+    // Create a temporary file for the conversion process
+    char temp_path[MAX_PATH];
+    char temp_audio_file[MAX_PATH];
+    
+    if (GetTempPathA(MAX_PATH, temp_path) == 0 ||
+        GetTempFileNameA(temp_path, file_extension, 0, temp_audio_file) == 0) {
+        printf("Failed to create temporary file path\n");
+        return false;
+    }
+    
+    // Write audio data to temporary file
+    FILE* temp_file = fopen(temp_audio_file, "wb");
+    if (!temp_file) {
+        printf("Failed to create temporary audio file\n");
+        return false;
+    }
+    
+    if (fwrite(audio_data.data(), 1, audio_data.size(), temp_file) != audio_data.size()) {
+        printf("Failed to write audio data to temporary file\n");
+        fclose(temp_file);
+        DeleteFileA(temp_audio_file);
+        return false;
+    }
+    fclose(temp_file);
+    
+    // Create temporary WAV file
+    char temp_wav_file[MAX_PATH];
+    if (GetTempFileNameA(temp_path, "wav", 0, temp_wav_file) == 0) {
+        printf("Failed to create temporary WAV file path\n");
+        DeleteFileA(temp_audio_file);
+        return false;
+    }
+    
+    // Convert using file-based method
+    bool success = convertAudioToWav(temp_audio_file, temp_wav_file);
+    
+    if (success) {
+        // Read converted WAV data back into memory
+        FILE* wav_file = fopen(temp_wav_file, "rb");
+        if (wav_file) {
+            fseek(wav_file, 0, SEEK_END);
+            long wav_size = ftell(wav_file);
+            fseek(wav_file, 0, SEEK_SET);
+            
+            wav_data.resize(wav_size);
+            if (fread(wav_data.data(), 1, wav_size, wav_file) == (size_t)wav_size) {
+                printf("Audio to WAV memory conversion complete (%zu bytes)\n", wav_data.size());
+            } else {
+                success = false;
+                printf("Failed to read converted WAV data\n");
+            }
+            fclose(wav_file);
+        } else {
+            success = false;
+            printf("Failed to read converted WAV file\n");
+        }
+    }
+    
+    // Clean up temporary files
+    DeleteFileA(temp_audio_file);
+    DeleteFileA(temp_wav_file);
+    
+    return success;
+}
+
+// Wrapper functions for backward compatibility
+bool convertM4aToWavInMemory(const std::vector<uint8_t>& m4a_data, std::vector<uint8_t>& wav_data) {
+    return convertAudioToWavInMemory(m4a_data, wav_data, "m4a");
+}
+
+bool convertWmaToWavInMemory(const std::vector<uint8_t>& wma_data, std::vector<uint8_t>& wav_data) {
+    return convertAudioToWavInMemory(wma_data, wav_data, "wma");
+}
+
+bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
+    return convertAudioToWav(m4a_filename, wav_filename);
+}
+
+bool convertWmaToWav(const char* wma_filename, const char* wav_filename) {
+    return convertAudioToWav(wma_filename, wav_filename);
+}
+
+// Internal generic audio converter for Windows Media Foundation
+static bool convert_audio_to_wav_internal(AudioPlayer *player, const char* filename) {
     // Check cache first
     const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
     if (cached_file) {
@@ -335,39 +369,58 @@ bool convert_m4a_to_wav(AudioPlayer *player, const char* filename) {
         return true;
     }
     
+    // Determine file type
+    bool isWma = isWmaFile(filename);
+    bool isM4a = isM4aFile(filename);
+    
+    if (!isWma && !isM4a) {
+        printf("Unsupported audio format: %s\n", filename);
+        return false;
+    }
+    
     // Generate a unique virtual filename
     static int virtual_counter = 0;
     char virtual_filename[256];
-    snprintf(virtual_filename, sizeof(virtual_filename), "virtual_m4a_%d.wav", virtual_counter++);
+    const char* prefix = isWma ? "virtual_wma" : "virtual_m4a";
+    snprintf(virtual_filename, sizeof(virtual_filename), "%s_%d.wav", prefix, virtual_counter++);
     
     strncpy(player->temp_wav_file, virtual_filename, sizeof(player->temp_wav_file) - 1);
     player->temp_wav_file[sizeof(player->temp_wav_file) - 1] = '\0';
     
-    printf("Converting M4A to virtual WAV: %s -> %s\n", filename, virtual_filename);
+    printf("Converting %s to virtual WAV: %s -> %s\n", 
+           isWma ? "WMA" : "M4A", filename, virtual_filename);
     
-    // Read M4A file into memory
-    FILE* m4a_file = fopen(filename, "rb");
-    if (!m4a_file) {
-        printf("Cannot open M4A file: %s\n", filename);
+    // Read audio file into memory
+    FILE* audio_file = fopen(filename, "rb");
+    if (!audio_file) {
+        printf("Cannot open audio file: %s\n", filename);
         return false;
     }
     
-    fseek(m4a_file, 0, SEEK_END);
-    long m4a_size = ftell(m4a_file);
-    fseek(m4a_file, 0, SEEK_SET);
+    fseek(audio_file, 0, SEEK_END);
+    long audio_size = ftell(audio_file);
+    fseek(audio_file, 0, SEEK_SET);
     
-    std::vector<uint8_t> m4a_data(m4a_size);
-    if (fread(m4a_data.data(), 1, m4a_size, m4a_file) != (size_t)m4a_size) {
-        printf("Failed to read M4A file\n");
-        fclose(m4a_file);
+    std::vector<uint8_t> audio_data(audio_size);
+    if (fread(audio_data.data(), 1, audio_size, audio_file) != (size_t)audio_size) {
+        printf("Failed to read audio file\n");
+        fclose(audio_file);
         return false;
     }
-    fclose(m4a_file);
+    fclose(audio_file);
     
-    // Convert M4A to WAV in memory
+    // Convert to WAV in memory
     std::vector<uint8_t> wav_data;
-    if (!convertM4aToWavInMemory(m4a_data, wav_data)) {
-        printf("M4A to WAV conversion failed\n");
+    bool conversion_success = false;
+    
+    if (isWma) {
+        conversion_success = convertWmaToWavInMemory(audio_data, wav_data);
+    } else {
+        conversion_success = convertM4aToWavInMemory(audio_data, wav_data);
+    }
+    
+    if (!conversion_success) {
+        printf("Audio to WAV conversion failed\n");
         return false;
     }
     
@@ -386,8 +439,18 @@ bool convert_m4a_to_wav(AudioPlayer *player, const char* filename) {
     // Add to cache after successful conversion
     add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
     
-    printf("M4A conversion to virtual file complete\n");
+    printf("Audio conversion to virtual file complete\n");
     return true;
+}
+
+// Windows-specific M4A converter (calls generic function)
+bool convert_m4a_to_wav(AudioPlayer *player, const char* filename) {
+    return convert_audio_to_wav_internal(player, filename);
+}
+
+// Windows-specific WMA converter (calls generic function)
+bool convert_wma_to_wav(AudioPlayer *player, const char* filename) {
+    return convert_audio_to_wav_internal(player, filename);
 }
 
 #endif // _WIN32
