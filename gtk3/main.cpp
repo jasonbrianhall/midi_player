@@ -49,12 +49,14 @@ static int original_vis_height = 0;
 
 bool open_windows_file_dialog(char* filename, size_t filename_size, bool multiple = false) {
     OPENFILENAME ofn;
-    char szFile[2048] = "";
+    
+    // Clear the buffer
+    memset(filename, 0, filename_size);
     
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
-    ofn.lpstrFile = szFile;
-    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = (DWORD)filename_size;
     ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.m4a;*.aiff;*.aif;*.ogg;*.flac;*.opus;*.wma\0"
                       "MIDI Files\0*.mid;*.midi\0"
                       "WAV Files\0*.wav\0"
@@ -74,14 +76,25 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
     
     if (multiple) {
         ofn.Flags |= OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+        printf("Opening Windows file dialog for multiple selection\n");
+    } else {
+        printf("Opening Windows file dialog for single selection\n");
     }
     
-    if (GetOpenFileName(&ofn)) {
-        strncpy(filename, szFile, filename_size - 1);
-        filename[filename_size - 1] = '\0';
+    BOOL result = GetOpenFileName(&ofn);
+    
+    if (result) {
+        printf("File dialog returned successfully\n");
         return true;
+    } else {
+        DWORD error = CommDlgExtendedError();
+        if (error != 0) {
+            printf("File dialog error: %lu\n", error);
+        } else {
+            printf("File dialog cancelled by user\n");
+        }
+        return false;
     }
-    return false;
 }
 #endif
 
@@ -1699,7 +1712,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
 #ifdef _WIN32
-    char filename[2048] = "";  // Larger buffer for multiple files
+    char filename[32768] = "";  // Much larger buffer for multiple files
     if (open_windows_file_dialog(filename, sizeof(filename), true)) {  // true for multiple selection
         bool was_empty_queue = (player->queue.count == 0);
         
@@ -1725,7 +1738,8 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
                     strcmp(ext_lower, ".aif") == 0 ||
                     strcmp(ext_lower, ".aiff") == 0 ||
                     strcmp(ext_lower, ".opus") == 0 ||
-                    strcmp(ext_lower, ".flac") == 0);
+                    strcmp(ext_lower, ".flac") == 0 ||
+                    strcmp(ext_lower, ".wma") == 0);
         };
         
         // Parse multiple filenames from Windows dialog
@@ -1733,22 +1747,31 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
         // or single file as: "full\path\to\file.ext\0"
         
         char *ptr = filename;
-        char directory[512] = "";
+        char directory[1024] = "";
         
-        // Check if this is multiple files (contains directory + files)
-        char *next_null = strchr(ptr, '\0');
-        if (next_null && *(next_null + 1) != '\0') {
+        // Find the first null terminator
+        size_t first_string_len = strlen(ptr);
+        char *after_first_null = ptr + first_string_len + 1;
+        
+        // Check if this is multiple files (there's another string after the first null)
+        if (*after_first_null != '\0') {
             // Multiple files: first string is directory
-            strcpy(directory, ptr);
-            ptr = next_null + 1;
+            strncpy(directory, ptr, sizeof(directory) - 1);
+            directory[sizeof(directory) - 1] = '\0';
+            ptr = after_first_null;
+            
+            printf("Multiple files selected, directory: %s\n", directory);
             
             // Add each file (with extension validation)
             while (*ptr) {
-                char full_path[32768];
+                char full_path[2048];
                 snprintf(full_path, sizeof(full_path), "%s\\%s", directory, ptr);
+                
+                printf("Processing file: %s\n", full_path);
                 
                 if (is_supported_extension(full_path)) {
                     add_to_queue(&player->queue, full_path);
+                    printf("Added to queue: %s\n", full_path);
                 } else {
                     printf("Skipping unsupported file: %s\n", full_path);
                 }
@@ -1758,10 +1781,18 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
             }
         } else {
             // Single file (with extension validation)
+            printf("Single file selected: %s\n", filename);
+            
             if (is_supported_extension(filename)) {
                 add_to_queue(&player->queue, filename);
+                printf("Added single file to queue: %s\n", filename);
             } else {
                 printf("Unsupported file type: %s\n", filename);
+                
+                // Show error message for unsupported single file
+                char error_msg[1024];
+                snprintf(error_msg, sizeof(error_msg), "Unsupported file type: %s", filename);
+                MessageBoxA(NULL, error_msg, "Unsupported File", MB_OK | MB_ICONWARNING);
             }
         }
         
@@ -1775,6 +1806,8 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
         
         update_queue_display(player);
         update_gui_state(player);
+        
+        printf("Total files in queue: %d\n", player->queue.count);
     }
 #else
     // Your existing GTK file dialog code for Linux/Mac
@@ -1801,7 +1834,6 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.aiff");
     gtk_file_filter_add_pattern(all_filter, "*.opus");
     gtk_file_filter_add_pattern(all_filter, "*.wma");
-
 
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
