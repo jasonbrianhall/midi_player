@@ -41,6 +41,9 @@ Press F9 for fullscreen visualization mode
   - **AIFF** (.aif/.aiff) — Mac's answer to WAV files
   - **OPUS** (.opus) — Open-source, royalty-free, low-latency audio codec
   - **MIDI** (.mid/.midi) — Here's where it gets interesting...
+  - **M4A/AAC** - Advanced Codec (Different methods for Windows and Linux)
+  - **WMA** - Windows Media Audio (Different methods for Windows and Linux)
+  - **Generic Files** - Whatever is supported via libavcodec on Linux and natively on Windows *should* work (I opened a MP4 of Alien Romulus and it loaded the audio)
 
 ## 🎹 The MIDI Magic
 
