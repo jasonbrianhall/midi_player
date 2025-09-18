@@ -38,6 +38,12 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        # Enable RPM Fusion repositories
+        dnf -y install \
+          https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+          https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+        # Install packages
         dnf -y install \
           gcc gcc-c++ make \
           gtk3-devel gtkmm30-devel \
@@ -55,8 +61,7 @@ jobs:
           opus-devel opusfile-devel \
           ImageMagick \
           ffmpeg-devel
-
-
+          
     - name: Convert Icon
       working-directory: gtk3
       run: |
