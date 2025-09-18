@@ -359,8 +359,12 @@ bool convertWmaToWav(const char* wma_filename, const char* wav_filename) {
     return convertAudioToWav(wma_filename, wav_filename);
 }
 
+bool convert_audio_to_wav(AudioPlayer *player, const char* filename) {
+    return convert_audio_to_wav_internal(player, filename);
+}
+
 // Internal generic audio converter for Windows Media Foundation
-static bool convert_audio_to_wav_internal(AudioPlayer *player, const char* filename) {
+bool convert_audio_to_wav_internal(AudioPlayer *player, const char* filename) {
     // Check cache first
     const char* cached_file = get_cached_conversion(&player->conversion_cache, filename);
     if (cached_file) {

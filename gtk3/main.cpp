@@ -1173,8 +1173,14 @@ bool load_file(AudioPlayer *player, const char *filename) {
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
     } else {
-        printf("Unsupported file type: %s\n", ext);
-        return false;
+        printf("Trying to load unknown file: %s\n", filename);
+        if (convert_audio_to_wav(player, filename)) {
+            printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
+            success = load_virtual_wav_file(player, player->temp_wav_file);
+        }    
+        else {
+            printf("File isn't supported\n");
+        }
     }
     
     if (success) {
@@ -1765,6 +1771,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.opus");
     gtk_file_filter_add_pattern(all_filter, "*.wma");
 
+
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
     GtkFileFilter *midi_filter = gtk_file_filter_new();
@@ -1810,8 +1817,13 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
 
     GtkFileFilter *wma_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(wma_filter, "wma Files (*.wma)");
-    gtk_file_filter_add_pattern(m4a_filter, "*.wma");
+    gtk_file_filter_add_pattern(wma_filter, "*.wma");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wma_filter);
+
+    GtkFileFilter *generic_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(generic_filter, "All other files (*.*)");
+    gtk_file_filter_add_pattern(generic_filter, "*.*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), generic_filter);
 
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
@@ -1953,6 +1965,11 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_set_name(wma_filter, "WMA Files (*.wma)");
     gtk_file_filter_add_pattern(wma_filter, "*.wma");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wma_filter);
+
+    GtkFileFilter *generic_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(generic_filter, "All Other Files (*.*)");
+    gtk_file_filter_add_pattern(generic_filter, "*.*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), generic_filter);
 
 
     

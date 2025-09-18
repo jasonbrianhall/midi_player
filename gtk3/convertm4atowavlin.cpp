@@ -17,8 +17,6 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
-bool convert_audio_to_wav(AudioPlayer *player, const char* filename);
-
 // FFmpeg initialization helper
 static bool g_ffmpeg_initialized = false;
 
@@ -503,7 +501,7 @@ bool convert_audio_to_wav(AudioPlayer *player, const char* filename) {
     // Read M4A file into memory
     FILE* m4a_file = fopen(filename, "rb");
     if (!m4a_file) {
-        printf("Cannot open M4A file: %s\n", filename);
+        printf("Cannot open file: %s\n", filename);
         return false;
     }
     
@@ -522,7 +520,7 @@ bool convert_audio_to_wav(AudioPlayer *player, const char* filename) {
     // Convert M4A to WAV in memory
     std::vector<uint8_t> wav_data;
     if (!convertM4aToWavInMemory(m4a_data, wav_data)) {
-        printf("M4A to WAV conversion failed\n");
+        printf("Conversion to WAV conversion failed\n");
         return false;
     }
     
@@ -541,7 +539,7 @@ bool convert_audio_to_wav(AudioPlayer *player, const char* filename) {
     // Add to cache after successful conversion
     add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
     
-    printf("M4A conversion to virtual file complete\n");
+    printf("Conversion to virtual file complete\n");
     return true;
 }
 

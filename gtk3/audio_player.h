@@ -186,9 +186,11 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename);
 #ifdef _WIN32
 bool convertM4aToWav(const char* m4a_filename, const char* wav_filename);
 bool convertWmaToWavInMemory(const std::vector<uint8_t>& wma_data, std::vector<uint8_t>& wav_data);
+bool convert_audio_to_wav_internal(AudioPlayer *player, const char* filename);
 #endif
 bool convert_m4a_to_wav(AudioPlayer *player, const char* filename);
 bool convert_wma_to_wav(AudioPlayer *player, const char* filename);
+bool convert_audio_to_wav(AudioPlayer *player, const char* filename);
 bool convert_ogg_to_wav(AudioPlayer *player, const char* filename);
 bool convert_flac_to_wav(AudioPlayer *player, const char* filename);
 bool load_wav_file(AudioPlayer *player, const char* wav_path);
