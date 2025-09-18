@@ -521,32 +521,45 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     int16_t* output = (int16_t*)stream;
     int samples_requested = len / sizeof(int16_t);
     size_t samples_remaining = player->audio_buffer.length - player->audio_buffer.position;
-    int samples_to_copy = (samples_requested < (int)samples_remaining) ? samples_requested : (int)samples_remaining;
     
-    if (samples_to_copy > 0) {
-        // Copy and process audio data
-        for (int i = 0; i < samples_to_copy; i++) {
-            int32_t sample = player->audio_buffer.data[player->audio_buffer.position + i];
-            sample = (sample * globalVolume) / 100;
-            if (sample > 32767) sample = 32767;
-            else if (sample < -32768) sample = -32768;
-            
-            // APPLY EQUALIZER HERE
-            int16_t eq_sample = equalizer_process_sample(player->equalizer, (int16_t)sample);
-            output[i] = eq_sample;
-        }
+    // Apply speed control
+    double speed = player->playback_speed;
+    if (speed <= 0.0) speed = 1.0; // Safety check
+    
+    int samples_to_process = 0;
+    
+    for (int i = 0; i < samples_requested && player->audio_buffer.position < player->audio_buffer.length; i++) {
+        // Get current sample with volume and EQ processing
+        int32_t sample = player->audio_buffer.data[player->audio_buffer.position];
+        sample = (sample * globalVolume) / 100;
+        if (sample > 32767) sample = 32767;
+        else if (sample < -32768) sample = -32768;
         
-        // Feed processed audio to visualizer
-        if (player->visualizer) {
-            size_t sample_count = samples_to_copy / player->channels;
-            visualizer_update_audio_data(player->visualizer, output, sample_count, player->channels);
-        }
+        // Apply equalizer
+        int16_t eq_sample = equalizer_process_sample(player->equalizer, (int16_t)sample);
+        output[i] = eq_sample;
         
-        player->audio_buffer.position += samples_to_copy;
+        samples_to_process++;
         
-        if (player->audio_buffer.position >= player->audio_buffer.length) {
-            player->is_playing = false;
+        // Advance position based on speed
+        player->speed_accumulator += speed;
+        
+        // Move to next sample when accumulator >= 1.0
+        while (player->speed_accumulator >= 1.0 && player->audio_buffer.position < player->audio_buffer.length) {
+            player->audio_buffer.position++;
+            player->speed_accumulator -= 1.0;
         }
+    }
+    
+    // Feed processed audio to visualizer
+    if (player->visualizer && samples_to_process > 0) {
+        size_t sample_count = samples_to_process / player->channels;
+        visualizer_update_audio_data(player->visualizer, output, sample_count, player->channels);
+    }
+    
+    // Check if playback finished
+    if (player->audio_buffer.position >= player->audio_buffer.length) {
+        player->is_playing = false;
     }
     
     pthread_mutex_unlock(&player->audio_mutex);
@@ -1076,6 +1089,24 @@ bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     
     printf("Loaded %zu samples\n", player->audio_buffer.length);
     return true;
+}
+
+void on_speed_changed(GtkRange *range, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    double speed = gtk_range_get_value(range);
+    
+    pthread_mutex_lock(&player->audio_mutex);
+    player->playback_speed = speed;
+    // Reset accumulator when speed changes to avoid glitches
+    player->speed_accumulator = 0.0;
+    pthread_mutex_unlock(&player->audio_mutex);
+    
+    // Update the tooltip to show current speed
+    char tooltip[64];
+    snprintf(tooltip, sizeof(tooltip), "Playback speed: %.2fx", speed);
+    gtk_widget_set_tooltip_text(GTK_WIDGET(range), tooltip);
+    
+    printf("Speed changed to: %.2fx\n", speed);
 }
 
 
@@ -2442,6 +2473,8 @@ int main(int argc, char *argv[]) {
     
     player = (AudioPlayer*)g_malloc0(sizeof(AudioPlayer));
     pthread_mutex_init(&player->audio_mutex, NULL);
+    player->playback_speed = 1.0; 
+    player->speed_accumulator = 0.0;    
     
     // Initialize queue and conversion cache
     init_queue(&player->queue);

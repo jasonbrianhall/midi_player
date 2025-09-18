@@ -105,6 +105,7 @@ typedef struct {
     GtkWidget *progress_scale;
     GtkWidget *time_label;
     GtkWidget *volume_scale;
+    GtkWidget *speed_scale;
     GtkWidget *file_label;
     
     // Queue widgets
@@ -137,6 +138,8 @@ typedef struct {
     int sample_rate;
     int channels;
     int bits_per_sample;
+    double playback_speed;
+    double speed_accumulator;  // For fractional sample stepping
     
     Visualizer *visualizer;
     GtkWidget *vis_controls;
@@ -150,6 +153,8 @@ typedef struct {
     GtkWidget *mid_scale;
     GtkWidget *treble_scale;
     GtkWidget *eq_reset_button;
+
+
 
     LayoutManager layout;
 } AudioPlayer;
@@ -230,6 +235,7 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
 bool remove_from_queue(PlayQueue *queue, int index);
 void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data);
 double get_scale_factor(GtkWidget *widget);
+void on_speed_changed(GtkRange *range, gpointer user_data);
 
 // Caching
 void init_conversion_cache(ConversionCache *cache);

@@ -251,16 +251,30 @@ static void create_player_controls(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(player->layout.nav_button_box), player->fast_forward_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(player->layout.nav_button_box), player->next_button, TRUE, TRUE, 0);
     
-    // Volume controls
+    // Volume and Speed controls
     player->layout.volume_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.volume_box, FALSE, FALSE, 0);
-    
+
+    // Volume control (takes majority of space)
     GtkWidget *volume_label = gtk_label_new("Volume:");
     player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(player->volume_scale), (double)globalVolume / 100.0);
-    
+
+    // Speed control (takes less space)
+    GtkWidget *speed_label = gtk_label_new("Speed:");
+    player->speed_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.2, 4.0, 0.1);
+    gtk_range_set_value(GTK_RANGE(player->speed_scale), 1.0); // Default normal speed
+    gtk_scale_set_digits(GTK_SCALE(player->speed_scale), 2); // Show 2 decimal places
+    gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.2x to 4.0x)");
+
+    // Set width hints - volume gets more space
+    gtk_widget_set_size_request(player->volume_scale, 200, -1); // Volume takes more space
+    gtk_widget_set_size_request(player->speed_scale, 120, -1);  // Speed takes less space
+
     gtk_box_pack_start(GTK_BOX(player->layout.volume_box), volume_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(player->layout.volume_box), player->volume_scale, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(player->layout.volume_box), speed_label, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(player->layout.volume_box), player->speed_scale, FALSE, FALSE, 0);
 }
 
 static void create_queue_controls_compact(AudioPlayer *player) {
@@ -367,6 +381,7 @@ static void connect_widget_signals(AudioPlayer *player) {
     g_signal_connect(player->next_button, "clicked", G_CALLBACK(on_next_clicked), player);
     g_signal_connect(player->prev_button, "clicked", G_CALLBACK(on_previous_clicked), player);
     g_signal_connect(player->volume_scale, "value-changed", G_CALLBACK(on_volume_changed), player);
+    g_signal_connect(player->speed_scale, "value-changed", G_CALLBACK(on_speed_changed), player);
     g_signal_connect(player->add_to_queue_button, "clicked", G_CALLBACK(on_add_to_queue_clicked), player);
     g_signal_connect(player->clear_queue_button, "clicked", G_CALLBACK(on_clear_queue_clicked), player);
     g_signal_connect(player->repeat_queue_button, "toggled", G_CALLBACK(on_repeat_queue_toggled), player);
