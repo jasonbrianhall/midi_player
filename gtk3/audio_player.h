@@ -183,6 +183,9 @@ bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels
 // File conversion functions
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename);
 bool convert_mp3_to_wav(AudioPlayer *player, const char* filename);
+#ifdef _WIN32
+bool convertM4aToWav(const char* m4a_filename, const char* wav_filename);
+#endif
 bool convert_m4a_to_wav(AudioPlayer *player, const char* filename);
 bool convert_ogg_to_wav(AudioPlayer *player, const char* filename);
 bool convert_flac_to_wav(AudioPlayer *player, const char* filename);
