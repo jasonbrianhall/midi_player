@@ -262,10 +262,10 @@ static void create_player_controls(AudioPlayer *player) {
 
     // Speed control (takes less space)
     GtkWidget *speed_label = gtk_label_new("Speed:");
-    player->speed_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.2, 4.0, 0.1);
+    player->speed_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 4.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->speed_scale), 1.0); // Default normal speed
-    gtk_scale_set_digits(GTK_SCALE(player->speed_scale), 2); // Show 2 decimal places
-    gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.2x to 4.0x)");
+    gtk_scale_set_digits(GTK_SCALE(player->speed_scale), 1); // Show 1 decimal place for 0.5 steps
+    gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.5x to 4.0x)");
 
     // Set width hints - volume gets more space
     gtk_widget_set_size_request(player->volume_scale, 200, -1); // Volume takes more space
