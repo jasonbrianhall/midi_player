@@ -143,11 +143,30 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
         return false;
     }
     
-    // Configure source reader for PCM output
+    // GET ORIGINAL FORMAT INFORMATION FIRST
+    IMFMediaType* pOriginalType = nullptr;
+    hr = pReader->GetNativeMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &pOriginalType);
+    if (FAILED(hr)) {
+        printf("Failed to get original media type\n");
+        pReader->Release();
+        return false;
+    }
+    
+    // Extract original audio parameters
+    UINT32 originalSampleRate = 44100; // default fallback
+    UINT32 originalChannels = 2;       // default fallback
+    
+    pOriginalType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &originalSampleRate);
+    pOriginalType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &originalChannels);
+    
+    printf("Original M4A: %d Hz, %d channels\n", originalSampleRate, originalChannels);
+    
+    // Now configure source reader for PCM output WITH ORIGINAL SAMPLE RATE
     IMFMediaType* pType = nullptr;
     hr = MFCreateMediaType(&pType);
     if (FAILED(hr)) {
         printf("Failed to create media type\n");
+        pOriginalType->Release();
         pReader->Release();
         return false;
     }
@@ -156,6 +175,15 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
     if (SUCCEEDED(hr)) {
         hr = pType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
     }
+    if (SUCCEEDED(hr)) {
+        hr = pType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, originalSampleRate);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = pType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, originalChannels);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = pType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+    }
     
     if (SUCCEEDED(hr)) {
         hr = pReader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pType);
@@ -163,36 +191,45 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
     
     if (FAILED(hr)) {
         printf("Failed to configure source reader\n");
+        pOriginalType->Release();
         pType->Release();
         pReader->Release();
         return false;
     }
     
-    // Get audio format information
+    // Verify the configured format
     IMFMediaType* pCurrentType = nullptr;
     hr = pReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pCurrentType);
     if (FAILED(hr)) {
         printf("Failed to get current media type\n");
+        pOriginalType->Release();
         pType->Release();
         pReader->Release();
         return false;
     }
     
-    UINT32 sampleRate = 0;
-    UINT32 channels = 0;
-    UINT32 bitsPerSample = 16; // Default to 16-bit
+    UINT32 sampleRate = originalSampleRate;  // Use original sample rate
+    UINT32 channels = originalChannels;      // Use original channel count
+    UINT32 bitsPerSample = 16;
     
+    // Double-check the configured values
     pCurrentType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sampleRate);
     pCurrentType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels);
     pCurrentType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bitsPerSample);
     
-    printf("M4A: %d Hz, %d channels, %d bits per sample\n", sampleRate, channels, bitsPerSample);
+    printf("Output format: %d Hz, %d channels, %d bits per sample\n", sampleRate, channels, bitsPerSample);
+    
+    // Warn if there's a mismatch
+    if (sampleRate != originalSampleRate) {
+        printf("WARNING: Sample rate mismatch! Original: %d, Output: %d\n", originalSampleRate, sampleRate);
+    }
     
     // Create WAV file
     FILE* wav_file = fopen(wav_filename, "wb");
     if (!wav_file) {
         printf("Cannot create WAV file: %s\n", wav_filename);
         pCurrentType->Release();
+        pOriginalType->Release();
         pType->Release();
         pReader->Release();
         return false;
@@ -281,6 +318,7 @@ bool convertM4aToWav(const char* m4a_filename, const char* wav_filename) {
     
     // Cleanup
     pCurrentType->Release();
+    pOriginalType->Release();
     pType->Release();
     pReader->Release();
     
