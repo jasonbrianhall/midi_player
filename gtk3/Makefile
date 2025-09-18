@@ -31,9 +31,13 @@ VORBIS_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs vorbisfile 2>/dev/null |
 OPUS_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags opusfile 2>/dev/null || echo "-I/usr/include/opus")
 OPUS_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs opusfile 2>/dev/null || echo "-lopusfile -lopus")
 
-CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) -DLINUX
-CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) -DLINUX
-LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
+# Linux-specific libraries
+AVCODEC_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags libavcodec libavformat libavutil libswresample 2>/dev/null || echo "")
+AVCODEC_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs libavcodec libavformat libavutil libswresample 2>/dev/null || echo "-lavcodec -lavformat -lavutil -lswresample")
+
+CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
+CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
+LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) $(AVCODEC_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
 
 # Windows-specific flags
 SDL2_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags sdl2 2>/dev/null || echo "")
@@ -45,11 +49,14 @@ VORBIS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs vorbisfile 2>/dev/null || ec
 OPUS_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags opusfile 2>/dev/null || echo "")
 OPUS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs opusfile 2>/dev/null || echo "-lopusfile -lopus")
 
-CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32
-CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32
-LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
+# Media Foundation libraries for M4A support on Windows
+MEDIA_FOUNDATION_LIBS = -lmf -lmfplat -lmfreadwrite -lmfuuid -lole32
+
+CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32 -D_WIN32
+CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32 -D_WIN32
+LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 # Add -mconsole for windows for debugging
-#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm
+#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 
 # Debug-specific flags
 CXXFLAGS_LINUX_DEBUG = $(CXXFLAGS_LINUX) $(DEBUG_FLAGS)
@@ -57,8 +64,8 @@ CFLAGS_LINUX_DEBUG = $(CFLAGS_LINUX) $(DEBUG_FLAGS)
 CXXFLAGS_WIN_DEBUG = $(CXXFLAGS_WIN) $(DEBUG_FLAGS)
 CFLAGS_WIN_DEBUG = $(CFLAGS_WIN) $(DEBUG_FLAGS)
 
-# Source files
-SOURCES_CPP = dbopl.cpp \
+# Common source files
+SOURCES_CPP_COMMON = dbopl.cpp \
 	dbopl_wrapper.cpp \
 	main.cpp \
 	midiplayer.cpp \
@@ -91,6 +98,13 @@ SOURCES_CPP = dbopl.cpp \
 	ripples.cpp \
 	kaleidoscope.cpp
 
+# Platform-specific source files
+SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
+        convertm4atowavlin.cpp
+
+SOURCES_CPP_WIN = $(SOURCES_CPP_COMMON) \
+        convertm4atowavwin.cpp
+
 SOURCES_C = 
 
 # Resource files for Windows
@@ -98,19 +112,19 @@ RESOURCE_FILE = icon.rc
 RESOURCE_OBJ = icon.o
 
 # Object files for different platforms
-OBJECTS_CPP_LINUX = $(SOURCES_CPP:.cpp=.o)
+OBJECTS_CPP_LINUX = $(SOURCES_CPP_LINUX:.cpp=.o)
 OBJECTS_C_LINUX = $(SOURCES_C:.c=.o)
 OBJECTS_LINUX = $(OBJECTS_CPP_LINUX) $(OBJECTS_C_LINUX)
 
-OBJECTS_CPP_WIN = $(SOURCES_CPP:.cpp=.win.o)
+OBJECTS_CPP_WIN = $(SOURCES_CPP_WIN:.cpp=.win.o)
 OBJECTS_C_WIN = $(SOURCES_C:.c=.win.o)
 OBJECTS_WIN = $(OBJECTS_CPP_WIN) $(OBJECTS_C_WIN)
 
-OBJECTS_CPP_LINUX_DEBUG = $(SOURCES_CPP:.cpp=.debug.o)
+OBJECTS_CPP_LINUX_DEBUG = $(SOURCES_CPP_LINUX:.cpp=.debug.o)
 OBJECTS_C_LINUX_DEBUG = $(SOURCES_C:.c=.debug.o)
 OBJECTS_LINUX_DEBUG = $(OBJECTS_CPP_LINUX_DEBUG) $(OBJECTS_C_LINUX_DEBUG)
 
-OBJECTS_CPP_WIN_DEBUG = $(SOURCES_CPP:.cpp=.win.debug.o)
+OBJECTS_CPP_WIN_DEBUG = $(SOURCES_CPP_WIN:.cpp=.win.debug.o)
 OBJECTS_C_WIN_DEBUG = $(SOURCES_C:.c=.win.debug.o)
 OBJECTS_WIN_DEBUG = $(OBJECTS_CPP_WIN_DEBUG) $(OBJECTS_C_WIN_DEBUG)
 
@@ -306,5 +320,10 @@ help:
 	@echo "Icon embedding:"
 	@echo "  Windows builds will automatically include icon.rc if present"
 	@echo "  Use EXTRA_OBJS=filename.o to include additional object files"
+	@echo ""
+	@echo "M4A Support:"
+	@echo "  M4A/AAC audio files are supported on both platforms:"
+	@echo "  - Windows: Uses Media Foundation (convertm4atowavwin.cpp)"
+	@echo "  - Linux: Uses libavcodec/FFmpeg (convertm4atowavlin.cpp)"
 
 .PHONY: all clean install help linux windows debug
