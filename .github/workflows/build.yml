@@ -53,7 +53,9 @@ jobs:
           wine wine-devel \
           zip unzip \
           opus-devel opusfile-devel \
-          ImageMagick
+          ImageMagick \
+          ffmpeg-devel
+
 
     - name: Convert Icon
       working-directory: gtk3
