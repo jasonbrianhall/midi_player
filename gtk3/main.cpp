@@ -2338,7 +2338,10 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     filename[0] = '\0';
     
     if (GetOpenFileName(&ofn)) {
-        load_m3u_playlist(player, filename);
+        if (load_m3u_playlist(player, filename)) {
+            // ADD TO RECENT FILES
+            add_to_recent_files(filename, "audio/x-mpegurl");
+        }
     }
 #else
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Load Playlist",
@@ -2356,7 +2359,10 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        load_m3u_playlist(player, filename);
+        if (load_m3u_playlist(player, filename)) {
+            // ADD TO RECENT FILES
+            add_to_recent_files(filename, "audio/x-mpegurl");
+        }
         g_free(filename);
     }
     
@@ -2364,6 +2370,7 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
 #endif
 }
 
+// Update your existing on_menu_save_playlist function:
 void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
@@ -2394,7 +2401,10 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     strcpy(filename, "playlist.m3u");
     
     if (GetSaveFileName(&ofn)) {
-        save_m3u_playlist(player, filename);
+        if (save_m3u_playlist(player, filename)) {
+            // ADD TO RECENT FILES
+            add_to_recent_files(filename, "audio/x-mpegurl");
+        }
     }
 #else
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Save Playlist",
@@ -2413,7 +2423,10 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        save_m3u_playlist(player, filename);
+        if (save_m3u_playlist(player, filename)) {
+            // ADD TO RECENT FILES
+            add_to_recent_files(filename, "audio/x-mpegurl");
+        }
         g_free(filename);
     }
     

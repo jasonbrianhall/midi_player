@@ -147,6 +147,36 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), save_playlist_item);
     g_signal_connect(save_playlist_item, "activate", G_CALLBACK(on_menu_save_playlist), player);
 
+    // ADD RECENT PLAYLISTS SUBMENU
+    GtkWidget *recent_separator = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), recent_separator);
+    
+    GtkWidget *recent_playlist_item = gtk_menu_item_new_with_label("Recent Playlists");
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), recent_playlist_item);
+    
+    // Create recent files submenu
+    GtkWidget *recent_submenu = gtk_recent_chooser_menu_new();
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(recent_playlist_item), recent_submenu);
+    
+    // Filter to show only playlist files
+    GtkRecentFilter *playlist_filter = gtk_recent_filter_new();
+    gtk_recent_filter_set_name(playlist_filter, "Playlists");
+    gtk_recent_filter_add_mime_type(playlist_filter, "audio/x-mpegurl");
+    gtk_recent_filter_add_mime_type(playlist_filter, "audio/mpegurl");
+    gtk_recent_filter_add_pattern(playlist_filter, "*.m3u");
+    gtk_recent_filter_add_pattern(playlist_filter, "*.m3u8");
+    gtk_recent_chooser_add_filter(GTK_RECENT_CHOOSER(recent_submenu), playlist_filter);
+    gtk_recent_chooser_set_filter(GTK_RECENT_CHOOSER(recent_submenu), playlist_filter);
+    
+    // Set other properties
+    gtk_recent_chooser_set_limit(GTK_RECENT_CHOOSER(recent_submenu), 10);
+    gtk_recent_chooser_set_sort_type(GTK_RECENT_CHOOSER(recent_submenu), GTK_RECENT_SORT_MRU);
+    gtk_recent_chooser_set_show_not_found(GTK_RECENT_CHOOSER(recent_submenu), FALSE);
+    
+    // Connect the activation signal
+    g_signal_connect(recent_submenu, "item-activated", 
+                     G_CALLBACK(on_recent_playlist_activated), player);
+
     GtkWidget *add_to_queue_playlist_item = gtk_menu_item_new_with_label("Add to Queue...");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), add_to_queue_playlist_item);
     g_signal_connect(add_to_queue_playlist_item, "activate", G_CALLBACK(on_add_to_queue_clicked), player);
@@ -161,7 +191,7 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
     g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
     
-    // Help menu
+    // Help menu (unchanged)
     GtkWidget *help_menu = gtk_menu_new();
     GtkWidget *help_item = gtk_menu_item_new_with_label("Help");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
@@ -503,4 +533,55 @@ gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gp
     }
     
     return FALSE; // Let other handlers process single clicks, etc.
+}
+
+void add_to_recent_files(const char* filepath, const char* mime_type) {
+    GtkRecentManager *recent_manager = gtk_recent_manager_get_default();
+    gchar *uri = g_filename_to_uri(filepath, NULL, NULL);
+    
+    if (uri) {
+        GtkRecentData recent_data;
+        memset(&recent_data, 0, sizeof(recent_data));
+        
+        recent_data.display_name = g_path_get_basename(filepath);
+        recent_data.description = "Audio playlist";
+        recent_data.mime_type = (gchar*)mime_type;
+        recent_data.app_name = "Zenamp";
+        recent_data.app_exec = "zenamp %f";
+        recent_data.groups = NULL;
+        recent_data.is_private = FALSE;
+        
+        gtk_recent_manager_add_full(recent_manager, uri, &recent_data);
+        
+        g_free(recent_data.display_name);
+        g_free(uri);
+        
+        printf("Added to recent files: %s\n", filepath);
+    }
+}
+
+// Callback for recent playlist items
+void on_recent_playlist_activated(GtkRecentChooser *chooser, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    gchar *uri = gtk_recent_chooser_get_current_uri(chooser);
+    
+    if (uri) {
+        gchar *filename = g_filename_from_uri(uri, NULL, NULL);
+        if (filename) {
+            printf("Loading recent playlist: %s\n", filename);
+            
+            if (load_m3u_playlist(player, filename)) {
+                update_queue_display(player);
+                update_gui_state(player);
+                
+                // Start playing if queue has files
+                if (player->queue.count > 0 && load_file_from_queue(player)) {
+                    update_gui_state(player);
+                }
+            }
+            
+            g_free(filename);
+        }
+        g_free(uri);
+    }
 }
