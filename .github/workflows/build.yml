@@ -494,6 +494,26 @@ jobs:
                       <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
                     </RegistryKey>
                     
+                    <!-- M4A Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.m4a\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampM4A" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampM4A">
+                      <RegistryValue Type="string" Value="M4A Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
+                    <!-- WMA Files -->
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\.wma\OpenWithProgids">
+                      <RegistryValue Type="string" Name="ZenampWMA" Value="" />
+                    </RegistryKey>
+                    <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\ZenampWMA">
+                      <RegistryValue Type="string" Value="WMA Audio File" />
+                      <RegistryValue Type="string" Key="DefaultIcon" Value="[INSTALLFOLDER]zenamp.exe,0" />
+                      <RegistryValue Type="string" Key="shell\open\command" Value="&quot;[INSTALLFOLDER]zenamp.exe&quot; &quot;%1&quot;" />
+                    </RegistryKey>
+                    
                     <RegistryValue Root="HKCU" Key="Software\GTKzenamp\Components" 
                                  Type="integer" Name="FileAssociations" Value="1" KeyPath="yes"/>
                   </Component>
@@ -612,7 +632,7 @@ jobs:
             
             <Feature Id="FileAssociationFeature" 
                      Title="File Associations" 
-                     Description="Associate audio files with Zenamp (WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS)."
+                     Description="Associate audio files with Zenamp (WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS, M4A, WMA)."
                      Level="1">
               <ComponentRef Id="FileAssociations" />
             </Feature>
@@ -639,6 +659,8 @@ jobs:
                 shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampMIDI\"
                 shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampAIFF\"
                 shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampOPUS\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampM4A\"
+                shell.RegDelete "HKLM\SOFTWARE\Classes\ZenampWMA\"
               ]]>
             </CustomAction>
             
@@ -846,6 +868,8 @@ jobs:
                       <uap:FileType ContentType="audio/aiff">.aiff</uap:FileType>
                       <uap:FileType ContentType="audio/aiff">.aif</uap:FileType>
                       <uap:FileType ContentType="audio/opus">.opus</uap:FileType>
+                      <uap:FileType ContentType="audio/mp4">.m4a</uap:FileType>
+                      <uap:FileType ContentType="audio/x-ms-wma">.wma</uap:FileType>
                       <uap:FileType ContentType="audio/x-mpegurl">.m3u</uap:FileType>
                       <uap:FileType ContentType="audio/x-mpegurl">.m3u8</uap:FileType>
                     </uap:SupportedFileTypes>
@@ -957,10 +981,10 @@ jobs:
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
-          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS
+          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS, M4A, WMA
           - OPL3 MIDI synthesis for authentic retro sound
           - Complete playback controls with queue management
-          - Volume control (10% to 300%)
+          - Volume control (10% to 300%) and speed control (0.5x to 4.0x)
           - Progress tracking with timestamps
           - GTK3 interface for modern desktop integration
           
@@ -1020,6 +1044,8 @@ jobs:
           - **MIDI** - Musical Instrument Digital Interface (.mid/.midi)
           - **AIFF** - Audio Interchange File Format (.aiff/.aif)
           - **OPUS** - Royalty-free lossy audio codec
+          - **M4A** - MPEG-4 Audio files
+          - **WMA** - Windows Media Audio files
           - **M3U** - Audio playlist files
           
           Right-click any supported audio file or playlist and select "Open with Zenamp" or "Play with Zenamp"!
