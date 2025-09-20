@@ -21,6 +21,21 @@
 #include "equalizer.h"
 #include "visualization.h"
 
+// Structure to hold audio metadata
+struct AudioMetadata {
+    std::string title;
+    std::string artist;
+    std::string album;
+    std::string year;
+    std::string genre;
+    std::string comment;
+    int track_number = 0;
+    int duration_seconds = 0;
+    int bitrate = 0;
+    std::map<std::string, std::string> custom_tags;
+};
+
+
 typedef struct {
     bool is_compact;
     int window_width;
