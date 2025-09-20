@@ -76,6 +76,7 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	convertmidi.cpp \
 	convertoggtowav.cpp \
 	convertopustowav.cpp \
+	convertmp3towav.cpp \
 	vfs.cpp \
 	cache.cpp \
 	convertflactowav.cpp \
