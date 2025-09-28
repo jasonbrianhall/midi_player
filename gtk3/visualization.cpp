@@ -65,8 +65,9 @@ Visualizer* visualizer_new(void) {
     init_bouncy_ball_system(vis);
 
 
-    // Digital Clock
+    // Clocks
     init_clock_system(vis);
+    init_analog_clock_system(vis);
 
     return vis;
 }
@@ -311,6 +312,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
           break;
         case VIS_DIGITAL_CLOCK:
           draw_clock_visualization(vis, cr);
+          break;
+        case VIS_ANALOG_CLOCK:
+          draw_analog_clock(vis, cr);
           break;
     }
     
@@ -629,6 +633,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_DIGITAL_CLOCK:
                 update_clock_swirls(vis, 0.033);
                 break;
+            case VIS_ANALOG_CLOCK:
+                update_analog_clock(vis, 0.033);
+                break;                
             default:
                 // No update function needed for other visualization types
                 break;
@@ -707,6 +714,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Kaleidoscope");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bouncy Balls");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Digital Clock");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Analog Clock");    
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);

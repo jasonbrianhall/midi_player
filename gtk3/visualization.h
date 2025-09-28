@@ -37,7 +37,8 @@ typedef enum {
     VIS_RIPPLES,
     VIS_KALEIDOSCOPE,
     VIS_BOUNCY_BALLS,
-    VIS_DIGITAL_CLOCK
+    VIS_DIGITAL_CLOCK,
+    VIS_ANALOG_CLOCK
 } VisualizationType;
 
 typedef struct {
@@ -198,7 +199,7 @@ typedef struct {
     double bouncy_size_multiplier;
     gboolean bouncy_physics_enabled;
 
-    // Clock
+    // Digital Clock
     SwirlParticle swirl_particles[MAX_SWIRL_PARTICLES];
     int swirl_particle_count;
     double swirl_spawn_timer;
@@ -209,6 +210,21 @@ typedef struct {
     double clock_colon_blink_timer;
     double clock_beat_pulse;
     gboolean clock_show_seconds;
+
+    // Analog Clock
+    ClockParticle clock_particles[MAX_CLOCK_PARTICLES];
+    int clock_particle_count;
+    double analog_clock_radius;
+    double analog_clock_center_x, analog_clock_center_y;
+    double clock_particle_spawn_timer;
+    double clock_beat_pulse_outer;
+    double clock_beat_pulse_inner;
+    double clock_hand_glow_intensity;
+    double clock_face_glow;
+    double clock_tick_volume_history[10];
+    int clock_tick_volume_index;
+    gboolean clock_show_numbers;
+    gboolean clock_particles_enabled;
 
 } Visualizer;
 
@@ -317,7 +333,7 @@ void draw_bouncy_balls(Visualizer *vis, cairo_t *cr);
 void bouncy_ball_wall_collision(BouncyBall *ball, double width, double height);
 void bouncy_ball_update_trail(BouncyBall *ball);
 
-// Clock
+// Digital Clock
 void init_clock_system(Visualizer *vis);
 void spawn_swirl_particle(Visualizer *vis, double intensity, int frequency_band);
 void update_clock_swirls(Visualizer *vis, double dt);
@@ -325,5 +341,16 @@ void draw_clock_visualization(Visualizer *vis, cairo_t *cr);
 void draw_digit_matrix(cairo_t *cr, int digit, double x, double y, double dot_size, double r, double g, double b, double intensity);
 void draw_clock_swirls(Visualizer *vis, cairo_t *cr);
 gboolean clock_detect_beat(Visualizer *vis);
+
+// Analog Clock
+void init_analog_clock_system(Visualizer *vis);
+void spawn_clock_particle(Visualizer *vis, double angle, double intensity, int type);
+void update_analog_clock(Visualizer *vis, double dt);
+void draw_analog_clock(Visualizer *vis, cairo_t *cr);
+void draw_clock_face(Visualizer *vis, cairo_t *cr);
+void draw_clock_hands(Visualizer *vis, cairo_t *cr);
+void draw_clock_particles(Visualizer *vis, cairo_t *cr);
+void draw_clock_hour_marks(Visualizer *vis, cairo_t *cr);
+gboolean analog_clock_detect_beat(Visualizer *vis);
 
 #endif

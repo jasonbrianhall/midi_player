@@ -2,6 +2,25 @@
 #define DIGIT_WIDTH 4
 #define DIGIT_HEIGHT 5
 
+#define MAX_CLOCK_PARTICLES 80
+#define CLOCK_HOUR_MARKS 12
+#define CLOCK_MINUTE_MARKS 60
+
+typedef struct {
+    double x, y;               // Position
+    double angle;              // Angle around clock face
+    double radius;             // Distance from center
+    double angular_velocity;   // Rotation speed
+    double radial_velocity;    // Moving in/out speed
+    double life;               // Life remaining (1.0 to 0.0)
+    double intensity;          // Audio intensity
+    double hue;                // Color hue
+    double size;               // Particle size
+    double pulse_phase;        // For pulsing effects
+    gboolean active;           // Is particle active
+    int type;                  // 0=normal, 1=hour mark, 2=minute mark
+} ClockParticle;
+
 typedef struct {
     double x, y;               // Position
     double angle;              // Current angle around clock center
