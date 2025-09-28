@@ -5,6 +5,13 @@
 #define GHOST_CHASER_GHOST_COLORS 4
 
 typedef enum {
+    GAME_PLAYING = 0,
+    GAME_PLAYER_DIED = 1,
+    GAME_LEVEL_COMPLETE = 2,
+    GAME_GAME_OVER = 3
+} GameState;
+
+typedef enum {
     CHASER_WALL = 1,
     CHASER_PELLET = 2,
     CHASER_POWER_PELLET = 3,

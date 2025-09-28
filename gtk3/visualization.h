@@ -230,19 +230,23 @@ typedef struct {
 
     // Ghost Chaser (pacman)
     ChaserPlayer ghost_chaser_player;
-   ChaserGhost ghost_chaser_ghosts[MAX_GHOST_CHASER_GHOSTS];
-   ChaserPellet ghost_chaser_pellets[MAX_GHOST_CHASER_PELLETS];
-   int ghost_chaser_pellet_count;
-   int ghost_chaser_ghost_count;
-   double ghost_chaser_cell_size;
-   double ghost_chaser_offset_x, ghost_chaser_offset_y;
-   double ghost_chaser_beat_timer;
-   double ghost_chaser_power_pellet_timer;
-   gboolean ghost_chaser_power_mode;
-   int ghost_chaser_maze[GHOST_CHASER_MAZE_HEIGHT][GHOST_CHASER_MAZE_WIDTH];
-   double ghost_chaser_move_timer;
-   double ghost_chaser_ghost_colors[GHOST_CHASER_GHOST_COLORS][3]; // RGB for each ghost color
-
+    ChaserGhost ghost_chaser_ghosts[MAX_GHOST_CHASER_GHOSTS];
+    ChaserPellet ghost_chaser_pellets[MAX_GHOST_CHASER_PELLETS];
+    int ghost_chaser_pellet_count;
+    int ghost_chaser_ghost_count;
+    double ghost_chaser_cell_size;
+    double ghost_chaser_offset_x, ghost_chaser_offset_y;
+    double ghost_chaser_beat_timer;
+    double ghost_chaser_power_pellet_timer;
+    gboolean ghost_chaser_power_mode;
+    int ghost_chaser_maze[GHOST_CHASER_MAZE_HEIGHT][GHOST_CHASER_MAZE_WIDTH];
+    double ghost_chaser_move_timer;
+    double ghost_chaser_ghost_colors[GHOST_CHASER_GHOST_COLORS][3]; // RGB for each ghost color
+    int ghost_chaser_score;
+    
+    GameState ghost_chaser_game_state;
+    double ghost_chaser_death_timer;
+    int ghost_chaser_lives;
 
 } Visualizer;
 
@@ -391,4 +395,6 @@ ChaserDirection ghost_chaser_get_opposite_direction(ChaserDirection dir);
 ChaserDirection ghost_chaser_get_direction_to_target(int from_x, int from_y, int to_x, int to_y);
 double ghost_chaser_distance_to_player(ChaserGhost *ghost, ChaserPlayer *player);
 void ghost_chaser_find_nearest_pellet(Visualizer *vis, int from_x, int from_y, int *target_x, int *target_y);
+gboolean ghost_chaser_check_collision_with_ghosts(Visualizer *vis);
+gboolean ghost_chaser_is_level_complete(Visualizer *vis);
 #endif
