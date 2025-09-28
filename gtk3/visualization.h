@@ -387,5 +387,8 @@ void draw_ghost_chaser_pellets(Visualizer *vis, cairo_t *cr);
 gboolean ghost_chaser_can_move(Visualizer *vis, int grid_x, int grid_y);
 void ghost_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y);
 gboolean ghost_chaser_detect_beat(Visualizer *vis);
-
+ChaserDirection ghost_chaser_get_opposite_direction(ChaserDirection dir);
+ChaserDirection ghost_chaser_get_direction_to_target(int from_x, int from_y, int to_x, int to_y);
+double ghost_chaser_distance_to_player(ChaserGhost *ghost, ChaserPlayer *player);
+void ghost_chaser_find_nearest_pellet(Visualizer *vis, int from_x, int from_y, int *target_x, int *target_y);
 #endif
