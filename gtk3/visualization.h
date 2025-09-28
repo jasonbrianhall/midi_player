@@ -15,12 +15,11 @@
 #include "fireworks.h"
 #include "matrix.h"
 #include "bubble.h"
+#include "clock.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
 #define VIS_HISTORY_SIZE 64
-#define MAX_BUBBLES 100
-#define MAX_POP_EFFECTS 50
 
 typedef enum {
     VIS_WAVEFORM,
@@ -37,7 +36,8 @@ typedef enum {
     VIS_FOURIER_TRANSFORM,
     VIS_RIPPLES,
     VIS_KALEIDOSCOPE,
-    VIS_BOUNCY_BALLS
+    VIS_BOUNCY_BALLS,
+    VIS_DIGITAL_CLOCK
 } VisualizationType;
 
 typedef struct {
@@ -189,6 +189,7 @@ typedef struct {
     double kaleidoscope_color_shift;       // Global color shift
     gboolean kaleidoscope_auto_shapes;     // Automatically spawn shapes on beats
 
+    // Bouncy Ball
     BouncyBall bouncy_balls[MAX_BOUNCY_BALLS];
     int bouncy_ball_count;
     double bouncy_spawn_timer;
@@ -196,6 +197,18 @@ typedef struct {
     double bouncy_gravity_strength;
     double bouncy_size_multiplier;
     gboolean bouncy_physics_enabled;
+
+    // Clock
+    SwirlParticle swirl_particles[MAX_SWIRL_PARTICLES];
+    int swirl_particle_count;
+    double swirl_spawn_timer;
+    double swirl_beat_threshold;
+    double clock_center_x, clock_center_y;
+    double clock_dot_size;
+    double clock_digit_spacing;
+    double clock_colon_blink_timer;
+    double clock_beat_pulse;
+    gboolean clock_show_seconds;
 
 } Visualizer;
 
@@ -303,5 +316,14 @@ void update_bouncy_balls(Visualizer *vis, double dt);
 void draw_bouncy_balls(Visualizer *vis, cairo_t *cr);
 void bouncy_ball_wall_collision(BouncyBall *ball, double width, double height);
 void bouncy_ball_update_trail(BouncyBall *ball);
+
+// Clock
+void init_clock_system(Visualizer *vis);
+void spawn_swirl_particle(Visualizer *vis, double intensity, int frequency_band);
+void update_clock_swirls(Visualizer *vis, double dt);
+void draw_clock_visualization(Visualizer *vis, cairo_t *cr);
+void draw_digit_matrix(cairo_t *cr, int digit, double x, double y, double dot_size, double r, double g, double b, double intensity);
+void draw_clock_swirls(Visualizer *vis, cairo_t *cr);
+gboolean clock_detect_beat(Visualizer *vis);
 
 #endif
