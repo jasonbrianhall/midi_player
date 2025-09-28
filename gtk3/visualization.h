@@ -16,6 +16,7 @@
 #include "matrix.h"
 #include "bubble.h"
 #include "clock.h"
+#include "ghostchaser.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -38,7 +39,8 @@ typedef enum {
     VIS_KALEIDOSCOPE,
     VIS_BOUNCY_BALLS,
     VIS_DIGITAL_CLOCK,
-    VIS_ANALOG_CLOCK
+    VIS_ANALOG_CLOCK,
+    VIS_GHOST_CHASER
 } VisualizationType;
 
 typedef struct {
@@ -226,6 +228,22 @@ typedef struct {
     gboolean clock_show_numbers;
     gboolean clock_particles_enabled;
 
+    // Ghost Chaser (pacman)
+    ChaserPlayer ghost_chaser_player;
+   ChaserGhost ghost_chaser_ghosts[MAX_GHOST_CHASER_GHOSTS];
+   ChaserPellet ghost_chaser_pellets[MAX_GHOST_CHASER_PELLETS];
+   int ghost_chaser_pellet_count;
+   int ghost_chaser_ghost_count;
+   double ghost_chaser_cell_size;
+   double ghost_chaser_offset_x, ghost_chaser_offset_y;
+   double ghost_chaser_beat_timer;
+   double ghost_chaser_power_pellet_timer;
+   gboolean ghost_chaser_power_mode;
+   int ghost_chaser_maze[GHOST_CHASER_MAZE_HEIGHT][GHOST_CHASER_MAZE_WIDTH];
+   double ghost_chaser_move_timer;
+   double ghost_chaser_ghost_colors[GHOST_CHASER_GHOST_COLORS][3]; // RGB for each ghost color
+
+
 } Visualizer;
 
 // Function declarations
@@ -352,5 +370,22 @@ void draw_clock_hands(Visualizer *vis, cairo_t *cr);
 void draw_clock_particles(Visualizer *vis, cairo_t *cr);
 void draw_clock_hour_marks(Visualizer *vis, cairo_t *cr);
 gboolean analog_clock_detect_beat(Visualizer *vis);
+
+// Ghost Chaser
+void init_ghost_chaser_system(Visualizer *vis);
+void update_ghost_chaser_visualization(Visualizer *vis, double dt);
+void draw_ghost_chaser_visualization(Visualizer *vis, cairo_t *cr);
+void ghost_chaser_calculate_layout(Visualizer *vis);
+void ghost_chaser_init_maze(Visualizer *vis);
+void ghost_chaser_update_player(Visualizer *vis, double dt);
+void ghost_chaser_update_ghosts(Visualizer *vis, double dt);
+void ghost_chaser_update_pellets(Visualizer *vis, double dt);
+void draw_ghost_chaser_maze(Visualizer *vis, cairo_t *cr);
+void draw_ghost_chaser_player(Visualizer *vis, cairo_t *cr);
+void draw_ghost_chaser_ghosts(Visualizer *vis, cairo_t *cr);
+void draw_ghost_chaser_pellets(Visualizer *vis, cairo_t *cr);
+gboolean ghost_chaser_can_move(Visualizer *vis, int grid_x, int grid_y);
+void ghost_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y);
+gboolean ghost_chaser_detect_beat(Visualizer *vis);
 
 #endif

@@ -99,7 +99,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	ripples.cpp \
 	kaleidoscope.cpp \
 	bouncyball.cpp \
-	clock.cpp
+	clock.cpp \
+	ghostchaser.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
