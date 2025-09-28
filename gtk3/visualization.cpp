@@ -57,8 +57,12 @@ Visualizer* visualizer_new(void) {
 
     // Sudoku timer
     init_sudoku_system(vis);  // Initialize Sudoku system
+
+    // Ripple
     init_ripple_system(vis);
-    return vis;
+
+    // Bouncy Balls
+    init_bouncy_ball_system(vis);
 
     return vis;
 }
@@ -298,7 +302,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_KALEIDOSCOPE:
            draw_kaleidoscope(vis, cr);
            break;
-
+        case VIS_BOUNCY_BALLS:
+          draw_bouncy_balls(vis, cr);
+          break;
     }
     
     return FALSE;
@@ -609,7 +615,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_KALEIDOSCOPE:
                 update_kaleidoscope(vis, 0.033);
-                break;                                
+                break;  
+            case VIS_BOUNCY_BALLS:
+                update_bouncy_balls(vis, 0.033);
+                break;                                              
             default:
                 // No update function needed for other visualization types
                 break;
@@ -686,6 +695,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fourier Transform");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Ripples");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Kaleidoscope");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bouncy Balls");    
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);

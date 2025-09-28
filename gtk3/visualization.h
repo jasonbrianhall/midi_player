@@ -31,10 +31,35 @@
 #define FOURIER_POINTS 64  // Number of frequency bins to visualize
 #define FOURIER_HISTORY 128 // History length for trails
 
+// Ripples
 #define MAX_RIPPLES 20
 
+// Kaleidoscope
 #define MAX_KALEIDOSCOPE_SHAPES 20
 #define KALEIDOSCOPE_MIRRORS 6  // Number of mirror segments (creates 6-fold symmetry)
+
+#define MAX_BOUNCY_BALLS 15
+
+typedef struct {
+    double x, y;               // Position
+    double vx, vy;             // Velocity
+    double radius;             // Ball size
+    double base_radius;        // Base size when no audio
+    double bounce_damping;     // Energy loss on bounce (0.0-1.0)
+    double gravity;            // Downward acceleration
+    double hue;                // Color hue
+    double saturation;         // Color saturation  
+    double brightness;         // Current brightness
+    double audio_intensity;    // Current audio influence
+    double trail_x[20];        // Position trail for motion blur
+    double trail_y[20];        // Position trail for motion blur
+    int trail_index;           // Current trail position
+    int frequency_band;        // Which frequency band affects this ball
+    gboolean active;           // Is ball active
+    double spawn_time;         // When ball was created
+    double last_bounce_time;   // Last wall/floor bounce
+    double energy;             // Current kinetic energy level
+} BouncyBall;
 
 typedef struct {
     double x, y;               // Position in the base triangle
@@ -154,7 +179,8 @@ typedef enum {
     VIS_SUDOKU_SOLVER,
     VIS_FOURIER_TRANSFORM,
     VIS_RIPPLES,
-    VIS_KALEIDOSCOPE
+    VIS_KALEIDOSCOPE,
+    VIS_BOUNCY_BALLS
 } VisualizationType;
 
 // Define bubble and pop effect structs BEFORE Visualizer struct
@@ -327,6 +353,14 @@ typedef struct {
     double kaleidoscope_color_shift;       // Global color shift
     gboolean kaleidoscope_auto_shapes;     // Automatically spawn shapes on beats
 
+    BouncyBall bouncy_balls[MAX_BOUNCY_BALLS];
+    int bouncy_ball_count;
+    double bouncy_spawn_timer;
+    double bouncy_beat_threshold;
+    double bouncy_gravity_strength;
+    double bouncy_size_multiplier;
+    gboolean bouncy_physics_enabled;
+
 } Visualizer;
 
 // Function declarations
@@ -425,5 +459,14 @@ void spawn_kaleidoscope_shape(Visualizer *vis, double intensity, int frequency_b
 void update_kaleidoscope(Visualizer *vis, double dt);
 void draw_kaleidoscope_shape(cairo_t *cr, KaleidoscopeShape *shape, double scale_factor);
 void draw_kaleidoscope(Visualizer *vis, cairo_t *cr);
+
+// Bouncy Ball
+void init_bouncy_ball_system(Visualizer *vis);
+void spawn_bouncy_ball(Visualizer *vis, double intensity, int frequency_band);
+void update_bouncy_balls(Visualizer *vis, double dt);
+void draw_bouncy_balls(Visualizer *vis, cairo_t *cr);
+void bouncy_ball_wall_collision(BouncyBall *ball, double width, double height);
+void bouncy_ball_update_trail(BouncyBall *ball);
+
 
 #endif

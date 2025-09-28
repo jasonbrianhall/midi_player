@@ -97,7 +97,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	generatepuzzle.cpp \
 	fourier.cpp \
 	ripples.cpp \
-	kaleidoscope.cpp
+	kaleidoscope.cpp \
+	bouncyball.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
