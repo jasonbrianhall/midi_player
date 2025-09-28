@@ -8,139 +8,19 @@
 #include "sudoku.h"
 #include "generatepuzzle.h"
 #include "bouncyball.h"
+#include "kaleidoscope.h"
+#include "ripples.h"
+#include "fourier.h"
+#include "dna.h"
+#include "fireworks.h"
+#include "matrix.h"
+#include "bubble.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
 #define VIS_HISTORY_SIZE 64
 #define MAX_BUBBLES 100
 #define MAX_POP_EFFECTS 50
-
-#define MAX_MATRIX_COLUMNS 60
-#define MAX_CHARS_PER_COLUMN 30
-
-#define MAX_FIREWORKS 20
-#define MAX_PARTICLES_PER_FIREWORK 50
-#define MAX_TOTAL_PARTICLES 1000
-
-#define DNA_POINTS 200
-#define DNA_STRANDS 2
-
-#define MAX_DNA_SEGMENTS 80
-#define DNA_BASE_PAIRS 4
-
-#define FOURIER_POINTS 64  // Number of frequency bins to visualize
-#define FOURIER_HISTORY 128 // History length for trails
-
-// Ripples
-#define MAX_RIPPLES 20
-
-// Kaleidoscope
-#define MAX_KALEIDOSCOPE_SHAPES 20
-#define KALEIDOSCOPE_MIRRORS 6  // Number of mirror segments (creates 6-fold symmetry)
-
-typedef struct {
-    double x, y;               // Position in the base triangle
-    double vx, vy;             // Velocity
-    double rotation;           // Current rotation angle
-    double rotation_speed;     // Rotation speed
-    double scale;              // Size scale
-    double scale_speed;        // Scale pulsing speed
-    double hue;                // Color hue
-    double saturation;         // Color saturation
-    double brightness;         // Current brightness
-    double base_brightness;    // Base brightness level
-    int shape_type;            // 0=circle, 1=triangle, 2=square, 3=star, 4=hexagon
-    double life;               // Shape lifetime (for fading)
-    double pulse_phase;        // Phase for pulsing effects
-    int frequency_band;        // Which frequency band controls this shape
-    gboolean active;           // Is shape active
-} KaleidoscopeShape;
-
-typedef struct {
-    double center_x, center_y;    // Ripple center position
-    double radius;                // Current radius
-    double max_radius;            // Maximum radius before fading out
-    double speed;                 // Expansion speed
-    double intensity;             // Audio intensity that created it
-    double life;                  // Life remaining (1.0 to 0.0)
-    double hue;                   // Color hue
-    double thickness;             // Ring thickness
-    gboolean active;              // Is ripple active
-    int frequency_band;           // Which frequency band triggered it
-} Ripple;
-
-
-typedef struct {
-    double real, imag;     // Complex number components
-    double magnitude;      // Magnitude of this frequency bin
-    double phase;          // Phase angle
-    double x, y;           // Current position on circle
-    double trail_x[FOURIER_HISTORY];  // Position history for trails
-    double trail_y[FOURIER_HISTORY];  // Position history for trails
-    int trail_index;       // Current position in trail buffer
-    double hue;            // Color hue for this frequency
-    double intensity;      // Visual intensity
-} FourierBin;
-
-typedef struct {
-    double x, y, z;        // 3D position (z for depth simulation)
-    double intensity;      // Audio intensity affecting this segment
-    double base_type;      // 0-3 for A,T,G,C base pair types
-    double connection_strength; // How strongly the base pairs connect
-    double twist_offset;   // Individual twist offset for this segment
-    gboolean active;       // Is this segment visible
-} DNASegment;
-
-typedef struct {
-    double amplitude;      // How far from center line
-    double frequency;      // How fast the helix twists
-    double phase_offset;   // Phase difference between strands
-    double flow_speed;     // How fast the helix flows horizontally
-    double strand_colors[DNA_STRANDS][3]; // RGB colors for each strand
-} DNAHelix;
-
-typedef struct {
-    double x, y;           // Position
-    double vx, vy;         // Velocity
-    double ax, ay;         // Acceleration (gravity)
-    double life;           // Life remaining (1.0 to 0.0)
-    double max_life;       // Initial life span
-    double size;           // Particle size
-    double r, g, b;        // Color
-    double brightness;     // Brightness multiplier
-    gboolean active;       // Is particle alive
-    int trail_length;      // Length of particle trail
-    double trail_x[10], trail_y[10]; // Trail positions
-} FireworkParticle;
-
-typedef struct {
-    double x, y;           // Launch position
-    double target_x, target_y; // Explosion point
-    double vx, vy;         // Velocity
-    double life;           // Life until explosion
-    double explosion_size; // Size of explosion
-    double hue;            // Base color hue
-    int particle_count;    // Number of particles to spawn
-    gboolean exploded;     // Has it exploded yet
-    gboolean active;       // Is firework active
-    int frequency_band;    // Which frequency band triggered it
-} Firework;
-
-typedef struct {
-    int x;                    // Column x position
-    double y;                 // Current y position (can be fractional)
-    double speed;             // Fall speed
-    int length;               // Length of the trail
-    double intensity;         // Brightness multiplier
-    const char* chars[MAX_CHARS_PER_COLUMN]; // Array of string pointers instead of chars
-    double char_ages[MAX_CHARS_PER_COLUMN]; // Age of each character (for fading)
-    gboolean active;          // Is this column active
-    int frequency_band;       // Which frequency band controls this column
-    bool power_mode;
-    int flash_intensity;
-    int wave_offset;
-    int glitch_timer;
-} MatrixColumn;
 
 typedef enum {
     VIS_WAVEFORM,
@@ -159,27 +39,6 @@ typedef enum {
     VIS_KALEIDOSCOPE,
     VIS_BOUNCY_BALLS
 } VisualizationType;
-
-// Define bubble and pop effect structs BEFORE Visualizer struct
-typedef struct {
-    double x, y;           // Position
-    double radius;         // Current radius
-    double max_radius;     // Maximum radius before popping
-    double velocity_x, velocity_y;  // Movement
-    double life;           // Life remaining (0.0 - 1.0)
-    double birth_time;     // When bubble was created
-    double intensity;      // Audio intensity that created it
-    gboolean active;       // Is this bubble alive?
-} Bubble;
-
-typedef struct {
-    double x, y;           // Position where pop occurred
-    double radius;         // Expanding ring radius
-    double max_radius;     // Final ring radius
-    double life;           // Effect life remaining
-    double intensity;      // Original bubble intensity
-    gboolean active;       // Is effect active?
-} PopEffect;
 
 typedef struct {
     GtkWidget *drawing_area;
@@ -444,6 +303,5 @@ void update_bouncy_balls(Visualizer *vis, double dt);
 void draw_bouncy_balls(Visualizer *vis, cairo_t *cr);
 void bouncy_ball_wall_collision(BouncyBall *ball, double width, double height);
 void bouncy_ball_update_trail(BouncyBall *ball);
-
 
 #endif
