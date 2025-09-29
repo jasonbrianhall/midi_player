@@ -630,7 +630,7 @@ void draw_robot_chaser_visualization(Visualizer *vis, cairo_t *cr) {
         cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.9);
         
         char timer_text[32];
-        snprintf(timer_text, sizeof(timer_text), "POWER MODE: %.1f", vis->robot_chaser_power_pellet_timer);
+        snprintf(timer_text, sizeof(timer_text), "INVINCIPLE: %.1f", vis->robot_chaser_power_pellet_timer);
         
         cairo_text_extents_t extents;
         cairo_text_extents(cr, timer_text, &extents);
