@@ -39,7 +39,8 @@ static void apply_smooth_filter(unsigned char *data, int width, int height, int 
 }
 
 void draw_karaoke(Visualizer *vis, cairo_t *cr) {
-    if (!vis->cdg_display || !vis->cdg_display->packets) {
+    // Check if we actually have valid CDG data loaded
+    if (!vis->cdg_display || !vis->cdg_display->packets || vis->cdg_display->packet_count == 0) {
         // Draw "no CDG loaded" message
         cairo_set_source_rgb(cr, 0.3, 0.3, 0.3);
         cairo_paint(cr);

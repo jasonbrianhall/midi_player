@@ -234,6 +234,11 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
                 update_gui_state(player);
                 start_playback(player);
             }
+            if (player->cdg_display) {
+                cdg_reset(player->cdg_display);
+                player->cdg_display->packet_count = 0; // Mark as invalid
+                player->has_cdg = false;
+            }
         }
         
         update_queue_display(player);
