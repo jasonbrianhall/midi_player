@@ -8,19 +8,16 @@ CDGDisplay* cdg_display_new(void) {
     CDGDisplay *display = calloc(1, sizeof(CDGDisplay));
     if (!display) return NULL;
     
-    // Initialize with default colors (black background)
     for (int i = 0; i < CDG_COLORS; i++) {
-        display->palette[i] = 0x000000;  // Black
+        display->palette[i] = 0x000000;
     }
-    
+
     display->border_color = 0;
     display->transparent_color = 0;
-    display->ball_radius = 12.0;
-    display->ball_y = CDG_HEIGHT / 2.0;
-    display->ball_x = 50.0;
-    
+
     return display;
 }
+
 
 void cdg_display_free(CDGDisplay *display) {
     if (!display) return;
@@ -97,9 +94,6 @@ void cdg_reset(CDGDisplay *display) {
     memset(display->screen, 0, sizeof(display->screen));
     display->current_packet = 0;
     display->last_update_time = 0.0;
-    display->ball_x = 50.0;
-    display->ball_y = CDG_HEIGHT / 2.0;
-    display->ball_velocity_y = 0.0;
 }
 
 void cdg_update(CDGDisplay *display, double playTime) {
@@ -275,17 +269,20 @@ void cdg_scroll_screen(CDGDisplay *display, int h_cmd, int v_cmd, uint8_t fill_c
 void cdg_load_colormap(CDGDisplay *display, uint8_t *data, bool high_colors) {
     int start_index = high_colors ? 8 : 0;
     
-    // Each color is 2 bytes: [RGB0][0rgb]
     for (int i = 0; i < 8; i++) {
         uint8_t byte0 = data[2 * i] & 0x3F;
         uint8_t byte1 = data[2 * i + 1] & 0x3F;
         
-        // Extract RGB (4 bits each, scaled to 8 bits)
-        uint8_t r = ((byte0 & 0x30) >> 4) * 17;  // Scale 0-3 to 0-255
-        uint8_t g = ((byte0 & 0x0C) >> 2) * 17;
-        uint8_t b = ((byte0 & 0x03)) * 17;
+        // Combine high 2 bits (byte0) with low 2 bits (byte1) for each channel
+        uint8_t r = ((byte0 & 0x30) >> 2) | ((byte1 & 0x30) >> 4);
+        uint8_t g = (byte0 & 0x0C) | ((byte1 & 0x0C) >> 2);
+        uint8_t b = ((byte0 & 0x03) << 2) | (byte1 & 0x03);
         
-        // Combine into RGB888
+        // Scale 4-bit to 8-bit
+        r = (r << 4) | r;  // More accurate than * 17
+        g = (g << 4) | g;
+        b = (b << 4) | b;
+        
         display->palette[start_index + i] = (r << 16) | (g << 8) | b;
     }
 }
