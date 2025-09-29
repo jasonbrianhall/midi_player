@@ -20,7 +20,7 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     
     CDGDisplay *cdg = vis->cdg_display;
     
-    // Create or update the Cairo surface for CDG graphics (only when needed)
+    // Create or update the Cairo surface for CDG graphics
     if (!vis->cdg_surface || 
         cairo_image_surface_get_width(vis->cdg_surface) != CDG_WIDTH ||
         cairo_image_surface_get_height(vis->cdg_surface) != CDG_HEIGHT) {
@@ -29,32 +29,32 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
             cairo_surface_destroy(vis->cdg_surface);
         }
         vis->cdg_surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, CDG_WIDTH, CDG_HEIGHT);
-        vis->cdg_needs_update = true;
+        vis->cdg_last_packet = -1; // Force update on first draw
     }
     
-    // Only update surface if CDG data has changed
-    if (vis->cdg_needs_update || vis->cdg_last_packet != cdg->current_packet) {
+    // Always update surface when packets have changed
+    if (vis->cdg_last_packet != cdg->current_packet) {
         unsigned char *data = cairo_image_surface_get_data(vis->cdg_surface);
         int stride = cairo_image_surface_get_stride(vis->cdg_surface);
         
         // Convert CDG indexed color buffer to RGB surface
         for (int y = 0; y < CDG_HEIGHT; y++) {
+            uint32_t *row = (uint32_t*)(data + y * stride);
             for (int x = 0; x < CDG_WIDTH; x++) {
                 uint8_t color_index = cdg->screen[y][x];
                 uint32_t rgb = cdg->palette[color_index];
                 
-                // Cairo uses BGRA format (or BGRX on some systems)
-                unsigned char *pixel = data + y * stride + x * 4;
-                pixel[0] = (rgb & 0xFF);         // Blue
-                pixel[1] = (rgb >> 8) & 0xFF;    // Green
-                pixel[2] = (rgb >> 16) & 0xFF;   // Red
-                pixel[3] = 0xFF;                  // Alpha
+                // Reorder from RGB to BGR for Cairo (little-endian)
+                uint8_t r = (rgb >> 16) & 0xFF;
+                uint8_t g = (rgb >> 8) & 0xFF;
+                uint8_t b = rgb & 0xFF;
+                
+                row[x] = (b << 16) | (g << 8) | r;
             }
         }
         
         cairo_surface_mark_dirty(vis->cdg_surface);
         vis->cdg_last_packet = cdg->current_packet;
-        vis->cdg_needs_update = false;
     }
     
     // Calculate scaling to fit widget
@@ -71,7 +71,7 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     cairo_translate(cr, offset_x, offset_y);
     cairo_scale(cr, scale, scale);
     cairo_set_source_surface(cr, vis->cdg_surface, 0, 0);
-    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST); // Pixel-perfect scaling
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
     cairo_paint(cr);
     cairo_restore(cr);
 }

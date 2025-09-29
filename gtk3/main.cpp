@@ -2184,8 +2184,8 @@ int main(int argc, char *argv[]) {
     OPL_Init(SAMPLE_RATE);
     OPL_LoadInstruments();
     
-    //player->cdg_display = cdg_display_new();
-    //player->has_cdg = false;
+    player->cdg_display = cdg_display_new();
+    player->has_cdg = false;
     
     create_main_window(player);
     update_gui_state(player);

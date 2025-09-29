@@ -44,6 +44,10 @@ Visualizer* visualizer_new(void) {
     
     vis->rotation = 0.0;
     vis->time_offset = 0.0;
+
+    vis->cdg_display = NULL;
+    vis->cdg_surface = NULL;
+    vis->cdg_last_packet = -1;
     
     // Connect signals
     g_signal_connect(vis->drawing_area, "draw", G_CALLBACK(on_visualizer_draw), vis);
@@ -114,6 +118,10 @@ void visualizer_free(Visualizer *vis) {
     if (vis->puzzle_generator) {
         delete vis->puzzle_generator;
         vis->puzzle_generator = NULL;
+    }
+
+    if (vis->cdg_surface) {
+        cairo_surface_destroy(vis->cdg_surface);
     }
 
     g_free(vis);
