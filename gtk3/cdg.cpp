@@ -108,6 +108,11 @@ void cdg_update(CDGDisplay *cdg, double time_seconds) {
     if (target_packet < 0) target_packet = 0;
     if (target_packet >= cdg->packet_count) target_packet = cdg->packet_count - 1;
     
+    // If seeking backward (or jumping), reset and replay from beginning
+    if (target_packet < cdg->current_packet) {
+        cdg_reset(cdg);
+    }
+    
     // Process all packets from current position up to target
     while (cdg->current_packet < target_packet) {
         cdg_process_packet(cdg, &cdg->packets[cdg->current_packet]);
