@@ -751,6 +751,13 @@ bool load_file(AudioPlayer *player, const char *filename) {
         }
     }
     
+    // Clear CDG state ONLY if we're not loading from inside a ZIP
+    if (!player->is_loading_cdg_from_zip && player->cdg_display) {
+        cdg_reset(player->cdg_display);
+        player->cdg_display->packet_count = 0;
+        player->has_cdg = false;
+    }
+    
     // Check if this is a virtual file (starts with "virtual_")
     if (strncmp(filename, "virtual_", 8) == 0) {
         printf("Loading virtual WAV file: %s\n", filename);
@@ -840,6 +847,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
         
             if (player->cdg_display && cdg_load_file(player->cdg_display, zip_contents.cdg_file)) {
                 player->has_cdg = true;
+                player->is_loading_cdg_from_zip = true;  // SET FLAG before recursive call
             
                 // Set visualizer to karaoke mode
                 if (player->visualizer) {
@@ -849,6 +857,8 @@ bool load_file(AudioPlayer *player, const char *filename) {
             
                 // Load the audio file (this will recursively call load_file with the audio)
                 success = load_file(player, zip_contents.audio_file);
+                
+                player->is_loading_cdg_from_zip = false;  // CLEAR FLAG after recursive call
             
                 if (success) {
                     printf("Loaded karaoke ZIP successfully\n");
@@ -910,7 +920,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
                             update_gui_state(p);
                         }
                     }
-                    return FALSE; // Don't repeat
+                    return FALSE;
                 }, player);
             }
             

@@ -175,6 +175,7 @@ typedef struct {
     CDGDisplay *cdg_display;
     bool has_cdg;
     KaraokeZipContents karaoke_temp_files;
+    bool is_loading_cdg_from_zip;
 
     LayoutManager layout;
 } AudioPlayer;
