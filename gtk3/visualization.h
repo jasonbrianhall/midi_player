@@ -63,7 +63,10 @@ typedef struct {
     
     // CDG
     CDGDisplay *cdg_display;
-
+    cairo_surface_t *cdg_surface;  // ADD THIS
+    bool cdg_needs_update;         // ADD THIS
+    int cdg_last_packet;           // ADD THIS
+    
     // Simple frequency analysis without FFT
     double *band_filters[VIS_FREQUENCY_BARS];  // Use renamed constant
     double *band_values;
@@ -102,6 +105,7 @@ typedef struct {
     double matrix_spawn_timer;
     int matrix_char_size;
 
+    // Fireworks
     Firework fireworks[MAX_FIREWORKS];
     FireworkParticle particles[MAX_TOTAL_PARTICLES];
     int firework_count;

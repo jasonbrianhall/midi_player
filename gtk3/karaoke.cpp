@@ -20,6 +20,43 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     
     CDGDisplay *cdg = vis->cdg_display;
     
+    // Create or update the Cairo surface for CDG graphics (only when needed)
+    if (!vis->cdg_surface || 
+        cairo_image_surface_get_width(vis->cdg_surface) != CDG_WIDTH ||
+        cairo_image_surface_get_height(vis->cdg_surface) != CDG_HEIGHT) {
+        
+        if (vis->cdg_surface) {
+            cairo_surface_destroy(vis->cdg_surface);
+        }
+        vis->cdg_surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, CDG_WIDTH, CDG_HEIGHT);
+        vis->cdg_needs_update = true;
+    }
+    
+    // Only update surface if CDG data has changed
+    if (vis->cdg_needs_update || vis->cdg_last_packet != cdg->current_packet) {
+        unsigned char *data = cairo_image_surface_get_data(vis->cdg_surface);
+        int stride = cairo_image_surface_get_stride(vis->cdg_surface);
+        
+        // Convert CDG indexed color buffer to RGB surface
+        for (int y = 0; y < CDG_HEIGHT; y++) {
+            for (int x = 0; x < CDG_WIDTH; x++) {
+                uint8_t color_index = cdg->screen[y][x];
+                uint32_t rgb = cdg->palette[color_index];
+                
+                // Cairo uses BGRA format (or BGRX on some systems)
+                unsigned char *pixel = data + y * stride + x * 4;
+                pixel[0] = (rgb & 0xFF);         // Blue
+                pixel[1] = (rgb >> 8) & 0xFF;    // Green
+                pixel[2] = (rgb >> 16) & 0xFF;   // Red
+                pixel[3] = 0xFF;                  // Alpha
+            }
+        }
+        
+        cairo_surface_mark_dirty(vis->cdg_surface);
+        vis->cdg_last_packet = cdg->current_packet;
+        vis->cdg_needs_update = false;
+    }
+    
     // Calculate scaling to fit widget
     double scale_x = vis->width / (double)CDG_WIDTH;
     double scale_y = vis->height / (double)CDG_HEIGHT;
@@ -29,83 +66,12 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     double offset_x = (vis->width - CDG_WIDTH * scale) / 2.0;
     double offset_y = (vis->height - CDG_HEIGHT * scale) / 2.0;
     
-    // Draw CDG graphics
-    for (int y = 0; y < CDG_HEIGHT; y++) {
-        for (int x = 0; x < CDG_WIDTH; x++) {
-            uint8_t color_index = cdg->screen[y][x];
-            uint32_t rgb = cdg->palette[color_index];
-            
-            double r = ((rgb >> 16) & 0xFF) / 255.0;
-            double g = ((rgb >> 8) & 0xFF) / 255.0;
-            double b = (rgb & 0xFF) / 255.0;
-            
-            cairo_set_source_rgb(cr, r, g, b);
-            cairo_rectangle(cr, 
-                          offset_x + x * scale, 
-                          offset_y + y * scale, 
-                          scale, 
-                          scale);
-            cairo_fill(cr);
-        }
-    }
-    
-    // Draw ball trail
-    for (int i = 0; i < 20; i++) {
-        int idx = (cdg->ball_trail_index + i) % 20;
-        double trail_x = cdg->ball_trail_positions[idx][0];
-        double trail_y = cdg->ball_trail_positions[idx][1];
-        
-        double alpha = i / 20.0 * 0.5;
-        double radius = cdg->ball_radius * (0.5 + i / 40.0);
-        
-        cairo_arc(cr, 
-                 offset_x + trail_x * scale, 
-                 offset_y + trail_y * scale, 
-                 radius * scale, 
-                 0, 2 * M_PI);
-        cairo_set_source_rgba(cr, 1.0, 0.8, 0.2, alpha);
-        cairo_fill(cr);
-    }
-    
-    // Draw karaoke ball with glow
-    double ball_x = offset_x + cdg->ball_x * scale;
-    double ball_y = offset_y + cdg->ball_y * scale;
-    double ball_radius = cdg->ball_radius * scale;
-    
-    // Outer glow
-    cairo_pattern_t *glow = cairo_pattern_create_radial(
-        ball_x, ball_y, ball_radius * 0.3,
-        ball_x, ball_y, ball_radius * 2.0
-    );
-    cairo_pattern_add_color_stop_rgba(glow, 0, 1.0, 1.0, 0.5, 0.8);
-    cairo_pattern_add_color_stop_rgba(glow, 0.5, 1.0, 0.8, 0.0, 0.4);
-    cairo_pattern_add_color_stop_rgba(glow, 1.0, 1.0, 0.5, 0.0, 0.0);
-    
-    cairo_arc(cr, ball_x, ball_y, ball_radius * 2.0, 0, 2 * M_PI);
-    cairo_set_source(cr, glow);
-    cairo_fill(cr);
-    cairo_pattern_destroy(glow);
-    
-    // Main ball
-    cairo_pattern_t *gradient = cairo_pattern_create_radial(
-        ball_x - ball_radius * 0.3, ball_y - ball_radius * 0.3, ball_radius * 0.2,
-        ball_x, ball_y, ball_radius
-    );
-    cairo_pattern_add_color_stop_rgb(gradient, 0, 1.0, 1.0, 0.9);
-    cairo_pattern_add_color_stop_rgb(gradient, 0.7, 1.0, 0.9, 0.2);
-    cairo_pattern_add_color_stop_rgb(gradient, 1.0, 0.9, 0.6, 0.0);
-    
-    cairo_arc(cr, ball_x, ball_y, ball_radius, 0, 2 * M_PI);
-    cairo_set_source(cr, gradient);
-    cairo_fill(cr);
-    cairo_pattern_destroy(gradient);
-    
-    // Highlight
-    cairo_arc(cr, 
-             ball_x - ball_radius * 0.3, 
-             ball_y - ball_radius * 0.3, 
-             ball_radius * 0.3, 
-             0, 2 * M_PI);
-    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.6);
-    cairo_fill(cr);
+    // Draw the CDG surface (scaled)
+    cairo_save(cr);
+    cairo_translate(cr, offset_x, offset_y);
+    cairo_scale(cr, scale, scale);
+    cairo_set_source_surface(cr, vis->cdg_surface, 0, 0);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST); // Pixel-perfect scaling
+    cairo_paint(cr);
+    cairo_restore(cr);
 }
