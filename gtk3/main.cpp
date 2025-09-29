@@ -58,7 +58,7 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
     ofn.lStructSize = sizeof(ofn);
     ofn.lpstrFile = filename;
     ofn.nMaxFile = (DWORD)filename_size;
-    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.m4a;*.aiff;*.aif;*.ogg;*.flac;*.opus;*.wma\0"
+    ofn.lpstrFilter = "All Supported\0*.mid;*.midi;*.wav;*.mp3;*.m4a;*.aiff;*.aif;*.ogg;*.flac;*.opus;*.wma;*.zip\0"
                       "MIDI Files\0*.mid;*.midi\0"
                       "WAV Files\0*.wav\0"
                       "MP3 Files\0*.mp3\0"
@@ -68,6 +68,7 @@ bool open_windows_file_dialog(char* filename, size_t filename_size, bool multipl
                       "AIFF Files\0*.aiff\0"
                       "Opus Files\0*.opus\0"
                       "WMA Files\0*.wma\0"
+                      "CD+G Files\0*.zip\0"
                       "All Files\0*.*\0";
     ofn.nFilterIndex = 1;
     ofn.lpstrFileTitle = NULL;
@@ -1492,6 +1493,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.aiff");
     gtk_file_filter_add_pattern(all_filter, "*.opus");
     gtk_file_filter_add_pattern(all_filter, "*.wma");
+    gtk_file_filter_add_pattern(all_filter, "*.zip");
 
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
     
@@ -1540,6 +1542,11 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
     gtk_file_filter_set_name(wma_filter, "wma Files (*.wma)");
     gtk_file_filter_add_pattern(wma_filter, "*.wma");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wma_filter);
+
+    GtkFileFilter *cdg_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(cdg_filter, "cdg Files (*.zip)");
+    gtk_file_filter_add_pattern(cdg_filter, "*.zip");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), cdg_filter);
 
     GtkFileFilter *generic_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(generic_filter, "All other files (*.*)");
@@ -1637,6 +1644,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_add_pattern(all_filter, "*.opus");
     gtk_file_filter_add_pattern(all_filter, "*.m4a");
     gtk_file_filter_add_pattern(all_filter, "*.wma");
+    gtk_file_filter_add_pattern(all_filter, "*.zip");
 
 
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), all_filter);
@@ -1686,6 +1694,12 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     gtk_file_filter_set_name(wma_filter, "WMA Files (*.wma)");
     gtk_file_filter_add_pattern(wma_filter, "*.wma");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), wma_filter);
+
+    GtkFileFilter *cdg_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(cdg_filter, "CDG Files (*.zip)");
+    gtk_file_filter_add_pattern(cdg_filter, "*.zip");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), cdg_filter);
+
 
     GtkFileFilter *generic_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(generic_filter, "All Other Files (*.*)");
