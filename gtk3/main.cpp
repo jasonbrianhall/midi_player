@@ -13,6 +13,8 @@
 #ifndef _WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
+#else
+#include <shlobj.h>
 #endif
 
 #include "visualization.h"
@@ -2017,6 +2019,9 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     
     printf("Window close button pressed, cleaning up...\n");
     
+    // Save current queue before exit
+    save_current_queue_on_exit(player);
+    
     stop_playback(player);
     clear_queue(&player->queue);
     cleanup_conversion_cache(&player->conversion_cache);
@@ -2051,7 +2056,6 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     if (GetOpenFileName(&ofn)) {
         if (load_m3u_playlist(player, filename)) {
             add_to_recent_files(filename, "audio/x-mpegurl");
-            save_last_playlist_path(filename);  // ADD THIS LINE
         }
     }
 #else
@@ -2081,7 +2085,47 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
 #endif
 }
 
-// Update your existing on_menu_save_playlist function:
+bool save_current_queue_on_exit(AudioPlayer *player) {
+    if (player->queue.count == 0) {
+        printf("No queue to save on exit\n");
+        return false;
+    }
+    
+    char temp_playlist_path[1024];
+    char config_dir[512];
+    
+#ifdef _WIN32
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(config_dir, sizeof(config_dir), "%s\\Zenamp", app_data);
+    snprintf(temp_playlist_path, sizeof(temp_playlist_path), "%s\\temp_queue.m3u", config_dir);
+    CreateDirectoryA(config_dir, NULL);
+#else
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(config_dir, sizeof(config_dir), "%s/.zenamp", home);
+    snprintf(temp_playlist_path, sizeof(temp_playlist_path), "%s/temp_queue.m3u", config_dir);
+    mkdir(config_dir, 0755);
+#endif
+    
+    // Save the current queue to a temporary M3U file
+    if (save_m3u_playlist(player, temp_playlist_path)) {
+        printf("Saved current queue to: %s\n", temp_playlist_path);
+        
+        // Now save this path as the last playlist
+        if (save_last_playlist_path(temp_playlist_path)) {
+            printf("Set temp queue as last playlist\n");
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
@@ -2188,18 +2232,17 @@ gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointe
 }
 
 #ifdef _WIN32
-#include <shlobj.h>
 
 bool get_last_playlist_path(char *path, size_t path_size) {
     char app_data[MAX_PATH];
     if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
         return false;
     }
-    snprintf(path, path_size, "%s\\AudioPlayer\\last_playlist.txt", app_data);
+    snprintf(path, path_size, "%s\\Zenamp\\last_playlist.txt", app_data);
     
     // Create directory if it doesn't exist
     char dir_path[MAX_PATH];
-    snprintf(dir_path, sizeof(dir_path), "%s\\AudioPlayer", app_data);
+    snprintf(dir_path, sizeof(dir_path), "%s\\Zenamp", app_data);
     CreateDirectoryA(dir_path, NULL);
     
     return true;
@@ -2210,11 +2253,11 @@ bool get_last_playlist_path(char *path, size_t path_size) {
     if (!home) {
         return false;
     }
-    snprintf(path, path_size, "%s/.config/audioplayer/last_playlist.txt", home);
+    snprintf(path, path_size, "%s/.zenamp/last_playlist.txt", home);
     
     // Create directory if it doesn't exist
     char dir_path[512];
-    snprintf(dir_path, sizeof(dir_path), "%s/.config/audioplayer", home);
+    snprintf(dir_path, sizeof(dir_path), "%s/.zenamp", home);
     mkdir(dir_path, 0755);
     
     return true;

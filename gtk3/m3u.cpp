@@ -88,28 +88,12 @@ bool load_m3u_playlist(AudioPlayer *player, const char *m3u_path) {
         }
         full_path[sizeof(full_path) - 1] = '\0';
         
-        // Check if file exists and has supported extension
+        // Check if file exists
         if (access(full_path, F_OK) == 0) {
-            const char *ext = strrchr(full_path, '.');
-            if (ext) {
-                char ext_lower[10];
-                strncpy(ext_lower, ext, sizeof(ext_lower) - 1);
-                ext_lower[sizeof(ext_lower) - 1] = '\0';
-                for (int i = 0; ext_lower[i]; i++) {
-                    ext_lower[i] = tolower(ext_lower[i]);
-                }
-                
-                if (strcmp(ext_lower, ".mid") == 0 || strcmp(ext_lower, ".midi") == 0 ||
-                    strcmp(ext_lower, ".wav") == 0 || strcmp(ext_lower, ".mp3") == 0 ||
-                    strcmp(ext_lower, ".ogg") == 0 || strcmp(ext_lower, ".flac") == 0 ||
-                    strcmp(ext_lower, ".aif") == 0 || strcmp(ext_lower, ".aiff") == 0 ||
-                    strcmp(ext_lower, ".opus") == 0) {
-                    
-                    if (add_to_queue(&player->queue, full_path)) {
-                        added_count++;
-                        printf("Added to queue: %s\n", full_path);
-                    }
-                }
+            // Add any existing file to the queue - let load_file handle format validation
+            if (add_to_queue(&player->queue, full_path)) {
+                added_count++;
+                printf("Added to queue: %s\n", full_path);
             }
         } else {
             printf("File not found, skipping: %s\n", full_path);
