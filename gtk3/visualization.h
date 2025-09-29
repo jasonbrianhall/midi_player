@@ -16,7 +16,7 @@
 #include "matrix.h"
 #include "bubble.h"
 #include "clock.h"
-#include "ghostchaser.h"
+#include "robotchaser.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -40,7 +40,7 @@ typedef enum {
     VIS_BOUNCY_BALLS,
     VIS_DIGITAL_CLOCK,
     VIS_ANALOG_CLOCK,
-    VIS_GHOST_CHASER
+    VIS_ROBOT_CHASER
 } VisualizationType;
 
 typedef struct {
@@ -228,25 +228,25 @@ typedef struct {
     gboolean clock_show_numbers;
     gboolean clock_particles_enabled;
 
-    // Ghost Chaser (pacman)
-    ChaserPlayer ghost_chaser_player;
-    ChaserGhost ghost_chaser_ghosts[MAX_GHOST_CHASER_GHOSTS];
-    ChaserPellet ghost_chaser_pellets[MAX_GHOST_CHASER_PELLETS];
-    int ghost_chaser_pellet_count;
-    int ghost_chaser_ghost_count;
-    double ghost_chaser_cell_size;
-    double ghost_chaser_offset_x, ghost_chaser_offset_y;
-    double ghost_chaser_beat_timer;
-    double ghost_chaser_power_pellet_timer;
-    gboolean ghost_chaser_power_mode;
-    int ghost_chaser_maze[GHOST_CHASER_MAZE_HEIGHT][GHOST_CHASER_MAZE_WIDTH];
-    double ghost_chaser_move_timer;
-    double ghost_chaser_ghost_colors[GHOST_CHASER_GHOST_COLORS][3]; // RGB for each ghost color
-    int ghost_chaser_score;
+    // robot Chaser (pacman)
+    ChaserPlayer robot_chaser_player;
+    ChaserRobot robot_chaser_robots[MAX_ROBOT_CHASER_ROBOTS];
+    ChaserPellet robot_chaser_pellets[MAX_ROBOT_CHASER_PELLETS];
+    int robot_chaser_pellet_count;
+    int robot_chaser_robot_count;
+    double robot_chaser_cell_size;
+    double robot_chaser_offset_x, robot_chaser_offset_y;
+    double robot_chaser_beat_timer;
+    double robot_chaser_power_pellet_timer;
+    gboolean robot_chaser_power_mode;
+    int robot_chaser_maze[ROBOT_CHASER_MAZE_HEIGHT][ROBOT_CHASER_MAZE_WIDTH];
+    double robot_chaser_move_timer;
+    double robot_chaser_robot_colors[ROBOT_CHASER_ROBOT_COLORS][3]; // RGB for each robot color
+    int robot_chaser_score;
     
-    GameState ghost_chaser_game_state;
-    double ghost_chaser_death_timer;
-    int ghost_chaser_lives;
+    GameState robot_chaser_game_state;
+    double robot_chaser_death_timer;
+    int robot_chaser_lives;
 
 } Visualizer;
 
@@ -375,28 +375,30 @@ void draw_clock_particles(Visualizer *vis, cairo_t *cr);
 void draw_clock_hour_marks(Visualizer *vis, cairo_t *cr);
 gboolean analog_clock_detect_beat(Visualizer *vis);
 
-// Ghost Chaser
-void init_ghost_chaser_system(Visualizer *vis);
-void update_ghost_chaser_visualization(Visualizer *vis, double dt);
-void draw_ghost_chaser_visualization(Visualizer *vis, cairo_t *cr);
-void ghost_chaser_calculate_layout(Visualizer *vis);
-void ghost_chaser_init_maze(Visualizer *vis);
-void ghost_chaser_update_player(Visualizer *vis, double dt);
-void ghost_chaser_update_ghosts(Visualizer *vis, double dt);
-void ghost_chaser_update_pellets(Visualizer *vis, double dt);
-void draw_ghost_chaser_maze(Visualizer *vis, cairo_t *cr);
-void draw_ghost_chaser_player(Visualizer *vis, cairo_t *cr);
-void draw_ghost_chaser_ghosts(Visualizer *vis, cairo_t *cr);
-void draw_ghost_chaser_pellets(Visualizer *vis, cairo_t *cr);
-gboolean ghost_chaser_can_move(Visualizer *vis, int grid_x, int grid_y);
-void ghost_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y);
-gboolean ghost_chaser_detect_beat(Visualizer *vis);
-ChaserDirection ghost_chaser_get_opposite_direction(ChaserDirection dir);
-ChaserDirection ghost_chaser_get_direction_to_target(int from_x, int from_y, int to_x, int to_y);
-double ghost_chaser_distance_to_player(ChaserGhost *ghost, ChaserPlayer *player);
-void ghost_chaser_find_nearest_pellet(Visualizer *vis, int from_x, int from_y, int *target_x, int *target_y);
-gboolean ghost_chaser_check_collision_with_ghosts(Visualizer *vis);
-gboolean ghost_chaser_is_level_complete(Visualizer *vis);
-gboolean ghost_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt);
-void ghost_chaser_unstick_ghost(Visualizer *vis, ChaserGhost *ghost);
+// robot Chaser
+void init_robot_chaser_system(Visualizer *vis);
+void update_robot_chaser_visualization(Visualizer *vis, double dt);
+void draw_robot_chaser_visualization(Visualizer *vis, cairo_t *cr);
+void robot_chaser_calculate_layout(Visualizer *vis);
+void robot_chaser_init_maze(Visualizer *vis);
+void robot_chaser_update_player(Visualizer *vis, double dt);
+void robot_chaser_update_robots(Visualizer *vis, double dt);
+void robot_chaser_update_pellets(Visualizer *vis, double dt);
+void draw_robot_chaser_maze(Visualizer *vis, cairo_t *cr);
+void draw_robot_chaser_player(Visualizer *vis, cairo_t *cr);
+void draw_robot_chaser_robots(Visualizer *vis, cairo_t *cr);
+void draw_robot_chaser_pellets(Visualizer *vis, cairo_t *cr);
+gboolean robot_chaser_can_move(Visualizer *vis, int grid_x, int grid_y);
+void robot_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y);
+gboolean robot_chaser_detect_beat(Visualizer *vis);
+ChaserDirection robot_chaser_get_opposite_direction(ChaserDirection dir);
+ChaserDirection robot_chaser_get_direction_to_target(int from_x, int from_y, int to_x, int to_y);
+double robot_chaser_distance_to_player(ChaserRobot *robot, ChaserPlayer *player);
+void robot_chaser_find_nearest_pellet(Visualizer *vis, int from_x, int from_y, int *target_x, int *target_y);
+gboolean robot_chaser_check_collision_with_robots(Visualizer *vis);
+gboolean robot_chaser_is_level_complete(Visualizer *vis);
+gboolean robot_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt);
+void robot_chaser_unstick_robot(Visualizer *vis, ChaserRobot *robot);
+ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis);
+
 #endif

@@ -1,8 +1,8 @@
-#define GHOST_CHASER_MAZE_WIDTH 25
-#define GHOST_CHASER_MAZE_HEIGHT 15
-#define MAX_GHOST_CHASER_PELLETS 300
-#define MAX_GHOST_CHASER_GHOSTS 6
-#define GHOST_CHASER_GHOST_COLORS 4
+#define ROBOT_CHASER_MAZE_WIDTH 25
+#define ROBOT_CHASER_MAZE_HEIGHT 15
+#define MAX_ROBOT_CHASER_PELLETS 300
+#define MAX_ROBOT_CHASER_ROBOTS 6
+#define ROBOT_CHASER_ROBOT_COLORS 4
 
 typedef enum {
     GAME_PLAYING = 0,
@@ -50,9 +50,9 @@ typedef struct {
     gboolean scared;          // Is in scared state
     gboolean visible;         // Is currently visible
     double blink_timer;       // For blinking effect
-    int frequency_band;       // Which frequency band controls this ghost
-    double audio_intensity;   // Current audio level affecting this ghost
-} ChaserGhost;
+    int frequency_band;       // Which frequency band controls this ROBOT
+    double audio_intensity;   // Current audio level affecting this ROBOT
+} ChaserRobot;
 
 typedef struct {
     int grid_x, grid_y;       // Grid position
@@ -65,7 +65,7 @@ typedef struct {
 } ChaserPellet;
 
 // Simplified maze layout (1=wall, 0=empty, 2=pellet, 3=power pellet)
-static const int ghost_chaser_maze_template[GHOST_CHASER_MAZE_HEIGHT][GHOST_CHASER_MAZE_WIDTH] = {
+static const int robot_chaser_maze_template[ROBOT_CHASER_MAZE_HEIGHT][ROBOT_CHASER_MAZE_WIDTH] = {
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
     {1,2,2,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,2,2,1},
     {1,3,1,1,1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,2,1,1,1,3,1},

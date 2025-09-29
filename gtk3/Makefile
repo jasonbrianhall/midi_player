@@ -100,7 +100,7 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	kaleidoscope.cpp \
 	bouncyball.cpp \
 	clock.cpp \
-	ghostchaser.cpp
+	robotchaser.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
