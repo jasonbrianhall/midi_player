@@ -397,4 +397,6 @@ double ghost_chaser_distance_to_player(ChaserGhost *ghost, ChaserPlayer *player)
 void ghost_chaser_find_nearest_pellet(Visualizer *vis, int from_x, int from_y, int *target_x, int *target_y);
 gboolean ghost_chaser_check_collision_with_ghosts(Visualizer *vis);
 gboolean ghost_chaser_is_level_complete(Visualizer *vis);
+gboolean ghost_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt);
+void ghost_chaser_unstick_ghost(Visualizer *vis, ChaserGhost *ghost);
 #endif

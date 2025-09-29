@@ -24,9 +24,9 @@ void init_ghost_chaser_system(Visualizer *vis) {
     vis->ghost_chaser_player.speed = 3.0;
     vis->ghost_chaser_player.beat_pulse = 0.0;
     
-    // Initialize ghosts
+    // Initialize ghosts - moved to safer positions
     vis->ghost_chaser_ghost_count = 4;
-    int ghost_positions[4][2] = {{12, 7}, {11, 7}, {13, 7}, {12, 8}};
+    int ghost_positions[4][2] = {{11, 3}, {12, 3}, {13, 3}, {12, 5}};
     
     for (int i = 0; i < vis->ghost_chaser_ghost_count; i++) {
         ChaserGhost *ghost = &vis->ghost_chaser_ghosts[i];
@@ -158,14 +158,6 @@ void ghost_chaser_update_pellets(Visualizer *vis, double dt) {
             pellet->size_multiplier *= 1.0 + 0.3 * sin(pellet->pulse_phase);
         }
     }
-}
-
-void update_ghost_chaser_visualization(Visualizer *vis, double dt) {
-    ghost_chaser_calculate_layout(vis);
-    ghost_chaser_update_player(vis, dt);
-    ghost_chaser_update_ghosts(vis, dt);
-    ghost_chaser_update_pellets(vis, dt);
-    vis->ghost_chaser_beat_timer += dt;
 }
 
 void draw_ghost_chaser_maze(Visualizer *vis, cairo_t *cr) {
@@ -351,7 +343,6 @@ void draw_ghost_chaser_visualization(Visualizer *vis, cairo_t *cr) {
     }
 }
 
-// Improved direction choosing for player (toward pellets)
 ChaserDirection ghost_chaser_choose_player_direction(Visualizer *vis) {
     ChaserPlayer *player = &vis->ghost_chaser_player;
     
@@ -383,15 +374,42 @@ ChaserDirection ghost_chaser_choose_player_direction(Visualizer *vis) {
         return player->direction; // Keep current direction if stuck
     }
     
-    // Find direction that gets us closer to target pellet
-    ChaserDirection best_direction = possible_directions[0];
-    double best_distance = 1000.0;
+    // If only one direction is possible, use it (even if it's backwards)
+    if (possible_count == 1) {
+        return possible_directions[0];
+    }
+    
+    // IMPORTANT: Remove backwards direction if we have other options
+    ChaserDirection opposite = ghost_chaser_get_opposite_direction(player->direction);
+    ChaserDirection forward_directions[4];
+    int forward_count = 0;
     
     for (int i = 0; i < possible_count; i++) {
+        if (possible_directions[i] != opposite) {
+            forward_directions[forward_count++] = possible_directions[i];
+        }
+    }
+    
+    // Use forward directions if available, otherwise fall back to all directions
+    ChaserDirection *directions_to_use = (forward_count > 0) ? forward_directions : possible_directions;
+    int count_to_use = (forward_count > 0) ? forward_count : possible_count;
+    
+    // Prefer continuing straight if it's an option
+    for (int i = 0; i < count_to_use; i++) {
+        if (directions_to_use[i] == player->direction) {
+            return player->direction; // Keep going straight
+        }
+    }
+    
+    // Find direction that gets us closer to target pellet
+    ChaserDirection best_direction = directions_to_use[0];
+    double best_distance = 1000.0;
+    
+    for (int i = 0; i < count_to_use; i++) {
         int test_x = player->grid_x;
         int test_y = player->grid_y;
         
-        switch (possible_directions[i]) {
+        switch (directions_to_use[i]) {
             case CHASER_UP: test_y--; break;
             case CHASER_DOWN: test_y++; break;
             case CHASER_LEFT: test_x--; break;
@@ -404,13 +422,12 @@ ChaserDirection ghost_chaser_choose_player_direction(Visualizer *vis) {
         
         if (distance < best_distance) {
             best_distance = distance;
-            best_direction = possible_directions[i];
+            best_direction = directions_to_use[i];
         }
     }
     
     return best_direction;
 }
-
 // Improved ghost AI with better wall avoidance
 ChaserDirection ghost_chaser_choose_smart_direction_v2(Visualizer *vis, ChaserGhost *ghost, int ghost_index) {
     ChaserPlayer *player = &vis->ghost_chaser_player;
@@ -586,173 +603,6 @@ ChaserDirection ghost_chaser_choose_smart_direction_v2(Visualizer *vis, ChaserGh
     }
 }
 
-// Updated player update function with smart AI
-void ghost_chaser_update_player(Visualizer *vis, double dt) {
-    ChaserPlayer *player = &vis->ghost_chaser_player;
-    
-    if (player->beat_pulse > 0) {
-        player->beat_pulse -= dt * 3.0;
-        if (player->beat_pulse < 0) player->beat_pulse = 0;
-    }
-    
-    player->size_multiplier = 1.0 + vis->volume_level * 0.3 + player->beat_pulse * 0.5;
-    double speed_multiplier = 1.0 + vis->volume_level * 0.5;
-    
-    double mouth_speed = 8.0 * speed_multiplier;
-    player->mouth_angle += dt * mouth_speed;
-    if (player->mouth_angle > 2.0 * M_PI) player->mouth_angle -= 2.0 * M_PI;
-    
-    if (player->moving) {
-        double move_distance = player->speed * speed_multiplier * dt;
-        
-        double target_x = player->x;
-        double target_y = player->y;
-        
-        switch (player->direction) {
-            case CHASER_UP: target_y -= move_distance; break;
-            case CHASER_DOWN: target_y += move_distance; break;
-            case CHASER_LEFT: target_x -= move_distance; break;
-            case CHASER_RIGHT: target_x += move_distance; break;
-        }
-        
-        int target_grid_x = (int)round(target_x);
-        int target_grid_y = (int)round(target_y);
-        
-        if (ghost_chaser_can_move(vis, target_grid_x, target_grid_y)) {
-            player->x = target_x;
-            player->y = target_y;
-            
-            if (target_grid_x != player->grid_x || target_grid_y != player->grid_y) {
-                player->grid_x = target_grid_x;
-                player->grid_y = target_grid_y;
-                ghost_chaser_consume_pellet(vis, player->grid_x, player->grid_y);
-                
-                // At intersection or when reaching a cell, choose smart direction toward pellets
-                player->next_direction = ghost_chaser_choose_player_direction(vis);
-            }
-        } else {
-            // Hit a wall, choose new direction immediately
-            player->next_direction = ghost_chaser_choose_player_direction(vis);
-        }
-        
-        // Try to change direction if queued
-        if (player->next_direction != player->direction) {
-            int test_x = player->grid_x;
-            int test_y = player->grid_y;
-            
-            switch (player->next_direction) {
-                case CHASER_UP: test_y--; break;
-                case CHASER_DOWN: test_y++; break;
-                case CHASER_LEFT: test_x--; break;
-                case CHASER_RIGHT: test_x++; break;
-            }
-            
-            if (ghost_chaser_can_move(vis, test_x, test_y)) {
-                player->direction = player->next_direction;
-            }
-        }
-    }
-    
-    // Audio-reactive direction changes (but still smart)
-    if (ghost_chaser_detect_beat(vis)) {
-        player->beat_pulse = 1.0;
-        
-        if (vis->volume_level > 0.4) {
-            // On strong beats, occasionally pick a random direction for variety
-            if (rand() % 100 < 20) { // 20% chance for random movement
-                ChaserDirection new_dir = (ChaserDirection)(rand() % 4);
-                player->next_direction = new_dir;
-            } else {
-                // Otherwise, be smart about pellet chasing
-                player->next_direction = ghost_chaser_choose_player_direction(vis);
-            }
-        }
-    }
-    
-    // Constantly try to move toward pellets (every few frames)
-    static int smart_counter = 0;
-    smart_counter++;
-    if (smart_counter % 10 == 0) { // Every 10 frames (~3 times per second)
-        player->next_direction = ghost_chaser_choose_player_direction(vis);
-    }
-}
-
-// Updated ghost update function with better wall avoidance
-void ghost_chaser_update_ghosts(Visualizer *vis, double dt) {
-    for (int i = 0; i < vis->ghost_chaser_ghost_count; i++) {
-        ChaserGhost *ghost = &vis->ghost_chaser_ghosts[i];
-        
-        ghost->audio_intensity = vis->frequency_bands[ghost->frequency_band];
-        
-        if (ghost->scared) {
-            ghost->scared_timer -= dt;
-            if (ghost->scared_timer <= 0) {
-                ghost->scared = FALSE;
-            }
-            if (ghost->scared_timer < 2.0) {
-                ghost->blink_timer += dt;
-                ghost->visible = (fmod(ghost->blink_timer, 0.3) < 0.15);
-            } else {
-                ghost->visible = TRUE;
-            }
-        } else {
-            ghost->visible = TRUE;
-        }
-        
-        ghost->size_multiplier = 1.0 + ghost->audio_intensity * 0.4;
-        double speed_multiplier = 1.0 + ghost->audio_intensity * 0.3;
-        
-        if (ghost->scared) {
-            ghost->target_hue = 240.0;
-        } else {
-            ghost->target_hue = ghost->audio_intensity * 360.0;
-        }
-        
-        ghost->hue += (ghost->target_hue - ghost->hue) * dt * 5.0;
-        
-        double move_distance = ghost->speed * speed_multiplier * dt;
-        double target_x = ghost->x;
-        double target_y = ghost->y;
-        
-        switch (ghost->direction) {
-            case CHASER_UP: target_y -= move_distance; break;
-            case CHASER_DOWN: target_y += move_distance; break;
-            case CHASER_LEFT: target_x -= move_distance; break;
-            case CHASER_RIGHT: target_x += move_distance; break;
-        }
-        
-        int target_grid_x = (int)round(target_x);
-        int target_grid_y = (int)round(target_y);
-        
-        if (ghost_chaser_can_move(vis, target_grid_x, target_grid_y)) {
-            ghost->x = target_x;
-            ghost->y = target_y;
-            
-            if (target_grid_x != ghost->grid_x || target_grid_y != ghost->grid_y) {
-                ghost->grid_x = target_grid_x;
-                ghost->grid_y = target_grid_y;
-                
-                // Use improved AI when reaching a new cell
-                ghost->direction = ghost_chaser_choose_smart_direction_v2(vis, ghost, i);
-            }
-        } else {
-            // Hit a wall - IMMEDIATELY choose a new valid direction
-            ghost->direction = ghost_chaser_choose_smart_direction_v2(vis, ghost, i);
-            
-            // Also snap back to grid center to prevent getting stuck in walls
-            ghost->x = ghost->grid_x;
-            ghost->y = ghost->grid_y;
-        }
-    }
-    
-    if (vis->ghost_chaser_power_mode) {
-        vis->ghost_chaser_power_pellet_timer -= dt;
-        if (vis->ghost_chaser_power_pellet_timer <= 0) {
-            vis->ghost_chaser_power_mode = FALSE;
-        }
-    }
-}
-
 double ghost_chaser_distance_to_player(ChaserGhost *ghost, ChaserPlayer *player) {
     double dx = ghost->x - player->x;
     double dy = ghost->y - player->y;
@@ -855,8 +705,8 @@ void ghost_chaser_reset_level(Visualizer *vis) {
     vis->ghost_chaser_player.moving = TRUE;
     vis->ghost_chaser_player.beat_pulse = 0.0;
     
-    // Reset ghosts to starting positions
-    int ghost_positions[4][2] = {{12, 7}, {11, 7}, {13, 7}, {12, 8}};
+    // Reset ghosts to starting positions - using safer positions
+    int ghost_positions[4][2] = {{11, 3}, {12, 3}, {13, 3}, {12, 5}};
     for (int i = 0; i < vis->ghost_chaser_ghost_count; i++) {
         ChaserGhost *ghost = &vis->ghost_chaser_ghosts[i];
         ghost->grid_x = ghost_positions[i][0];
@@ -887,7 +737,7 @@ void ghost_chaser_init_game_state(Visualizer *vis) {
     vis->ghost_chaser_score = 0;
 }
 
-// Fixed movement function that prevents wall sticking
+
 gboolean ghost_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt) {
     double new_x = *x;
     double new_y = *y;
@@ -923,8 +773,7 @@ gboolean ghost_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, 
     return FALSE;
 }
 
-// Fixed player update function
-void ghost_chaser_update_player_fixed(Visualizer *vis, double dt) {
+void ghost_chaser_update_player(Visualizer *vis, double dt) {
     if (vis->ghost_chaser_game_state != GAME_PLAYING) {
         return; // Don't update if game is paused/over
     }
@@ -1003,14 +852,25 @@ void ghost_chaser_update_player_fixed(Visualizer *vis, double dt) {
     }
 }
 
-// Fixed ghost update function
-void ghost_chaser_update_ghosts_fixed(Visualizer *vis, double dt) {
+void ghost_chaser_update_ghosts(Visualizer *vis, double dt) {
     if (vis->ghost_chaser_game_state != GAME_PLAYING) {
-        return; // Don't update if game is paused/over
+        return;
     }
     
     for (int i = 0; i < vis->ghost_chaser_ghost_count; i++) {
         ChaserGhost *ghost = &vis->ghost_chaser_ghosts[i];
+        
+        // Ensure ghost is in a valid position
+        if (!ghost_chaser_can_move(vis, ghost->grid_x, ghost->grid_y)) {
+            // Ghost is in a wall - move to safe position
+            ghost->x = 12;
+            ghost->y = 3;
+            ghost->grid_x = 12;
+            ghost->grid_y = 3;
+        }
+        
+        // Add the unsticking logic
+        ghost_chaser_unstick_ghost(vis, ghost);
         
         ghost->audio_intensity = vis->frequency_bands[ghost->frequency_band];
         
@@ -1075,14 +935,14 @@ void ghost_chaser_update_ghosts_fixed(Visualizer *vis, double dt) {
 }
 
 // Updated main update function
-void update_ghost_chaser_visualization_fixed(Visualizer *vis, double dt) {
+void update_ghost_chaser_visualization(Visualizer *vis, double dt) {
     ghost_chaser_calculate_layout(vis);
     
     // Handle game state
     switch (vis->ghost_chaser_game_state) {
         case GAME_PLAYING:
-            ghost_chaser_update_player_fixed(vis, dt);
-            ghost_chaser_update_ghosts_fixed(vis, dt);
+            ghost_chaser_update_player(vis, dt);
+            ghost_chaser_update_ghosts(vis, dt);
             ghost_chaser_update_pellets(vis, dt);
             break;
             
@@ -1201,4 +1061,32 @@ void draw_ghost_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
         cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, vis->ghost_chaser_player.beat_pulse * 0.08);
         cairo_paint(cr);
     }
+}
+
+void ghost_chaser_unstick_ghost(Visualizer *vis, ChaserGhost *ghost) {
+    static double stuck_timers[MAX_GHOST_CHASER_GHOSTS] = {0};
+    static double last_positions[MAX_GHOST_CHASER_GHOSTS][2];
+    
+    int ghost_index = ghost - vis->ghost_chaser_ghosts;
+    
+    // Check if ghost is in the same position as last check
+    if (ghost->x == last_positions[ghost_index][0] && 
+        ghost->y == last_positions[ghost_index][1]) {
+        stuck_timers[ghost_index] += 0.033; // Assuming 30fps
+        
+        if (stuck_timers[ghost_index] > 2.0) { // Stuck for 2 seconds
+            // Teleport to center open area
+            ghost->x = 12;
+            ghost->y = 3;
+            ghost->grid_x = 12;
+            ghost->grid_y = 3;
+            ghost->direction = (ChaserDirection)(rand() % 4);
+            stuck_timers[ghost_index] = 0;
+        }
+    } else {
+        stuck_timers[ghost_index] = 0;
+    }
+    
+    last_positions[ghost_index][0] = ghost->x;
+    last_positions[ghost_index][1] = ghost->y;
 }
