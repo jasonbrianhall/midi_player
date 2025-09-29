@@ -846,32 +846,27 @@ bool load_file(AudioPlayer *player, const char *filename) {
     
         KaraokeZipContents zip_contents;
         if (extract_karaoke_zip(filename, &zip_contents)) {
-            // Store temp files for cleanup later
             player->karaoke_temp_files = zip_contents;
     
-            // Initialize CDG display if not already done
             if (!player->cdg_display) {
                 player->cdg_display = cdg_display_new();
             }
         
             if (player->cdg_display && cdg_load_file(player->cdg_display, zip_contents.cdg_file)) {
                 player->has_cdg = true;
-                player->is_loading_cdg_from_zip = true;  // SET FLAG before recursive call
+                player->is_loading_cdg_from_zip = true;
             
-                // Set visualizer to karaoke mode
                 if (player->visualizer) {
                     player->visualizer->cdg_display = player->cdg_display;
                     visualizer_set_type(player->visualizer, VIS_KARAOKE);
                 }
             
-                // Load the audio file (this will recursively call load_file with the audio)
                 success = load_file(player, zip_contents.audio_file);
                 
-                player->is_loading_cdg_from_zip = false;  // CLEAR FLAG after recursive call
+                player->is_loading_cdg_from_zip = false;
             
                 if (success) {
                     printf("Loaded karaoke ZIP successfully\n");
-                    // Store the original ZIP filename
                     strcpy(player->current_file, filename);
                 } else {
                     printf("Failed to load audio from ZIP\n");
@@ -901,24 +896,25 @@ bool load_file(AudioPlayer *player, const char *filename) {
         player->is_paused = false;
         playTime = 0;
         
-        // Update the progress scale range
+        // Extract and display metadata
+        char *metadata = extract_metadata(filename);
+        gtk_label_set_markup(GTK_LABEL(player->metadata_label), metadata);
+        g_free(metadata);
+        
         gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
         gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
         
-        // Check if the loaded file has valid audio data
         if (player->audio_buffer.length == 0 || player->song_duration <= 0.1) {
             printf("Warning: File loaded but has no/minimal audio data (duration: %.2f, samples: %zu)\n", 
                    player->song_duration, player->audio_buffer.length);
             printf("Skipping this file and advancing to next...\n");
             
-            // Clean up the virtual file if it was created
             if (strncmp(player->temp_wav_file, "virtual_", 8) == 0) {
                 delete_virtual_file(player->temp_wav_file);
             }
             
             update_gui_state(player);
             
-            // Trigger immediate advance for invalid files
             if (player->queue.count > 1) {
                 g_timeout_add(100, [](gpointer data) -> gboolean {
                     AudioPlayer *p = (AudioPlayer*)data;
@@ -939,7 +935,6 @@ bool load_file(AudioPlayer *player, const char *filename) {
         printf("File successfully loaded (duration: %.2f, samples: %zu), auto-starting playback\n", 
                player->song_duration, player->audio_buffer.length);
         
-        // AUTO-START PLAYBACK for valid files
         start_playback(player);
         update_gui_state(player);
     } else {

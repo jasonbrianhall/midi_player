@@ -348,9 +348,10 @@ static void create_queue_controls_regular(AudioPlayer *player) {
 }
 
 static void create_icon_section(AudioPlayer *player) {
-    player->layout.bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    player->layout.bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_box_pack_end(GTK_BOX(player->layout.content_vbox), player->layout.bottom_box, FALSE, FALSE, 0);
 
+    // Icon on the left
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
         GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, 
@@ -359,17 +360,20 @@ static void create_icon_section(AudioPlayer *player) {
                                                         GDK_INTERP_BILINEAR);
         if (scaled_icon) {
             GtkWidget *icon_image = gtk_image_new_from_pixbuf(scaled_icon);
-            GtkWidget *icon_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-            gtk_box_pack_start(GTK_BOX(icon_box), icon_image, FALSE, FALSE, 0);
-            gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), icon_box, FALSE, FALSE, 0);
+            gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), icon_image, FALSE, FALSE, 0);
             g_object_unref(scaled_icon);
         }
         g_object_unref(small_icon);
     }
 
-    // Add spacing
-    GtkWidget *spacer = gtk_label_new("");
-    gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), spacer, TRUE, TRUE, 0);
+    // Metadata label beside the icon
+    player->metadata_label = gtk_label_new("No track loaded");
+    gtk_label_set_use_markup(GTK_LABEL(player->metadata_label), TRUE);
+    gtk_label_set_line_wrap(GTK_LABEL(player->metadata_label), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(player->metadata_label), 0.0);
+    gtk_label_set_selectable(GTK_LABEL(player->metadata_label), TRUE);
+    gtk_widget_set_margin_start(player->metadata_label, 10);
+    gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), player->metadata_label, TRUE, TRUE, 0);
 }
 
 static void create_queue_display(AudioPlayer *player) {

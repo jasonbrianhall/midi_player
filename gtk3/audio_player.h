@@ -334,4 +334,6 @@ void on_recent_playlist_activated(GtkRecentChooser *chooser, gpointer user_data)
 bool save_last_playlist_path(const char *playlist_path);
 bool save_current_queue_on_exit(AudioPlayer *player);
 
+char* extract_metadata(const char *filepath);
+
 #endif // AUDIO_PLAYER_H
