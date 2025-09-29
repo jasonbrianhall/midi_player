@@ -20,6 +20,15 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     
     CDGDisplay *cdg = vis->cdg_display;
     
+    // DEBUG: Print current frame being rendered
+    static int last_printed_packet = -1;
+    if (cdg->current_packet != last_printed_packet) {
+        printf("RENDERING FRAME: packet %d of %d (%.2f seconds)\n", 
+               cdg->current_packet, cdg->packet_count, 
+               cdg->current_packet / (double)CDG_PACKETS_PER_SECOND);
+        last_printed_packet = cdg->current_packet;
+    }
+    
     // Create or update the Cairo surface for CDG graphics
     if (!vis->cdg_surface || 
         cairo_image_surface_get_width(vis->cdg_surface) != CDG_WIDTH ||
@@ -29,7 +38,7 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
             cairo_surface_destroy(vis->cdg_surface);
         }
         vis->cdg_surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, CDG_WIDTH, CDG_HEIGHT);
-        vis->cdg_last_packet = -1; // Force update on first draw
+        vis->cdg_last_packet = -1;
     }
     
     // Always update surface when packets have changed
@@ -43,13 +52,7 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
             for (int x = 0; x < CDG_WIDTH; x++) {
                 uint8_t color_index = cdg->screen[y][x];
                 uint32_t rgb = cdg->palette[color_index];
-                
-                // Reorder from RGB to BGR for Cairo (little-endian)
-                uint8_t r = (rgb >> 16) & 0xFF;
-                uint8_t g = (rgb >> 8) & 0xFF;
-                uint8_t b = rgb & 0xFF;
-                
-                row[x] = (b << 16) | (g << 8) | r;
+                row[x] = 0xFF000000 | rgb;
             }
         }
         

@@ -112,43 +112,11 @@ void cdg_update(CDGDisplay *display, double playTime) {
     if (target_packet < 0) target_packet = 0;
     if (target_packet > display->packet_count) target_packet = display->packet_count;
     
-    // Process packets up to current time
-    while (display->current_packet < target_packet) {
+    // Process ONE packet per call to allow rendering between packets
+    // If we're behind, the timer will call us again quickly
+    if (display->current_packet < target_packet) {
         cdg_process_packet(display, &display->packets[display->current_packet]);
         display->current_packet++;
-    }
-    
-    // Update karaoke ball physics
-    double dt = playTime - display->last_update_time;
-    if (dt > 0 && dt < 0.5) {  // Sanity check
-        // Simple horizontal motion (left to right over song duration)
-        double song_duration = display->packet_count / (double)CDG_PACKETS_PER_SECOND;
-        double progress = playTime / song_duration;
-        display->ball_x = 30.0 + progress * (CDG_WIDTH - 60.0);
-        
-        // Bouncing motion
-        const double gravity = 800.0;
-        const double bounce_damping = 0.7;
-        const double ground = CDG_HEIGHT - 40.0;
-        
-        display->ball_velocity_y += gravity * dt;
-        display->ball_y += display->ball_velocity_y * dt;
-        
-        // Bounce off ground
-        if (display->ball_y > ground) {
-            display->ball_y = ground;
-            display->ball_velocity_y = -display->ball_velocity_y * bounce_damping;
-            
-            // Small random horizontal kick on bounce
-            if (fabs(display->ball_velocity_y) < 50.0) {
-                display->ball_velocity_y = -200.0 - (rand() % 100);
-            }
-        }
-        
-        // Update trail
-        display->ball_trail_positions[display->ball_trail_index][0] = display->ball_x;
-        display->ball_trail_positions[display->ball_trail_index][1] = display->ball_y;
-        display->ball_trail_index = (display->ball_trail_index + 1) % 20;
     }
     
     display->last_update_time = playTime;
