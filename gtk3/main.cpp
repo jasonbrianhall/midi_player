@@ -21,6 +21,7 @@
 #include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
+#include "zip_support.h"
 
 extern double playTime;
 extern bool isPlaying;
@@ -819,53 +820,49 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
-    else if (strcmp(ext_lower, ".cdg") == 0) {
-        printf("Loading CDG karaoke file: %s\n", filename);
+    else if (strcmp(ext_lower, ".zip") == 0) {
+        printf("Loading karaoke ZIP file: %s\n", filename);
     
-        // Look for matching audio file
-        char audio_file[512];
-        strncpy(audio_file, filename, sizeof(audio_file) - 1);
-        char *dot = strrchr(audio_file, '.');
-        if (dot) {
-            // Try different audio extensions
-            const char *audio_exts[] = {".mp3", ".ogg", ".flac", ".wav", NULL};
-            bool found_audio = false;
-        
-            for (int i = 0; audio_exts[i]; i++) {
-                strcpy(dot, audio_exts[i]);
-                if (access(audio_file, F_OK) == 0) {
-                    found_audio = true;
-                    break;
-                }
+        KaraokeZipContents zip_contents;
+        if (extract_karaoke_zip(filename, &zip_contents)) {
+            // Store temp files for cleanup later
+            player->karaoke_temp_files = zip_contents;
+    
+            // Initialize CDG display if not already done
+            if (!player->cdg_display) {
+                player->cdg_display = cdg_display_new();
             }
         
-            if (found_audio) {
-                // Initialize CDG display if not already done
-                if (!player->cdg_display) {
-                    player->cdg_display = cdg_display_new();
+            if (player->cdg_display && cdg_load_file(player->cdg_display, zip_contents.cdg_file)) {
+                player->has_cdg = true;
+            
+                // Set visualizer to karaoke mode
+                if (player->visualizer) {
+                    player->visualizer->cdg_display = player->cdg_display;
+                    visualizer_set_type(player->visualizer, VIS_KARAOKE);
                 }
             
-                if (player->cdg_display && cdg_load_file(player->cdg_display, filename)) {
-                    player->has_cdg = true;
-                
-                    // Set visualizer to karaoke mode
-                    if (player->visualizer) {
-                        player->visualizer->cdg_display = player->cdg_display;
-                        visualizer_set_type(player->visualizer, VIS_KARAOKE);
-                    }
-                
-                    // Load the audio file
-                    success = load_file(player, audio_file);
-                
-                    if (success) {
-                        printf("Loaded CDG+audio: %s + %s\n", filename, audio_file);
-                    }
+                // Load the audio file (this will recursively call load_file with the audio)
+                success = load_file(player, zip_contents.audio_file);
+            
+                if (success) {
+                    printf("Loaded karaoke ZIP successfully\n");
+                    // Store the original ZIP filename
+                    strcpy(player->current_file, filename);
+                } else {
+                    printf("Failed to load audio from ZIP\n");
+                    cleanup_karaoke_temp_files(&player->karaoke_temp_files);
                 }
+            } else {
+                printf("Failed to load CDG from ZIP\n");
+                cleanup_karaoke_temp_files(&zip_contents);
+            }
         } else {
+            printf("Failed to extract karaoke ZIP\n");
+        }
+     } else {
             printf("No matching audio file found for CDG: %s\n", filename);
         }
-    }
-}
     } else {
         printf("Trying to load unknown file: %s\n", filename);
         if (convert_audio_to_wav(player, filename)) {

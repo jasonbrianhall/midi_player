@@ -20,6 +20,7 @@
 #include "radialwave.h"
 #include "blockstack.h"
 #include "cdg.h"
+#include "zip_support.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32

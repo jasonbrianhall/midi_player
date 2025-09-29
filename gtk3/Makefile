@@ -109,7 +109,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	drawcircle.cpp \
 	blockstack.cpp \
 	cdg.cpp \
-	karaoke.cpp
+	karaoke.cpp \
+	zip_support.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
@@ -118,7 +119,7 @@ SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
 SOURCES_CPP_WIN = $(SOURCES_CPP_COMMON) \
         convertm4atowavwin.cpp
 
-SOURCES_C = 
+SOURCES_C = miniz.c miniz_tdef.c miniz_tinfl.c miniz_zip.c
 
 # Resource files for Windows
 RESOURCE_FILE = icon.rc

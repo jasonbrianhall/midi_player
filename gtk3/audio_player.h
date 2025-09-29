@@ -21,6 +21,7 @@
 #include "equalizer.h"
 #include "visualization.h"
 #include "cdg.h"
+#include "zip_support.h"
 
 // Structure to hold audio metadata
 struct AudioMetadata {
@@ -173,6 +174,7 @@ typedef struct {
     // CD+G
     CDGDisplay *cdg_display;
     bool has_cdg;
+    KaraokeZipContents karaoke_temp_files;
 
     LayoutManager layout;
 } AudioPlayer;
