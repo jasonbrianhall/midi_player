@@ -211,7 +211,7 @@ static void create_visualization_section(AudioPlayer *player) {
     player->visualizer = visualizer_new();
     
     // Visualization section
-    GtkWidget *vis_frame = gtk_frame_new("Visualization");
+    GtkWidget *vis_frame = gtk_frame_new("Visualization (Toggle FS with F9 or F)");
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), vis_frame, FALSE, FALSE, 0);
     
     GtkWidget *vis_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);

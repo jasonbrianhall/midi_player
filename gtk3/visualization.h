@@ -47,7 +47,10 @@ typedef enum {
     VIS_ROBOT_CHASER,
     VIS_RADIAL_WAVE,
     VIS_BLOCK_STACK,
-    VIS_KARAOKE
+    VIS_KARAOKE,
+    VIS_KARAOKE_EXCITING
+
+
 } VisualizationType;
 
 typedef struct {
@@ -444,6 +447,7 @@ gboolean blockstack_detect_beat(void *vis);
 void get_block_color(int frequency_band, double intensity, double *r, double *g, double *b);
 
 // Karaoke
-void draw_karaoke(Visualizer *vis, cairo_t *cr);
+void draw_karaoke_exciting(Visualizer *vis, cairo_t *cr);
+void draw_karaoke_boring(Visualizer *vis, cairo_t *cr);
 
 #endif
