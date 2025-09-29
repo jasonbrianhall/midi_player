@@ -1,6 +1,42 @@
 #include "visualization.h"
 #include "cdg.h"
 #include <cairo.h>
+#include <string.h>
+
+// Apply multi-pass smoothing for better anti-aliasing
+static void apply_smooth_filter(unsigned char *data, int width, int height, int stride) {
+    unsigned char *temp = (unsigned char*)malloc(height * stride);
+    
+    // First pass: horizontal blur
+    memcpy(temp, data, height * stride);
+    for (int y = 0; y < height; y++) {
+        for (int x = 1; x < width - 1; x++) {
+            int offset = y * stride + x * 4;
+            for (int c = 0; c < 3; c++) {
+                int left = temp[offset - 4 + c];
+                int center = temp[offset + c];
+                int right = temp[offset + 4 + c];
+                data[offset + c] = (left + center * 2 + right) / 4;
+            }
+        }
+    }
+    
+    // Second pass: vertical blur
+    memcpy(temp, data, height * stride);
+    for (int y = 1; y < height - 1; y++) {
+        for (int x = 0; x < width; x++) {
+            int offset = y * stride + x * 4;
+            for (int c = 0; c < 3; c++) {
+                int top = temp[offset - stride + c];
+                int center = temp[offset + c];
+                int bottom = temp[offset + stride + c];
+                data[offset + c] = (top + center * 2 + bottom) / 4;
+            }
+        }
+    }
+    
+    free(temp);
+}
 
 void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     if (!vis->cdg_display || !vis->cdg_display->packets) {
@@ -20,15 +56,18 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
     
     CDGDisplay *cdg = vis->cdg_display;
     
-    // Create or update the Cairo surface for CDG graphics
+    // Create or update the Cairo surface for CDG graphics (2x size for better quality)
+    int render_width = CDG_WIDTH * 2;
+    int render_height = CDG_HEIGHT * 2;
+    
     if (!vis->cdg_surface || 
-        cairo_image_surface_get_width(vis->cdg_surface) != CDG_WIDTH ||
-        cairo_image_surface_get_height(vis->cdg_surface) != CDG_HEIGHT) {
+        cairo_image_surface_get_width(vis->cdg_surface) != render_width ||
+        cairo_image_surface_get_height(vis->cdg_surface) != render_height) {
         
         if (vis->cdg_surface) {
             cairo_surface_destroy(vis->cdg_surface);
         }
-        vis->cdg_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, CDG_WIDTH, CDG_HEIGHT);
+        vis->cdg_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, render_width, render_height);
         vis->cdg_last_packet = -1;
     }
     
@@ -37,11 +76,8 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
         unsigned char *data = cairo_image_surface_get_data(vis->cdg_surface);
         int stride = cairo_image_surface_get_stride(vis->cdg_surface);
         
-        static int debug_count = 0;
-        
-        // Convert CDG indexed color buffer to RGB surface
+        // Convert CDG indexed color buffer to RGB surface with 2x upscaling
         for (int y = 0; y < CDG_HEIGHT; y++) {
-            unsigned char *row = data + y * stride;
             for (int x = 0; x < CDG_WIDTH; x++) {
                 uint8_t color_index = cdg->screen[y][x];
                 uint32_t rgb = cdg->palette[color_index];
@@ -51,34 +87,49 @@ void draw_karaoke(Visualizer *vis, cairo_t *cr) {
                 uint8_t g = (rgb >> 8) & 0xFF;
                 uint8_t b = rgb & 0xFF;
                 
-                // Cairo ARGB32 on little-endian: byte order is B, G, R, A
-                int pixel_offset = x * 4;
-                row[pixel_offset + 0] = b;   // Blue
-                row[pixel_offset + 1] = g;   // Green
-                row[pixel_offset + 2] = r;   // Red
-                row[pixel_offset + 3] = 255; // Alpha (fully opaque)
+                // Write to 2x2 block for upscaling
+                for (int dy = 0; dy < 2; dy++) {
+                    for (int dx = 0; dx < 2; dx++) {
+                        int dest_y = y * 2 + dy;
+                        int dest_x = x * 2 + dx;
+                        unsigned char *row = data + dest_y * stride;
+                        int pixel_offset = dest_x * 4;
+                        
+                        row[pixel_offset + 0] = b;   // Blue
+                        row[pixel_offset + 1] = g;   // Green
+                        row[pixel_offset + 2] = r;   // Red
+                        row[pixel_offset + 3] = 255; // Alpha
+                    }
+                }
             }
         }
+        
+        // Apply smoothing filter for anti-aliasing
+        apply_smooth_filter(data, render_width, render_height, stride);
         
         cairo_surface_mark_dirty(vis->cdg_surface);
         vis->cdg_last_packet = cdg->current_packet;
     }
     
+    // Draw black background
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_paint(cr);
+    
     // Calculate scaling to fit widget
-    double scale_x = vis->width / (double)CDG_WIDTH;
-    double scale_y = vis->height / (double)CDG_HEIGHT;
+    double scale_x = vis->width / (double)render_width;
+    double scale_y = vis->height / (double)render_height;
     double scale = (scale_x < scale_y) ? scale_x : scale_y;
     
     // Center the display
-    double offset_x = (vis->width - CDG_WIDTH * scale) / 2.0;
-    double offset_y = (vis->height - CDG_HEIGHT * scale) / 2.0;
+    double offset_x = (vis->width - render_width * scale) / 2.0;
+    double offset_y = (vis->height - render_height * scale) / 2.0;
     
-    // Draw the CDG surface (scaled)
+    // Draw the CDG surface with high-quality filtering
     cairo_save(cr);
     cairo_translate(cr, offset_x, offset_y);
     cairo_scale(cr, scale, scale);
     cairo_set_source_surface(cr, vis->cdg_surface, 0, 0);
-    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BEST);
     cairo_paint(cr);
     cairo_restore(cr);
 }

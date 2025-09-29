@@ -420,7 +420,7 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_KARAOKE:
                 if (vis->cdg_display) {
-                    printf("playtime %.3f\n", playTime);
+                    //printf("playtime %.3f\n", playTime);
                     cdg_update(vis->cdg_display, playTime);
                 }
                 

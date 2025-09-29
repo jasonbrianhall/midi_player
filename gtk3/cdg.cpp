@@ -98,7 +98,6 @@ void cdg_reset(CDGDisplay *display) {
 
 void cdg_update(CDGDisplay *cdg, double time_seconds) {
     if (!cdg || !cdg->packets) {
-        fprintf(stderr, "[CDG] cdg_update called with null cdg or packets\n");
         return;
     }
     
@@ -109,7 +108,7 @@ void cdg_update(CDGDisplay *cdg, double time_seconds) {
     if (target_packet < 0) target_packet = 0;
     if (target_packet >= cdg->packet_count) target_packet = cdg->packet_count - 1;
     
-    // Process all packets from current position to target
+    // Process all packets from current position up to target
     while (cdg->current_packet < target_packet) {
         cdg_process_packet(cdg, &cdg->packets[cdg->current_packet]);
         cdg->current_packet++;
@@ -119,20 +118,17 @@ void cdg_update(CDGDisplay *cdg, double time_seconds) {
 void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
     if (!cdg || !packet) return;
     
-    // Check if this is a CDG command (not a CD audio packet)
+    // Check if this is a CDG graphics command
     if ((packet->command & 0x3F) != 0x09) {
-        return; // Not a graphics command
+        return; // Not a graphics command, ignore
     }
     
     uint8_t instruction = packet->instruction & 0x3F;
     
     switch (instruction) {
-        case 1: // Memory Preset
+        case 1: // CDG_MEMORY_PRESET - fill screen with a color
         {
             uint8_t color = packet->data[0] & 0x0F;
-            uint8_t repeat = packet->data[1] & 0x0F;
-            
-            // Fill screen with color
             for (int y = 0; y < CDG_HEIGHT; y++) {
                 for (int x = 0; x < CDG_WIDTH; x++) {
                     cdg->screen[y][x] = color;
@@ -141,28 +137,27 @@ void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
             break;
         }
         
-        case 6: // Tile Block (normal)
-        case 38: // Tile Block XOR
+        case 6: // CDG_TILE_BLOCK - draw a 6x12 tile
+        case 38: // CDG_TILE_BLOCK_XOR - XOR draw a 6x12 tile
         {
             bool xor_mode = (instruction == 38);
             uint8_t color0 = packet->data[0] & 0x0F;
             uint8_t color1 = packet->data[1] & 0x0F;
-            uint8_t row = (packet->data[2] & 0x1F);
-            uint8_t column = (packet->data[3] & 0x3F);
+            uint8_t row = packet->data[2] & 0x1F;
+            uint8_t column = packet->data[3] & 0x3F;
             
-            // Each tile is 6x12 pixels
             int pixel_row = row * 12;
             int pixel_col = column * 6;
             
-            // Draw tile using the 12 bytes of pixel data
+            // Process 12 rows of 6 pixels each
             for (int y = 0; y < 12; y++) {
-                uint8_t byte = packet->data[4 + y];
+                uint8_t tile_byte = packet->data[4 + y];
                 for (int x = 0; x < 6; x++) {
                     int px = pixel_col + x;
                     int py = pixel_row + y;
                     
                     if (px >= 0 && px < CDG_WIDTH && py >= 0 && py < CDG_HEIGHT) {
-                        uint8_t bit = (byte >> (5 - x)) & 1;
+                        uint8_t bit = (tile_byte >> (5 - x)) & 1;
                         uint8_t color = bit ? color1 : color0;
                         
                         if (xor_mode) {
@@ -176,34 +171,56 @@ void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
             break;
         }
         
-        case 30: // Load Color Table (Low)
-        case 31: // Load Color Table (High)
+        case 30: // CDG_LOAD_CLUT_LOW - load color table (colors 0-7)
+        case 31: // CDG_LOAD_CLUT_HIGH - load color table (colors 8-15)
         {
             int offset = (instruction == 30) ? 0 : 8;
             
             for (int i = 0; i < 8; i++) {
-                uint16_t entry = (packet->data[2 * i] << 8) | packet->data[2 * i + 1];
+                // CDG color format: each color is 2 bytes
+                // Byte 0: 00rr rrgg (top 2 bits unused, then 4 bits red, 2 bits green MSB)
+                // Byte 1: ggbb bbxx (2 bits green LSB, 4 bits blue, 2 bits unused)
+                uint8_t byte0 = packet->data[2 * i] & 0x3F;     // Mask off top 2 bits
+                uint8_t byte1 = packet->data[2 * i + 1] & 0x3F; // Mask off bottom 2 bits
                 
-                // Extract RGB components (each is 4 bits)
-                uint8_t r = ((entry >> 8) & 0x0F) * 17; // Scale 0-15 to 0-255
-                uint8_t g = ((entry >> 4) & 0x0F) * 17;
-                uint8_t b = (entry & 0x0F) * 17;
+                // Extract 4-bit color components
+                uint8_t r = (byte0 >> 2) & 0x0F;  // Bits 5-2 of byte0
+                uint8_t g = ((byte0 & 0x03) << 2) | ((byte1 >> 4) & 0x03); // Bits 1-0 of byte0 + bits 5-4 of byte1
+                uint8_t b = (byte1 & 0x0F);       // Bits 3-0 of byte1
                 
-                cdg->palette[offset + i] = (r << 16) | (g << 8) | b;
+                // Scale 4-bit values (0-15) to 8-bit (0-255)
+                uint8_t r8 = r * 17;  // 17 = 255/15
+                uint8_t g8 = g * 17;
+                uint8_t b8 = b * 17;
+                
+                cdg->palette[offset + i] = (r8 << 16) | (g8 << 8) | b8;
             }
             break;
         }
         
-        case 20: // Scroll Preset
-        case 24: // Scroll Copy
+        case 20: // CDG_SCROLL_PRESET
+        case 24: // CDG_SCROLL_COPY
         {
-            // Not implementing scrolling for now - these are complex
-            // Most karaoke files work without them
+            // Scrolling commands - implement if needed for advanced karaoke files
+            uint8_t color = packet->data[0] & 0x0F;
+            uint8_t hscroll = packet->data[1] & 0x3F;
+            uint8_t vscroll = packet->data[2] & 0x3F;
+            
+            int h_cmd = (hscroll & 0x30) >> 4;
+            int h_offset = hscroll & 0x07;
+            int v_cmd = (vscroll & 0x30) >> 4;
+            int v_offset = vscroll & 0x0F;
+            
+            // For now, just do basic scrolling - full implementation is complex
+            if (h_cmd != 0 || v_cmd != 0) {
+                // Scrolling detected but not fully implemented
+                // Most karaoke works without this
+            }
             break;
         }
         
         default:
-            // Unknown instruction
+            // Unknown or unimplemented instruction
             break;
     }
 }
