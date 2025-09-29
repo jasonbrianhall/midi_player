@@ -276,9 +276,6 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
         return false;
     }
     
-    // Store metadata in the AudioPlayer structure (you may need to add these fields)
-    player->current_metadata = metadata;
-    
     // Add to cache after successful conversion
     add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);
     

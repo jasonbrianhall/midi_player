@@ -21,6 +21,8 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     
     switch (event->keyval) {
         case GDK_KEY_F9:
+        case GDK_KEY_F:
+        case GDK_KEY_f:
             toggle_vis_fullscreen(player);
             return TRUE;
         case GDK_KEY_space:

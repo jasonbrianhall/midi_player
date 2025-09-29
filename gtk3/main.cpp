@@ -1129,7 +1129,7 @@ void toggle_pause(AudioPlayer *player) {
 
 gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
-    if (event->keyval == GDK_KEY_F9 || event->keyval == GDK_KEY_Escape) {
+    if (event->keyval == GDK_KEY_F9 || event->keyval == GDK_KEY_Escape || event->keyval == GDK_KEY_F || event->keyval == GDK_KEY_f) {
         toggle_vis_fullscreen(player);
         return TRUE;
     }
