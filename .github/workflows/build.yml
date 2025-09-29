@@ -61,7 +61,8 @@ jobs:
           zip unzip \
           opus-devel opusfile-devel \
           ImageMagick \
-          ffmpeg-devel
+          ffmpeg-devel \
+          taglib-devel
           
     - name: Convert Icon
       working-directory: gtk3
