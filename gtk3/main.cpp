@@ -819,6 +819,53 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
+    else if (strcmp(ext_lower, ".cdg") == 0) {
+        printf("Loading CDG karaoke file: %s\n", filename);
+    
+        // Look for matching audio file
+        char audio_file[512];
+        strncpy(audio_file, filename, sizeof(audio_file) - 1);
+        char *dot = strrchr(audio_file, '.');
+        if (dot) {
+            // Try different audio extensions
+            const char *audio_exts[] = {".mp3", ".ogg", ".flac", ".wav", NULL};
+            bool found_audio = false;
+        
+            for (int i = 0; audio_exts[i]; i++) {
+                strcpy(dot, audio_exts[i]);
+                if (access(audio_file, F_OK) == 0) {
+                    found_audio = true;
+                    break;
+                }
+            }
+        
+            if (found_audio) {
+                // Initialize CDG display if not already done
+                if (!player->cdg_display) {
+                    player->cdg_display = cdg_display_new();
+                }
+            
+                if (player->cdg_display && cdg_load_file(player->cdg_display, filename)) {
+                    player->has_cdg = true;
+                
+                    // Set visualizer to karaoke mode
+                    if (player->visualizer) {
+                        player->visualizer->cdg_display = player->cdg_display;
+                        visualizer_set_type(player->visualizer, VIS_KARAOKE);
+                    }
+                
+                    // Load the audio file
+                    success = load_file(player, audio_file);
+                
+                    if (success) {
+                        printf("Loaded CDG+audio: %s + %s\n", filename, audio_file);
+                    }
+                }
+        } else {
+            printf("No matching audio file found for CDG: %s\n", filename);
+        }
+    }
+}
     } else {
         printf("Trying to load unknown file: %s\n", filename);
         if (convert_audio_to_wav(player, filename)) {
@@ -2182,6 +2229,11 @@ int main(int argc, char *argv[]) {
     // Clean up visualizer
     if (player->visualizer) {
         visualizer_free(player->visualizer);
+    }
+
+    // Clean up CD+G
+    if (player->cdg_display) {
+        cdg_display_free(player->cdg_display);
     }
     
     clear_queue(&player->queue);

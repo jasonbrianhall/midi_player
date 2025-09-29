@@ -20,6 +20,7 @@
 #include "convertflactowav.h"
 #include "equalizer.h"
 #include "visualization.h"
+#include "cdg.h"
 
 // Structure to hold audio metadata
 struct AudioMetadata {
@@ -169,7 +170,9 @@ typedef struct {
     GtkWidget *treble_scale;
     GtkWidget *eq_reset_button;
 
-
+    // CD+G
+    CDGDisplay *cdg_display;
+    bool has_cdg;
 
     LayoutManager layout;
 } AudioPlayer;

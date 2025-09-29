@@ -333,6 +333,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_BLOCK_STACK:
           draw_blockstack(vis, cr);
           break;
+        case VIS_KARAOKE:
+          draw_karaoke(vis, cr);
+          break;          
     }
     
     return FALSE;
@@ -406,7 +409,12 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_BLOCK_STACK:
                 update_blockstack(vis, 0.033);
-                break;                
+                break;
+            case VIS_KARAOKE:
+                if (vis->cdg_display) {
+                    cdg_update(vis->cdg_display, playTime);
+                }
+                break;                                
             default:
                 // No update function needed for other visualization types
                 break;
@@ -489,6 +497,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Robot Chaser");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Radial Wave");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Block Stack");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke");
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);

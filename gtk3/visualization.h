@@ -19,6 +19,7 @@
 #include "robotchaser.h"
 #include "radialwave.h"
 #include "blockstack.h"
+#include "cdg.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -44,7 +45,8 @@ typedef enum {
     VIS_ANALOG_CLOCK,
     VIS_ROBOT_CHASER,
     VIS_RADIAL_WAVE,
-    VIS_BLOCK_STACK
+    VIS_BLOCK_STACK,
+    VIS_KARAOKE
 } VisualizationType;
 
 typedef struct {
@@ -58,6 +60,9 @@ typedef struct {
     double *history[VIS_HISTORY_SIZE];
     int history_index;
     
+    // CDG
+    CDGDisplay *cdg_display;
+
     // Simple frequency analysis without FFT
     double *band_filters[VIS_FREQUENCY_BARS];  // Use renamed constant
     double *band_values;
@@ -433,5 +438,7 @@ void update_block_physics(Block *block, double dt, double ground_level);
 gboolean blockstack_detect_beat(void *vis);
 void get_block_color(int frequency_band, double intensity, double *r, double *g, double *b);
 
+// Karaoke
+void draw_karaoke(Visualizer *vis, cairo_t *cr);
 
 #endif
