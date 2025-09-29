@@ -71,6 +71,10 @@ Visualizer* visualizer_new(void) {
 
     // pacman clone
     init_robot_chaser_system(vis);
+
+    // Radial Wave
+    init_radial_wave_system(vis);
+
     return vis;
 }
 
@@ -321,266 +325,14 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_ROBOT_CHASER:
           draw_robot_chaser_visualization(vis, cr);
           break;
+        case VIS_RADIAL_WAVE:
+          draw_radial_wave(vis, cr);
+          break;
     }
     
     return FALSE;
 }
 
-void draw_waveform(Visualizer *vis, cairo_t *cr) {
-    if (vis->width <= 0 || vis->height <= 0) return;
-    
-    cairo_set_source_rgba(cr, vis->fg_r, vis->fg_g, vis->fg_b, 0.8);
-    cairo_set_line_width(cr, 2.0);
-    
-    cairo_move_to(cr, 0, vis->height / 2.0);
-    
-    for (int i = 0; i < VIS_SAMPLES; i++) {
-        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
-        double y = vis->height / 2.0 + vis->audio_samples[i] * vis->height / 2.5;
-        
-        // Clamp y to screen bounds
-        if (y < 0) y = 0;
-        if (y > vis->height) y = vis->height;
-        
-        if (i == 0) {
-            cairo_move_to(cr, x, y);
-        } else {
-            cairo_line_to(cr, x, y);
-        }
-    }
-    
-    cairo_stroke(cr);
-    
-    // Add a secondary waveform with phase shift for visual interest
-    cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 0.4);
-    cairo_set_line_width(cr, 1.0);
-    
-    cairo_move_to(cr, 0, vis->height / 2.0);
-    
-    for (int i = 0; i < VIS_SAMPLES; i++) {
-        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
-        double phase_shifted = i < VIS_SAMPLES - 10 ? vis->audio_samples[i + 10] : 0.0;
-        double y = vis->height / 2.0 + phase_shifted * vis->height / 3.0;
-        
-        // Clamp y to screen bounds
-        if (y < 0) y = 0;
-        if (y > vis->height) y = vis->height;
-        
-        if (i == 0) {
-            cairo_move_to(cr, x, y);
-        } else {
-            cairo_line_to(cr, x, y);
-        }
-    }
-    
-    cairo_stroke(cr);
-}
-
-void draw_oscilloscope(Visualizer *vis, cairo_t *cr) {
-    if (vis->width <= 0 || vis->height <= 0) return;
-    
-    // Draw grid
-    cairo_set_source_rgba(cr, 0.3, 0.3, 0.3, 0.5);
-    cairo_set_line_width(cr, 1.0);
-    
-    // Horizontal lines
-    for (int i = 1; i < 4; i++) {
-        double y = vis->height * i / 4.0;
-        cairo_move_to(cr, 0, y);
-        cairo_line_to(cr, vis->width, y);
-        cairo_stroke(cr);
-    }
-    
-    // Vertical lines
-    for (int i = 1; i < 8; i++) {
-        double x = vis->width * i / 8.0;
-        cairo_move_to(cr, x, 0);
-        cairo_line_to(cr, x, vis->height);
-        cairo_stroke(cr);
-    }
-    
-    // Draw waveform
-    cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 1.0);
-    cairo_set_line_width(cr, 2.0);
-    
-    cairo_move_to(cr, 0, vis->height / 2.0);
-    
-    for (int i = 0; i < VIS_SAMPLES; i++) {
-        double x = (double)i * vis->width / (VIS_SAMPLES - 1);
-        double y = vis->height / 2.0 + vis->audio_samples[i] * vis->height / 2.5;
-        
-        // Clamp y to screen bounds
-        if (y < 0) y = 0;
-        if (y > vis->height) y = vis->height;
-        
-        cairo_line_to(cr, x, y);
-    }
-    
-    cairo_stroke(cr);
-}
-
-void draw_bars(Visualizer *vis, cairo_t *cr) {
-    if (vis->width <= 0 || vis->height <= 0) return;
-    
-    double bar_width = (double)vis->width / VIS_FREQUENCY_BARS;
-    
-    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
-        double height = vis->frequency_bands[i] * vis->height * 0.9;
-        double x = i * bar_width;
-        double y = vis->height - height;
-        
-        // Color gradient based on frequency band
-        double hue = (double)i / VIS_FREQUENCY_BARS;
-        double r = vis->fg_r + hue * (vis->accent_r - vis->fg_r);
-        double g = vis->fg_g + hue * (vis->accent_g - vis->fg_g);
-        double b = vis->fg_b + hue * (vis->accent_b - vis->fg_b);
-        
-        // Create gradient
-        cairo_pattern_t *gradient = cairo_pattern_create_linear(0, vis->height, 0, y);
-        cairo_pattern_add_color_stop_rgba(gradient, 0, r, g, b, 0.3);
-        cairo_pattern_add_color_stop_rgba(gradient, 1, r, g, b, 1.0);
-        
-        cairo_set_source(cr, gradient);
-        cairo_rectangle(cr, x + 1, y, bar_width - 2, height);
-        cairo_fill(cr);
-        
-        cairo_pattern_destroy(gradient);
-        
-        // Draw peak
-        if (vis->peak_data[i] > 0.01) {
-            double peak_y = vis->height - (vis->peak_data[i] * vis->height * 0.9);
-            cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 1.0);
-            cairo_rectangle(cr, x + 1, peak_y - 2, bar_width - 2, 2);
-            cairo_fill(cr);
-        }
-    }
-}
-
-void draw_circle(Visualizer *vis, cairo_t *cr) {
-    if (vis->width <= 0 || vis->height <= 0) return;
-    
-    double center_x = vis->width / 2.0;
-    double center_y = vis->height / 2.0;
-    double radius = fmin(center_x, center_y) * 0.8;
-    
-    // Draw circle background
-    cairo_set_source_rgba(cr, 0.2, 0.2, 0.2, 0.5);
-    cairo_set_line_width(cr, 2.0);
-    cairo_arc(cr, center_x, center_y, radius * 0.3, 0, 2 * M_PI);
-    cairo_stroke(cr);
-    
-    // Draw frequency bars in circle
-    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
-        double angle = (double)i / VIS_FREQUENCY_BARS * 2.0 * M_PI + vis->rotation;
-        double magnitude = vis->frequency_bands[i];
-        
-        double inner_radius = radius * 0.3;
-        double outer_radius = inner_radius + magnitude * radius * 0.7;
-        
-        double inner_x = center_x + cos(angle) * inner_radius;
-        double inner_y = center_y + sin(angle) * inner_radius;
-        double outer_x = center_x + cos(angle) * outer_radius;
-        double outer_y = center_y + sin(angle) * outer_radius;
-        
-        // Color based on magnitude and position
-        double intensity = magnitude;
-        double hue = (double)i / VIS_FREQUENCY_BARS;
-        
-        cairo_set_source_rgba(cr, 
-                             vis->fg_r + intensity * hue * (vis->accent_r - vis->fg_r),
-                             vis->fg_g + intensity * (vis->accent_g - vis->fg_g),
-                             vis->fg_b + intensity * (1.0 - hue) * (vis->accent_b - vis->fg_b),
-                             0.8);
-        
-        cairo_set_line_width(cr, 4.0);
-        cairo_move_to(cr, inner_x, inner_y);
-        cairo_line_to(cr, outer_x, outer_y);
-        cairo_stroke(cr);
-    }
-    
-    // Draw center volume indicator
-    double vol_radius = vis->volume_level * radius * 0.2;
-    if (vol_radius > 2.0) {
-        cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 0.7);
-        cairo_arc(cr, center_x, center_y, vol_radius, 0, 2 * M_PI);
-        cairo_fill(cr);
-    }
-}
-
-void draw_volume_meter(Visualizer *vis, cairo_t *cr) {
-    if (vis->width <= 0 || vis->height <= 0) return;
-    
-    // Draw VU meter style visualization
-    double meter_width = vis->width * 0.8;
-    double meter_height = vis->height * 0.6;
-    double meter_x = (vis->width - meter_width) / 2;
-    double meter_y = (vis->height - meter_height) / 2;
-    
-    // Background
-    cairo_set_source_rgba(cr, 0.2, 0.2, 0.2, 0.8);
-    cairo_rectangle(cr, meter_x, meter_y, meter_width, meter_height);
-    cairo_fill(cr);
-    
-    // Draw level bars
-    int num_bars = 20;
-    double bar_width = meter_width / num_bars;
-    double level = vis->volume_level;
-    
-    for (int i = 0; i < num_bars; i++) {
-        double bar_level = (double)i / num_bars;
-        double x = meter_x + i * bar_width;
-        
-        if (level > bar_level) {
-            // Color coding: green -> yellow -> red
-            double r, g, b;
-            if (bar_level < 0.7) {
-                r = 0.0; g = 1.0; b = 0.0; // Green
-            } else if (bar_level < 0.9) {
-                r = 1.0; g = 1.0; b = 0.0; // Yellow
-            } else {
-                r = 1.0; g = 0.0; b = 0.0; // Red
-            }
-            
-            cairo_set_source_rgba(cr, r, g, b, 0.9);
-        } else {
-            cairo_set_source_rgba(cr, 0.3, 0.3, 0.3, 0.5);
-        }
-        
-        cairo_rectangle(cr, x + 1, meter_y + 5, bar_width - 2, meter_height - 10);
-        cairo_fill(cr);
-    }
-    
-    // Draw peak indicator
-    if (level > 0.01) {
-        double peak_x = meter_x + level * meter_width;
-        cairo_set_source_rgba(cr, vis->accent_r, vis->accent_g, vis->accent_b, 1.0);
-        cairo_rectangle(cr, peak_x - 2, meter_y, 4, meter_height);
-        cairo_fill(cr);
-    }
-    
-    // Draw frequency bars below
-    double freq_y = meter_y + meter_height + 20;
-    double freq_height = vis->height - freq_y - 10;
-    if (freq_height > 0) {
-        double freq_bar_width = meter_width / VIS_FREQUENCY_BARS;
-        
-        for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
-            double height = vis->frequency_bands[i] * freq_height;
-            double x = meter_x + i * freq_bar_width;
-            double y = freq_y + freq_height - height;
-            
-            double hue = (double)i / VIS_FREQUENCY_BARS;
-            cairo_set_source_rgba(cr, 
-                                 vis->fg_r + hue * (vis->accent_r - vis->fg_r),
-                                 vis->fg_g + hue * (vis->accent_g - vis->fg_g),
-                                 vis->fg_b + hue * (vis->accent_b - vis->fg_b),
-                                 0.7);
-            
-            cairo_rectangle(cr, x + 1, y, freq_bar_width - 2, height);
-            cairo_fill(cr);
-        }
-    }
-}
 
 gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
@@ -643,6 +395,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_ROBOT_CHASER:
                 update_robot_chaser_visualization(vis, 0.033);
+                break;
+            case VIS_RADIAL_WAVE:
+                update_radial_wave(vis, 0.033);
                 break;
                                 
             default:
@@ -725,6 +480,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Digital Clock");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Analog Clock");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Robot Chaser");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Radial Wave");
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);

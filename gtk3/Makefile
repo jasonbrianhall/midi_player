@@ -100,7 +100,13 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	kaleidoscope.cpp \
 	bouncyball.cpp \
 	clock.cpp \
-	robotchaser.cpp
+	robotchaser.cpp \
+	radialwave.cpp \
+	volume_meter.cpp \
+	drawbars.cpp \
+	drawoscilloscope.cpp \
+	drawwaveform.cpp \
+	drawcircle.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \

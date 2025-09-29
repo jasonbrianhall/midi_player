@@ -17,6 +17,7 @@
 #include "bubble.h"
 #include "clock.h"
 #include "robotchaser.h"
+#include "radialwave.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -40,7 +41,8 @@ typedef enum {
     VIS_BOUNCY_BALLS,
     VIS_DIGITAL_CLOCK,
     VIS_ANALOG_CLOCK,
-    VIS_ROBOT_CHASER
+    VIS_ROBOT_CHASER,
+    VIS_RADIAL_WAVE
 } VisualizationType;
 
 typedef struct {
@@ -248,6 +250,11 @@ typedef struct {
     double robot_chaser_death_timer;
     int robot_chaser_lives;
 
+    // Radial Wave
+    RadialWaveSystem radial_wave;
+    double radial_beat_volume_history[10];
+    int radial_beat_history_index;
+
 } Visualizer;
 
 // Function declarations
@@ -400,5 +407,16 @@ gboolean robot_chaser_is_level_complete(Visualizer *vis);
 gboolean robot_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt);
 void robot_chaser_unstick_robot(Visualizer *vis, ChaserRobot *robot);
 ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis);
+
+// Radial Wave
+void init_radial_wave_system(void *vis);
+void update_radial_wave(void *vis, double dt);
+void draw_radial_wave(void *vis, cairo_t *cr);
+void draw_radial_ring(void *vis, cairo_t *cr, double center_x, double center_y);
+void draw_pulsar_core(void *vis, cairo_t *cr, double center_x, double center_y);
+void update_pulsar_beat(void *vis);
+void spawn_star_particle(void *vis, double intensity);
+gboolean radial_wave_detect_beat(void *vis);
+void draw_background_waveform(void *vis_ptr, cairo_t *cr);
 
 #endif
