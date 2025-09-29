@@ -331,5 +331,6 @@ gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gp
 
 void add_to_recent_files(const char* filepath, const char* mime_type);
 void on_recent_playlist_activated(GtkRecentChooser *chooser, gpointer user_data);
+bool save_last_playlist_path(const char *playlist_path);
 
 #endif // AUDIO_PLAYER_H

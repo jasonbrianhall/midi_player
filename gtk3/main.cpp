@@ -9,6 +9,12 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <SDL2/SDL.h>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 #include "visualization.h"
 #include "midiplayer.h"
 #include "dbopl_wrapper.h"
@@ -2044,8 +2050,8 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     
     if (GetOpenFileName(&ofn)) {
         if (load_m3u_playlist(player, filename)) {
-            // ADD TO RECENT FILES
             add_to_recent_files(filename, "audio/x-mpegurl");
+            save_last_playlist_path(filename);  // ADD THIS LINE
         }
     }
 #else
@@ -2065,8 +2071,8 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         if (load_m3u_playlist(player, filename)) {
-            // ADD TO RECENT FILES
             add_to_recent_files(filename, "audio/x-mpegurl");
+            save_last_playlist_path(filename); 
         }
         g_free(filename);
     }
@@ -2181,6 +2187,94 @@ gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointe
     return TRUE; // Event handled
 }
 
+#ifdef _WIN32
+#include <shlobj.h>
+
+bool get_last_playlist_path(char *path, size_t path_size) {
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(path, path_size, "%s\\AudioPlayer\\last_playlist.txt", app_data);
+    
+    // Create directory if it doesn't exist
+    char dir_path[MAX_PATH];
+    snprintf(dir_path, sizeof(dir_path), "%s\\AudioPlayer", app_data);
+    CreateDirectoryA(dir_path, NULL);
+    
+    return true;
+}
+#else
+bool get_last_playlist_path(char *path, size_t path_size) {
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(path, path_size, "%s/.config/audioplayer/last_playlist.txt", home);
+    
+    // Create directory if it doesn't exist
+    char dir_path[512];
+    snprintf(dir_path, sizeof(dir_path), "%s/.config/audioplayer", home);
+    mkdir(dir_path, 0755);
+    
+    return true;
+}
+#endif
+
+bool save_last_playlist_path(const char *playlist_path) {
+    char config_path[1024];
+    if (!get_last_playlist_path(config_path, sizeof(config_path))) {
+        return false;
+    }
+    
+    FILE *f = fopen(config_path, "w");
+    if (!f) {
+        printf("Failed to save last playlist path\n");
+        return false;
+    }
+    
+    fprintf(f, "%s\n", playlist_path);
+    fclose(f);
+    printf("Saved last playlist path: %s\n", playlist_path);
+    return true;
+}
+
+bool load_last_playlist_path(char *playlist_path, size_t path_size) {
+    char config_path[1024];
+    if (!get_last_playlist_path(config_path, sizeof(config_path))) {
+        return false;
+    }
+    
+    FILE *f = fopen(config_path, "r");
+    if (!f) {
+        printf("No last playlist file found\n");
+        return false;
+    }
+    
+    if (!fgets(playlist_path, path_size, f)) {
+        fclose(f);
+        return false;
+    }
+    
+    fclose(f);
+    
+    // Remove trailing newline
+    size_t len = strlen(playlist_path);
+    if (len > 0 && playlist_path[len-1] == '\n') {
+        playlist_path[len-1] = '\0';
+    }
+    
+    // Check if file still exists
+    FILE *test = fopen(playlist_path, "r");
+    if (!test) {
+        printf("Last playlist no longer exists: %s\n", playlist_path);
+        return false;
+    }
+    fclose(test);
+    
+    printf("Found last playlist: %s\n", playlist_path);
+    return true;
+}
 
 
 int main(int argc, char *argv[]) {
@@ -2222,21 +2316,19 @@ int main(int argc, char *argv[]) {
     gtk_widget_show_all(player->window);
     
     if (argc > 1) {
-        // Check if first argument is an M3U playlist
+        // Command line arguments take priority over last playlist
         const char *first_arg = argv[1];
         const char *ext = strrchr(first_arg, '.');
         
         if (ext && (strcasecmp(ext, ".m3u") == 0 || strcasecmp(ext, ".m3u8") == 0)) {
-            // Load M3U playlist
             printf("Loading M3U playlist: %s\n", first_arg);
             load_m3u_playlist(player, first_arg);
+            save_last_playlist_path(first_arg);  // Save as last playlist
             
-            // Add any additional arguments as individual files
             for (int i = 2; i < argc; i++) {
                 add_to_queue(&player->queue, argv[i]);
             }
         } else {
-            // Add all command line arguments to queue as individual files
             for (int i = 1; i < argc; i++) {
                 add_to_queue(&player->queue, argv[i]);
             }
@@ -2246,7 +2338,21 @@ int main(int argc, char *argv[]) {
             printf("Loaded and auto-starting first file in queue\n");
             update_queue_display(player);
             update_gui_state(player);
-            // load_file now auto-starts playback
+        }
+    } else {
+        // No command line arguments - try to load last playlist
+        char last_playlist[1024];
+        if (load_last_playlist_path(last_playlist, sizeof(last_playlist))) {
+            printf("Auto-loading last playlist: %s\n", last_playlist);
+            if (load_m3u_playlist(player, last_playlist)) {
+                printf("Successfully loaded last playlist\n");
+                update_queue_display(player);
+                update_gui_state(player);
+                // Optionally auto-start playback:
+                // if (player->queue.count > 0 && load_file_from_queue(player)) {
+                //     start_playback(player);
+                // }
+            }
         }
     }
     
@@ -2266,7 +2372,6 @@ int main(int argc, char *argv[]) {
     cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
     pthread_mutex_destroy(&player->audio_mutex);
-    
     
     g_free(player);
     return 0;
