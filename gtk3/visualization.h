@@ -18,6 +18,7 @@
 #include "clock.h"
 #include "robotchaser.h"
 #include "radialwave.h"
+#include "blockstack.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -42,7 +43,8 @@ typedef enum {
     VIS_DIGITAL_CLOCK,
     VIS_ANALOG_CLOCK,
     VIS_ROBOT_CHASER,
-    VIS_RADIAL_WAVE
+    VIS_RADIAL_WAVE,
+    VIS_BLOCK_STACK
 } VisualizationType;
 
 typedef struct {
@@ -255,6 +257,9 @@ typedef struct {
     double radial_beat_volume_history[10];
     int radial_beat_history_index;
 
+    // Blockstack
+    BlockStackSystem blockstack;
+
 } Visualizer;
 
 // Function declarations
@@ -382,7 +387,7 @@ void draw_clock_particles(Visualizer *vis, cairo_t *cr);
 void draw_clock_hour_marks(Visualizer *vis, cairo_t *cr);
 gboolean analog_clock_detect_beat(Visualizer *vis);
 
-// robot Chaser
+// Robot Chaser
 void init_robot_chaser_system(Visualizer *vis);
 void update_robot_chaser_visualization(Visualizer *vis, double dt);
 void draw_robot_chaser_visualization(Visualizer *vis, cairo_t *cr);
@@ -418,5 +423,15 @@ void update_pulsar_beat(void *vis);
 void spawn_star_particle(void *vis, double intensity);
 gboolean radial_wave_detect_beat(void *vis);
 void draw_background_waveform(void *vis_ptr, cairo_t *cr);
+
+// Block Stack
+void init_blockstack_system(void *vis);
+void update_blockstack(void *vis, double dt);
+void draw_blockstack(void *vis, cairo_t *cr);
+void spawn_block(void *vis, int column, double intensity, int frequency_band);
+void update_block_physics(Block *block, double dt, double ground_level);
+gboolean blockstack_detect_beat(void *vis);
+void get_block_color(int frequency_band, double intensity, double *r, double *g, double *b);
+
 
 #endif
