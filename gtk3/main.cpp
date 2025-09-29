@@ -820,7 +820,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
-    else if (strcmp(ext_lower, ".zip") == 0) {
+    } else if (strcmp(ext_lower, ".zip") == 0) {
         printf("Loading karaoke ZIP file: %s\n", filename);
     
         KaraokeZipContents zip_contents;
@@ -860,16 +860,12 @@ bool load_file(AudioPlayer *player, const char *filename) {
         } else {
             printf("Failed to extract karaoke ZIP\n");
         }
-     } else {
-            printf("No matching audio file found for CDG: %s\n", filename);
-        }
     } else {
         printf("Trying to load unknown file: %s\n", filename);
         if (convert_audio_to_wav(player, filename)) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
-        }    
-        else {
+        } else {
             printf("File isn't supported\n");
         }
     }
