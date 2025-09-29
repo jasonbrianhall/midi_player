@@ -157,7 +157,6 @@ bool analyze_mp3_frames(const std::vector<uint8_t>& mp3_data, AudioMetadata& met
             
             printf("MP3 Info: %d kbps, %d Hz, %s\n", 
                    metadata.bitrate, sample_rate, (channels == 1) ? "Mono" : "Stereo");
-            
             return true;
         }
         pos++;
@@ -278,7 +277,7 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
     }
     
     // Store metadata in the AudioPlayer structure (you may need to add these fields)
-    // player->metadata = metadata; // If you add a metadata field to AudioPlayer
+    player->current_metadata = metadata;
     
     // Add to cache after successful conversion
     add_to_conversion_cache(&player->conversion_cache, filename, virtual_filename);

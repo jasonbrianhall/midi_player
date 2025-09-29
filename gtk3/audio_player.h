@@ -177,6 +177,10 @@ typedef struct {
     KaraokeZipContents karaoke_temp_files;
     bool is_loading_cdg_from_zip;
 
+    // Metadata
+    AudioMetadata current_metadata;
+    GtkWidget *metadata_label;
+
     LayoutManager layout;
 } AudioPlayer;
 

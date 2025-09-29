@@ -1398,6 +1398,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
                     strcmp(ext_lower, ".aiff") == 0 ||
                     strcmp(ext_lower, ".opus") == 0 ||
                     strcmp(ext_lower, ".flac") == 0 ||
+                    strcmp(ext_lower, ".zip") == 0 ||
                     strcmp(ext_lower, ".wma") == 0);
         };
         

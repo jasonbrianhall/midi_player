@@ -585,3 +585,18 @@ void on_recent_playlist_activated(GtkRecentChooser *chooser, gpointer user_data)
         g_free(uri);
     }
 }
+
+static void create_metadata_section(AudioPlayer *player) {
+    GtkWidget *metadata_frame = gtk_frame_new("Track Information");
+    gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), metadata_frame, FALSE, FALSE, 0);
+    
+    player->metadata_label = gtk_label_new("No track information");
+    gtk_label_set_line_wrap(GTK_LABEL(player->metadata_label), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(player->metadata_label), 0.0);
+    gtk_label_set_selectable(GTK_LABEL(player->metadata_label), TRUE); // Allow copying
+    gtk_widget_set_margin_start(player->metadata_label, 5);
+    gtk_widget_set_margin_end(player->metadata_label, 5);
+    gtk_widget_set_margin_top(player->metadata_label, 5);
+    gtk_widget_set_margin_bottom(player->metadata_label, 5);
+    gtk_container_add(GTK_CONTAINER(metadata_frame), player->metadata_label);
+}
