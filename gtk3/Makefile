@@ -39,6 +39,9 @@ CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(V
 CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
 LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) $(AVCODEC_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
 
+CFLAGS_LINUX += $(shell pkg-config --cflags taglib_c)
+LDFLAGS_LINUX += $(shell pkg-config --libs taglib_c)
+
 # Windows-specific flags
 SDL2_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags sdl2 2>/dev/null || echo "")
 SDL2_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs sdl2 2>/dev/null || echo "-lSDL2")
@@ -49,14 +52,18 @@ VORBIS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs vorbisfile 2>/dev/null || ec
 OPUS_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags opusfile 2>/dev/null || echo "")
 OPUS_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs opusfile 2>/dev/null || echo "-lopusfile -lopus")
 
+# Add TagLib support for Windows
+TAGLIB_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags taglib_c 2>/dev/null || echo "")
+TAGLIB_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs taglib_c 2>/dev/null || echo "-ltag_c -ltag")
+
 # Media Foundation libraries for M4A support on Windows
 MEDIA_FOUNDATION_LIBS = -lmf -lmfplat -lmfreadwrite -lmfuuid -lole32
 
-CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32 -D_WIN32
-CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) -DWIN32 -D_WIN32
-LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
+CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
+CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
+LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 # Add -mconsole for windows for debugging
-#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
+#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 
 # Debug-specific flags
 CXXFLAGS_LINUX_DEBUG = $(CXXFLAGS_LINUX) $(DEBUG_FLAGS)
@@ -110,7 +117,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	blockstack.cpp \
 	cdg.cpp \
 	karaoke.cpp \
-	zip_support.cpp
+	zip_support.cpp \
+	metadata.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \

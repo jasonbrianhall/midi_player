@@ -56,6 +56,7 @@ jobs:
           mingw64-SDL2 mingw64-SDL2_mixer \
           mingw64-libvorbis mingw64-flac \
           mingw64-opus mingw64-opusfile \
+          mingw64-taglib.noarch \
           wine wine-devel \
           zip unzip \
           opus-devel opusfile-devel \
