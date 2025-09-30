@@ -66,7 +66,7 @@ def create_tile_block_packet(color0, color1, row, column, tile_data):
             data[4 + i] = tile_data[i] & 0x3F
     return CDGPacket(0x09, 6, data)
 
-def render_text_to_tiles(text, max_width_tiles=48, font_size=18):
+def render_text_to_tiles(text, max_width_tiles=48, font_size=12):
     """Render text and return tile data"""
     width_pixels = max_width_tiles * 6
     height_pixels = 24
@@ -171,8 +171,8 @@ def load_and_render_image_color(image_path):
         traceback.print_exc()
         return None, None
 
-def group_words_into_lines(transcript, max_chars_per_line=32):
-    """Group words into lines, keeping each line under 32 characters"""
+def group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line=5):
+    """Group words into lines, keeping each line under 24 characters or 5 words"""
     lines = []
     current_line_words = []
     current_line_text = ""
@@ -182,10 +182,11 @@ def group_words_into_lines(transcript, max_chars_per_line=32):
         if not word:
             continue
         
-        # Check if adding this word would exceed the limit
+        # Check if adding this word would exceed the limits
         test_text = current_line_text + (' ' if current_line_text else '') + word
         
-        if len(test_text) > max_chars_per_line and current_line_words:
+        # Break line if either limit WOULD BE exceeded by adding this word
+        if current_line_words and (len(test_text) > max_chars_per_line or len(current_line_words) >= max_words_per_line):
             # Save current line and start a new one
             lines.append({
                 'words': current_line_words,
@@ -235,6 +236,7 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     
     # Initialize color table
     if image_palette:
+        # Use image palette (16 colors)
         colors_low = image_palette[:8]
         colors_high = image_palette[8:16]
     else:
@@ -266,11 +268,12 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         for idx, (tile_y, tile_x, tile_data) in enumerate(image_tiles):
             packet_idx = start_packet + idx
             if packet_idx < len(packets):
+                # Use colors from palette - 0 as background, higher indices as foreground
                 packets[packet_idx] = create_tile_block_packet(0, 8, tile_y, tile_x, tile_data)
     
     # Group words into lines
     print("\nGrouping words into lines...")
-    lines = group_words_into_lines(transcript, max_chars_per_line=32)
+    lines = group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line=5)
     print(f"Created {len(lines)} lines\n")
     
     print("Adding lyrics to CDG:")
@@ -281,9 +284,6 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     # 4 lines = 8 tiles, center them: start at row (18-8)/2 = 5
     line_rows = [5, 7, 9, 11]  # 4 lines, 2 tiles per line
     
-    # Keep track of what's displayed on each line
-    displayed_lines = [None, None, None, None]
-    
     for line_idx, line in enumerate(lines):
         start_time = line['start']
         end_time = line['end']
@@ -291,12 +291,14 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         print(f"[{start_time:6.2f}s - {end_time:6.2f}s] Line {line_idx+1:3d}: {line['text']}")
         
         # Clear entire screen before first lyric (to remove image)
+        # Takes 3 seconds to clear, so start 3 seconds before first lyric
         if line_idx == 0:
-            clear_start_time = max(0.5, start_time - 3.0)
+            clear_start_time = max(0.5, start_time - 3.0)  # Start clearing 3 seconds before first lyric
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
                 empty_tile = [0] * 12
+                # Write black tiles to entire screen (900 tiles = 50×18)
                 packet_offset = 0
                 for row in range(CDG_SCREEN_HEIGHT):
                     for col in range(CDG_SCREEN_WIDTH):
@@ -305,12 +307,12 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                             packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
                         packet_offset += 1
                 
-                print(f"  [Clearing full screen from {clear_start_time:.2f}s to {start_time:.2f}s]")
+                print(f"  [Clearing full screen from {clear_start_time:.2f}s to {start_time:.2f}s (3.0 seconds)]")
         
         # Determine which line position to use (0-3, scrolling upward)
         display_position = line_idx % 4
         
-        # If we're wrapping around, clear the line we're about to overwrite
+        # If we're wrapping around (line 4+), clear the line we're about to overwrite
         if line_idx >= 4:
             clear_start_time = max(0, start_time - 0.5)
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
@@ -328,7 +330,7 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                             packet_offset += 1
         
         # Render and display the line at the determined position
-        tiles = render_text_to_tiles(line['text'], font_size=18)
+        tiles = render_text_to_tiles(line['text'], font_size=12)
         text_width_tiles = len(tiles) // 2
         start_column = (CDG_SCREEN_WIDTH - text_width_tiles) // 2
         
@@ -349,8 +351,6 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                                 0, 1, base_row + row_offset, col, tile_data
                             )
                         tile_idx += 1
-        
-        displayed_lines[display_position] = line['text']
     
     print("-" * 60)
     print(f"Total lines added: {len(lines)}\n")
@@ -405,8 +405,8 @@ def transcribe_mp3(mp3_path):
 def main():
     if len(sys.argv) < 3:
         print("Usage:")
-        print("  python whisper_to_cdg.py input.mp3 output.cdg [--json transcript.json] [--image cover.jpg]")
-        print("  python whisper_to_cdg.py --from-json transcript.json output.cdg [--image cover.jpg]")
+        print("  python cdg.py input.mp3 output.cdg [--json transcript.json] [--image cover.jpg]")
+        print("  python cdg.py --from-json transcript.json output.cdg [--image cover.jpg]")
         sys.exit(1)
     
     image_path = None
