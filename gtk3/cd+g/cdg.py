@@ -235,7 +235,6 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     
     # Initialize color table
     if image_palette:
-        # Use image palette (16 colors)
         colors_low = image_palette[:8]
         colors_high = image_palette[8:16]
     else:
@@ -267,7 +266,6 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         for idx, (tile_y, tile_x, tile_data) in enumerate(image_tiles):
             packet_idx = start_packet + idx
             if packet_idx < len(packets):
-                # Use colors from palette - 0 as background, higher indices as foreground
                 packets[packet_idx] = create_tile_block_packet(0, 8, tile_y, tile_x, tile_data)
     
     # Group words into lines
@@ -278,7 +276,13 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     print("Adding lyrics to CDG:")
     print("-" * 60)
     
-    center_row = (CDG_SCREEN_HEIGHT - 2) // 2
+    # Define 4 line positions (vertically centered on screen)
+    # CDG screen is 18 tiles high, each text line takes 2 tiles
+    # 4 lines = 8 tiles, center them: start at row (18-8)/2 = 5
+    line_rows = [5, 7, 9, 11]  # 4 lines, 2 tiles per line
+    
+    # Keep track of what's displayed on each line
+    displayed_lines = [None, None, None, None]
     
     for line_idx, line in enumerate(lines):
         start_time = line['start']
@@ -287,14 +291,12 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         print(f"[{start_time:6.2f}s - {end_time:6.2f}s] Line {line_idx+1:3d}: {line['text']}")
         
         # Clear entire screen before first lyric (to remove image)
-        # Takes 3 seconds to clear, so start 3 seconds before first lyric
         if line_idx == 0:
-            clear_start_time = max(0.5, start_time - 3.0)  # Start clearing 3 seconds before first lyric
+            clear_start_time = max(0.5, start_time - 3.0)
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
                 empty_tile = [0] * 12
-                # Write black tiles to entire screen (900 tiles = 50×18)
                 packet_offset = 0
                 for row in range(CDG_SCREEN_HEIGHT):
                     for col in range(CDG_SCREEN_WIDTH):
@@ -303,18 +305,21 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                             packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
                         packet_offset += 1
                 
-                print(f"  [Clearing full screen from {clear_start_time:.2f}s to {start_time:.2f}s (3.0 seconds)]")
+                print(f"  [Clearing full screen from {clear_start_time:.2f}s to {start_time:.2f}s]")
         
-        # Clear text area before subsequent lines
-        # Takes about 1 second to clear text area (6 rows × 50 cols = 300 tiles)
-        else:
-            clear_start_time = max(0, start_time - 1.0)
+        # Determine which line position to use (0-3, scrolling upward)
+        display_position = line_idx % 4
+        
+        # If we're wrapping around, clear the line we're about to overwrite
+        if line_idx >= 4:
+            clear_start_time = max(0, start_time - 0.5)
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
                 empty_tile = [0] * 12
                 packet_offset = 0
-                for row in range(center_row - 2, center_row + 4):
+                # Clear the 2 rows for this line position
+                for row in range(line_rows[display_position], line_rows[display_position] + 2):
                     if 0 <= row < CDG_SCREEN_HEIGHT:
                         for col in range(CDG_SCREEN_WIDTH):
                             idx = clear_packet + packet_offset
@@ -322,12 +327,14 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                                 packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
                             packet_offset += 1
         
-        # Render and display the line
+        # Render and display the line at the determined position
         tiles = render_text_to_tiles(line['text'], font_size=18)
         text_width_tiles = len(tiles) // 2
         start_column = (CDG_SCREEN_WIDTH - text_width_tiles) // 2
         
         start_packet = int(start_time * CDG_PACKETS_PER_SECOND)
+        
+        base_row = line_rows[display_position]
         
         tile_idx = 0
         for col_offset in range(text_width_tiles):
@@ -339,9 +346,11 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                         packet_idx = start_packet + col_offset * 2 + row_offset
                         if packet_idx < len(packets):
                             packets[packet_idx] = create_tile_block_packet(
-                                0, 1, center_row + row_offset, col, tile_data
+                                0, 1, base_row + row_offset, col, tile_data
                             )
                         tile_idx += 1
+        
+        displayed_lines[display_position] = line['text']
     
     print("-" * 60)
     print(f"Total lines added: {len(lines)}\n")
