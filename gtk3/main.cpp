@@ -789,6 +789,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
     }
     
     bool success = false;
+    bool is_zip_file = false;
     
     if (strcmp(ext_lower, ".wav") == 0) {
         printf("Loading WAV file: %s\n", filename);
@@ -843,6 +844,7 @@ bool load_file(AudioPlayer *player, const char *filename) {
         }
     } else if (strcmp(ext_lower, ".zip") == 0) {
         printf("Loading karaoke ZIP file: %s\n", filename);
+        is_zip_file = true;
     
         KaraokeZipContents zip_contents;
         if (extract_karaoke_zip(filename, &zip_contents)) {
@@ -868,6 +870,11 @@ bool load_file(AudioPlayer *player, const char *filename) {
                 if (success) {
                     printf("Loaded karaoke ZIP successfully\n");
                     strcpy(player->current_file, filename);
+                    
+                    // Extract metadata from the actual audio file inside the ZIP
+                    char *metadata = extract_metadata(zip_contents.audio_file);
+                    gtk_label_set_markup(GTK_LABEL(player->metadata_label), metadata);
+                    g_free(metadata);
                 } else {
                     printf("Failed to load audio from ZIP\n");
                     cleanup_karaoke_temp_files(&player->karaoke_temp_files);
@@ -889,17 +896,60 @@ bool load_file(AudioPlayer *player, const char *filename) {
         }
     }
     
-    if (success) {
+    if (success && !is_zip_file) {
         strcpy(player->current_file, filename);
         player->is_loaded = true;
         player->is_playing = false;
         player->is_paused = false;
         playTime = 0;
         
-        // Extract and display metadata
+        // Extract and display metadata (for non-ZIP files)
         char *metadata = extract_metadata(filename);
         gtk_label_set_markup(GTK_LABEL(player->metadata_label), metadata);
         g_free(metadata);
+        
+        gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
+        gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
+        
+        if (player->audio_buffer.length == 0 || player->song_duration <= 0.1) {
+            printf("Warning: File loaded but has no/minimal audio data (duration: %.2f, samples: %zu)\n", 
+                   player->song_duration, player->audio_buffer.length);
+            printf("Skipping this file and advancing to next...\n");
+            
+            if (strncmp(player->temp_wav_file, "virtual_", 8) == 0) {
+                delete_virtual_file(player->temp_wav_file);
+            }
+            
+            update_gui_state(player);
+            
+            if (player->queue.count > 1) {
+                g_timeout_add(100, [](gpointer data) -> gboolean {
+                    AudioPlayer *p = (AudioPlayer*)data;
+                    printf("Auto-advancing from invalid file...\n");
+                    if (advance_queue(&p->queue)) {
+                        if (load_file_from_queue(p)) {
+                            update_queue_display(p);
+                            update_gui_state(p);
+                        }
+                    }
+                    return FALSE;
+                }, player);
+            }
+            
+            return true;
+        }
+        
+        printf("File successfully loaded (duration: %.2f, samples: %zu), auto-starting playback\n", 
+               player->song_duration, player->audio_buffer.length);
+        
+        start_playback(player);
+        update_gui_state(player);
+    } else if (success && is_zip_file) {
+        // For ZIP files, the metadata was already set above
+        player->is_loaded = true;
+        player->is_playing = false;
+        player->is_paused = false;
+        playTime = 0;
         
         gtk_range_set_range(GTK_RANGE(player->progress_scale), 0.0, player->song_duration);
         gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
