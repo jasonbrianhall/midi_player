@@ -291,9 +291,9 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         print(f"[{start_time:6.2f}s - {end_time:6.2f}s] Line {line_idx+1:3d}: {line['text']}")
         
         # Clear entire screen before first lyric (to remove image)
-        # Takes 3 seconds to clear, so start 3 seconds before first lyric
-        if line_idx == 0:
-            clear_start_time = max(0.5, start_time - 3.0)  # Start clearing 3 seconds before first lyric
+        # Only do this if first lyric starts late enough (1 second or later)
+        if line_idx == 0 and start_time >= 1.0:
+            clear_start_time = max(0.5, start_time - 3.0)
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
