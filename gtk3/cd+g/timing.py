@@ -72,9 +72,13 @@ def analyze_cdg(filename):
             0: "No-op",
             1: "Memory Preset",
             2: "Border Preset",
-            6: "Tile Block",
+            6: "Tile Block (Normal)",
+            20: "Scroll Preset",
+            24: "Scroll Copy",
+            28: "Define Transparent Color",
             30: "Load Color Table (Low)",
             31: "Load Color Table (High)",
+            38: "Tile Block (XOR)",
         }
         
         for inst, count in sorted(instructions.items()):

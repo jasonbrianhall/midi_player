@@ -142,6 +142,14 @@ void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
             break;
         }
         
+        case 2: // CDG_BORDER_PRESET - set border color
+        {
+            uint8_t color = packet->data[0] & 0x0F;
+            cdg->border_color = color;
+            // Border is typically not displayed in most players, so just store it
+            break;
+        }
+        
         case 6: // CDG_TILE_BLOCK - draw a 6x12 tile
         case 38: // CDG_TILE_BLOCK_XOR - XOR draw a 6x12 tile
         {
@@ -176,6 +184,37 @@ void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
             break;
         }
         
+        case 20: // CDG_SCROLL_PRESET - scroll and fill with color
+        case 24: // CDG_SCROLL_COPY - scroll and wrap
+        {
+            uint8_t color = packet->data[0] & 0x0F;
+            uint8_t hscroll = packet->data[1] & 0x3F;
+            uint8_t vscroll = packet->data[2] & 0x3F;
+            
+            // Extract scroll commands and offsets
+            int h_cmd = (hscroll & 0x30) >> 4;  // Bits 5-4: 0=none, 1=right, 2=left
+            int h_offset = hscroll & 0x07;       // Bits 2-0: offset (usually 6 pixels)
+            int v_cmd = (vscroll & 0x30) >> 4;   // Bits 5-4: 0=none, 1=down, 2=up
+            int v_offset = vscroll & 0x0F;       // Bits 3-0: offset (usually 12 pixels)
+            
+            // Only scroll if there's actually a command
+            if (h_cmd != 0 || v_cmd != 0) {
+                // Instruction 20 (Scroll Preset) fills with color
+                // Instruction 24 (Scroll Copy) wraps around (indicated by 0xFF)
+                uint8_t fill_color = (instruction == 20) ? color : 0xFF;
+                cdg_scroll_screen(cdg, h_cmd, v_cmd, fill_color);
+            }
+            break;
+        }
+        
+        case 28: // CDG_DEFINE_TRANSPARENT - set transparent color
+        {
+            uint8_t color = packet->data[0] & 0x0F;
+            cdg->transparent_color = color;
+            // Transparency handling would be done during rendering
+            break;
+        }
+        
         case 30: // CDG_LOAD_CLUT_LOW - load color table (colors 0-7)
         case 31: // CDG_LOAD_CLUT_HIGH - load color table (colors 8-15)
         {
@@ -203,29 +242,8 @@ void cdg_process_packet(CDGDisplay *cdg, CDGPacket *packet) {
             break;
         }
         
-        case 20: // CDG_SCROLL_PRESET
-        case 24: // CDG_SCROLL_COPY
-        {
-            // Scrolling commands - implement if needed for advanced karaoke files
-            uint8_t color = packet->data[0] & 0x0F;
-            uint8_t hscroll = packet->data[1] & 0x3F;
-            uint8_t vscroll = packet->data[2] & 0x3F;
-            
-            int h_cmd = (hscroll & 0x30) >> 4;
-            int h_offset = hscroll & 0x07;
-            int v_cmd = (vscroll & 0x30) >> 4;
-            int v_offset = vscroll & 0x0F;
-            
-            // For now, just do basic scrolling - full implementation is complex
-            if (h_cmd != 0 || v_cmd != 0) {
-                // Scrolling detected but not fully implemented
-                // Most karaoke works without this
-            }
-            break;
-        }
-        
         default:
-            // Unknown or unimplemented instruction
+            // Unknown or unimplemented instruction - just ignore
             break;
     }
 }
@@ -279,12 +297,12 @@ void cdg_scroll_screen(CDGDisplay *display, int h_cmd, int v_cmd, uint8_t fill_c
             int src_y = y - v_offset;
             
             if (fill_color == 0xFF) {
-                // Wrap mode
+                // Wrap mode (Scroll Copy)
                 src_x = (src_x + CDG_WIDTH) % CDG_WIDTH;
                 src_y = (src_y + CDG_HEIGHT) % CDG_HEIGHT;
                 display->screen[y][x] = temp[src_y][src_x];
             } else {
-                // Fill mode
+                // Fill mode (Scroll Preset)
                 if (src_x >= 0 && src_x < CDG_WIDTH && src_y >= 0 && src_y < CDG_HEIGHT) {
                     display->screen[y][x] = temp[src_y][src_x];
                 } else {
