@@ -46,7 +46,7 @@ python cdg.py --from-json transcript.json test.cdg --image nerdy.jpg
 📦 Packaging for Zenamp
 
 ```
-zip music.zip music.mp3 
+zip music.zip music.mp3 music.cdg
 ```
 
 Then open music.zip in Zenamp and enjoy your DIY karaoke (you probably just wasted two hours manually editing the lyrics).

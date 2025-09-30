@@ -4,7 +4,9 @@ on:
   push:
     branches: [ master, main, dev ]
     paths:
-      - 'gtk3/**'
+      - 'gtk3/**.cpp'
+      - 'gtk3/**.h'
+      - 'gtk3/**.c'
       - '**.cpp'
       - '**.h'
       - 'gtk3/Makefile'
@@ -13,7 +15,9 @@ on:
   pull_request:
     branches: [ master, main, dev ]
     paths:
-      - 'gtk3/**'
+      - 'gtk3/**.cpp'
+      - 'gtk3/**.h'
+      - 'gtk3/**.c'
       - '**.cpp'
       - '**.h'
       - 'gtk3/Makefile'
