@@ -4,6 +4,8 @@ import struct
 import sys
 import json
 import os
+import zipfile
+from pydub import AudioSegment
 
 # CRITICAL: CDG runs at 300 packets per second, not 75!
 CDG_PACKETS_PER_SECOND = 300
@@ -382,30 +384,78 @@ def load_transcript_json(filename):
         data = json.load(f)
     return data['words'], data['song_duration']
 
-def transcribe_mp3(mp3_path):
+def add_silence_to_mp3(input_mp3, output_mp3, silence_duration_ms):
+    """Add silence to the beginning of an MP3 file"""
+    print(f"Adding {silence_duration_ms/1000:.1f} seconds of silence to audio...")
+    audio = AudioSegment.from_mp3(input_mp3)
+    silence = AudioSegment.silent(duration=silence_duration_ms)
+    combined = silence + audio
+    combined.export(output_mp3, format="mp3")
+    print(f"Created audio with silence: {output_mp3}")
+    return output_mp3
+
+def transcribe_mp3(mp3_path, image_path=None):
+    """Transcribe MP3 and adjust for silence if needed"""
+    # Check if we need to add silence
+    silence_offset = 0.0
+    modified_mp3 = mp3_path
+    
     model = whisper.load_model("base")
     result = model.transcribe(mp3_path, word_timestamps=True)
+    
+    # Check if audio starts in first 2 seconds
+    first_word_time = float('inf')
+    for segment in result['segments']:
+        if segment['words']:
+            first_word_time = min(first_word_time, segment['words'][0]['start'])
+    
+    # Determine if we need to add silence
+    if image_path:
+        # If image specified, add 7 seconds for logo display
+        silence_offset = 7.0
+        print(f"\nImage specified: Adding 7 seconds of silence for logo display")
+        temp_mp3 = mp3_path.rsplit('.', 1)[0] + '_with_silence.mp3'
+        modified_mp3 = add_silence_to_mp3(mp3_path, temp_mp3, 7000)
+    elif first_word_time < 2.0:
+        # If audio starts in first 2 seconds, add 2 seconds of silence
+        silence_offset = 2.0
+        print(f"\nAudio starts at {first_word_time:.2f}s: Adding 2 seconds of silence")
+        temp_mp3 = mp3_path.rsplit('.', 1)[0] + '_with_silence.mp3'
+        modified_mp3 = add_silence_to_mp3(mp3_path, temp_mp3, 2000)
     
     song_duration = 0
     for segment in result['segments']:
         if segment['end'] > song_duration:
             song_duration = segment['end']
     
+    # Adjust duration for added silence
+    song_duration += silence_offset
+    
     transcript = []
     for segment in result['segments']:
         for word in segment['words']:
             transcript.append({
                 'word': word['word'],
-                'start': word['start'],
-                'end': word['end']
+                'start': word['start'] + silence_offset,
+                'end': word['end'] + silence_offset
             })
     
-    return transcript, song_duration
+    return transcript, song_duration, modified_mp3
+
+def create_zip_file(cdg_file, mp3_file, output_zip):
+    """Create a ZIP file containing the CDG and MP3"""
+    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add files with just their basename (no path)
+        zipf.write(cdg_file, os.path.basename(cdg_file))
+        zipf.write(mp3_file, os.path.basename(mp3_file))
+    print(f"Created karaoke ZIP: {output_zip}")
+    print(f"  - {os.path.basename(cdg_file)}")
+    print(f"  - {os.path.basename(mp3_file)}")
 
 def main():
     if len(sys.argv) < 3:
         print("Usage:")
-        print("  python cdg.py input.mp3 output.cdg [--json transcript.json] [--image cover.jpg]")
+        print("  python cdg.py input.mp3 output.cdg [--json transcript.json] [--image cover.jpg] [--zip output.zip]")
         print("  python cdg.py --from-json transcript.json output.cdg [--image cover.jpg]")
         sys.exit(1)
     
@@ -415,6 +465,12 @@ def main():
         if img_idx + 1 < len(sys.argv):
             image_path = sys.argv[img_idx + 1]
     
+    zip_path = None
+    if '--zip' in sys.argv:
+        zip_idx = sys.argv.index('--zip')
+        if zip_idx + 1 < len(sys.argv):
+            zip_path = sys.argv[zip_idx + 1]
+    
     if sys.argv[1] == '--from-json':
         json_path = sys.argv[2]
         output_cdg = sys.argv[3]
@@ -422,6 +478,7 @@ def main():
         print(f"Loading transcript from JSON: {json_path}")
         transcript, song_duration = load_transcript_json(json_path)
         print(f"Loaded {len(transcript)} words, duration: {song_duration:.2f}s")
+        final_mp3 = None
         
     else:
         mp3_path = sys.argv[1]
@@ -434,7 +491,7 @@ def main():
                 json_path = sys.argv[json_idx + 1]
         
         print(f"Transcribing {mp3_path} with Whisper...")
-        transcript, song_duration = transcribe_mp3(mp3_path)
+        transcript, song_duration, final_mp3 = transcribe_mp3(mp3_path, image_path)
         
         print(f"Song duration: {song_duration:.2f} seconds")
         print(f"Found {len(transcript)} words")
@@ -452,6 +509,14 @@ def main():
     expected_duration = len(packets) / CDG_PACKETS_PER_SECOND
     print(f"Done. CDG file size: {file_size} bytes ({len(packets)} packets)")
     print(f"CDG duration: {expected_duration:.2f} seconds")
+    
+    # Create ZIP if MP3 was processed and zip requested
+    if final_mp3 and zip_path:
+        create_zip_file(output_cdg, final_mp3, zip_path)
+    elif final_mp3 and not zip_path:
+        # Auto-create zip with same name as CDG
+        auto_zip = output_cdg.rsplit('.', 1)[0] + '.zip'
+        create_zip_file(output_cdg, final_mp3, auto_zip)
 
 if __name__ == "__main__":
     main()
