@@ -43,6 +43,7 @@ Press F9 for fullscreen visualization mode
   - **MIDI** (.mid/.midi) — Here's where it gets interesting...
   - **M4A/AAC** - Advanced Codec (Different methods for Windows and Linux)
   - **WMA** - Windows Media Audio (Different methods for Windows and Linux)
+  - **CDG** - CD+G files/karaoke files
   - **Generic Files** - Whatever is supported via libavcodec on Linux and natively on Windows *should* work (I opened a MP4 of Alien Romulus and it loaded the audio)
 
 ## 🎹 The MIDI Magic
