@@ -310,31 +310,25 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     
     # Initialize color table
     if image_palette:
-        # If we have an image palette, modify it to ensure we have good highlighting colors
+        # Keep the original image palette intact, just add one highlighting color
         colors_low = image_palette[:8]
         colors_high = image_palette[8:16]
         
-        # Override specific slots to ensure we have highlighting colors
-        colors_low[2] = (15, 0, 0)   # Force slot 2 to be pure red
-        colors_low[3] = (0, 15, 0)   # Force slot 3 to be pure green  
-        colors_low[4] = (6, 10, 15)  # Force slot 4 to be lighter blue (like your example)
-        
-        print(f"Modified image palette to include highlighting colors:")
-        print(f"  Color 2 (red): {colors_low[2]}")
-        print(f"  Color 3 (green): {colors_low[3]}")
-        print(f"  Color 4 (blue): {colors_low[4]}")
+        # Only modify one unused slot for highlighting, try slot 15 (last one)
+        if len(colors_high) >= 8:
+            colors_high[7] = (6, 10, 15)  # Put blue in slot 15
+            highlight_color = 15
+        else:
+            colors_high.append((6, 10, 15))
+            highlight_color = 15
+            
+        print(f"Added blue highlighting color to slot {highlight_color}")
     else:
-        # Simplified test palette - try pure colors with no mixing
-        colors_low = [(0, 0, 0),     # 0 = Black
-                      (15, 15, 15),  # 1 = White  
-                      (15, 0, 0),    # 2 = Pure Red
-                      (0, 15, 0),    # 3 = Pure Green
-                      (6, 10, 15),   # 4 = Nice Blue (lighter, more vibrant)
-                      (0, 0, 0),     # 5 = Black (unused)
-                      (0, 0, 0),     # 6 = Black (unused)
-                      (0, 0, 0)]     # 7 = Black (unused)
+        colors_low = [(0, 0, 0), (15, 15, 15), (15, 0, 0), (0, 15, 0), 
+                      (6, 10, 15), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
         colors_high = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0),
                        (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
+        highlight_color = 4
     
     packets.append(create_load_color_table_low_packet(colors_low))
     packets.append(create_load_color_table_high_packet(colors_high))
@@ -434,15 +428,15 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                             )
                         tile_idx += 1
         
-        # Test with color 4 (blue) and fix the unhighlighting timing
+        # Back to tile-based highlighting that only affects text
         first_word = line['words'][0] if line['words'] else None
         if first_word:
             word_start_time = first_word['start']
             
-            print(f"  [Highlighting first word '{first_word['word']}' from {word_start_time:.2f}s to {word_start_time + 2.0:.2f}s with color 4 (blue)]")
+            print(f"  [Highlighting first word '{first_word['word']}' with tile-based method]")
             
-            # Highlight with color 4 (blue)
-            highlight_packet = int(word_start_time * CDG_PACKETS_PER_SECOND)
+            # Highlight using the proper highlight color slot
+            highlight_start = int(word_start_time * CDG_PACKETS_PER_SECOND)
             
             tile_idx = 0
             for col_offset in range(text_width_tiles):
@@ -451,16 +445,16 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                     for row_offset in range(2):
                         if tile_idx < len(tiles):
                             row_in_tile, tile_data = tiles[tile_idx]
-                            packet_idx = highlight_packet + col_offset * 2 + row_offset
+                            packet_idx = highlight_start + col_offset * 2 + row_offset
                             if packet_idx < len(packets):
-                                # Use color 4 (blue)
+                                # Use the highlight color we defined
                                 packets[packet_idx] = create_tile_block_packet(
-                                    0, 4, base_row + row_offset, col, tile_data
+                                    0, highlight_color, base_row + row_offset, col, tile_data
                                 )
                             tile_idx += 1
             
-            # Un-highlight: redraw ALL tiles back to white after exactly 2 seconds
-            unhighlight_packet = int((word_start_time + 2.0) * CDG_PACKETS_PER_SECOND)
+            # Restore to white after 2 seconds
+            unhighlight_start = int((word_start_time + 2.0) * CDG_PACKETS_PER_SECOND)
             
             tile_idx = 0
             for col_offset in range(text_width_tiles):
@@ -469,9 +463,9 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                     for row_offset in range(2):
                         if tile_idx < len(tiles):
                             row_in_tile, tile_data = tiles[tile_idx]
-                            packet_idx = unhighlight_packet + col_offset * 2 + row_offset
+                            packet_idx = unhighlight_start + col_offset * 2 + row_offset
                             if packet_idx < len(packets):
-                                # Redraw ALL tiles back to WHITE (color 1)
+                                # Restore to white
                                 packets[packet_idx] = create_tile_block_packet(
                                     0, 1, base_row + row_offset, col, tile_data
                                 )
