@@ -80,21 +80,13 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	virtual_mixer.cpp \
 	wav_converter.cpp \
 	audioconverter.cpp \
-	convertmidi.cpp \
-	convertoggtowav.cpp \
-	convertopustowav.cpp \
-	convertmp3towav.cpp \
+	convertmidi.cpp convertoggtowav.cpp convertopustowav.cpp convertmp3towav.cpp convertflactowav.cpp \
 	vfs.cpp \
 	cache.cpp \
-	convertflactowav.cpp \
 	icon.cpp \
 	aiff.cpp \
 	keyboard.cpp \
-	bubbles.cpp \
-	matrix.cpp \
-	fireworks.cpp \
-	dna.cpp \
-	dna2.cpp \
+	bubbles.cpp matrix.cpp fireworks.cpp dna.cpp dna2.cpp \
 	visualization.cpp \
 	equalizer.cpp \
 	m3u.cpp \
@@ -118,7 +110,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	cdg.cpp \
 	karaoke.cpp \
 	zip_support.cpp \
-	metadata.cpp
+	metadata.cpp \
+	parrot.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \

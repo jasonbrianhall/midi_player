@@ -21,6 +21,7 @@
 #include "blockstack.h"
 #include "cdg.h"
 #include "zip_support.h"
+#include "parrot.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -47,10 +48,9 @@ typedef enum {
     VIS_ROBOT_CHASER,
     VIS_RADIAL_WAVE,
     VIS_BLOCK_STACK,
+    VIS_PARROT,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
-
-
 } VisualizationType;
 
 typedef struct {
@@ -273,6 +273,9 @@ typedef struct {
     // Blockstack
     BlockStackSystem blockstack;
 
+    // Parrot
+    ParrotState parrot_state;
+
 } Visualizer;
 
 // Function declarations
@@ -449,5 +452,10 @@ void get_block_color(int frequency_band, double intensity, double *r, double *g,
 // Karaoke
 void draw_karaoke_exciting(Visualizer *vis, cairo_t *cr);
 void draw_karaoke_boring(Visualizer *vis, cairo_t *cr);
+
+// Parrot
+void draw_audio_bars_around_parrot(Visualizer *vis, cairo_t *cr, double cx, double cy, double scale);
+void draw_parrot(Visualizer *vis, cairo_t *cr);
+void update_parrot(Visualizer *vis, double dt);
 
 #endif
