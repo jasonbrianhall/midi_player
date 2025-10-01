@@ -22,6 +22,7 @@
 #include "cdg.h"
 #include "zip_support.h"
 #include "parrot.h"
+#include "sauron.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -49,6 +50,7 @@ typedef enum {
     VIS_RADIAL_WAVE,
     VIS_BLOCK_STACK,
     VIS_PARROT,
+    VIS_EYE_OF_SAURON,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -276,6 +278,9 @@ typedef struct {
     // Parrot
     ParrotState parrot_state;
 
+    // EOS
+    EyeOfSauronState eye_of_sauron;
+
 } Visualizer;
 
 // Function declarations
@@ -458,4 +463,7 @@ void draw_audio_bars_around_parrot(Visualizer *vis, cairo_t *cr, double cx, doub
 void draw_parrot(Visualizer *vis, cairo_t *cr);
 void update_parrot(Visualizer *vis, double dt);
 
+// EOS
+void update_eye_of_sauron(Visualizer *vis, double dt);
+void draw_eye_of_sauron(Visualizer *vis, cairo_t *cr);
 #endif

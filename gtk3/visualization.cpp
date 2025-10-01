@@ -344,6 +344,10 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_PARROT:
           draw_parrot(vis, cr);
           break;
+       case VIS_EYE_OF_SAURON:
+          draw_eye_of_sauron(vis, cr);
+          break;
+          
         case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -428,6 +432,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_PARROT:
                 update_parrot(vis, 0.033);
                 break;
+            case VIS_EYE_OF_SAURON:
+                update_eye_of_sauron(vis, 0.033);
+                break;                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -519,6 +526,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Radial Wave");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Block Stack");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Dancing Parrot");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "The All Seeing Eye");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
