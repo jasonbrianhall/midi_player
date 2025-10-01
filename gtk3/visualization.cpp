@@ -518,8 +518,8 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Robot Chaser");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Radial Wave");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Block Stack");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Parrot");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Dancing Parrot");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
