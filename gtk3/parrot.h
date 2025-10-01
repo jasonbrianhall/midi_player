@@ -12,7 +12,8 @@ typedef struct {
     double pupil_x;           // Pupil X position offset
     double pupil_y;           // Pupil Y position offset
     double chest_scale;       // Chest breathing scale
-    double foot_tap;          // Foot tapping offset
+    double foot_tap;          // Left foot tapping offset
+    double right_foot_tap;    // Right foot tapping offset
     double glow_intensity;    // Glow effect intensity
     double last_beat_time;    // Last detected beat time
 } ParrotState;

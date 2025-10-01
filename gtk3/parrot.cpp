@@ -12,6 +12,7 @@ void init_parrot_system(Visualizer *vis) {
     vis->parrot_state.pupil_y = 0.0;
     vis->parrot_state.chest_scale = 1.0;
     vis->parrot_state.foot_tap = 0.0;
+    vis->parrot_state.right_foot_tap = 0.0;
     vis->parrot_state.glow_intensity = 0.0;
     vis->parrot_state.last_beat_time = 0.0;
 }
@@ -53,12 +54,18 @@ void update_parrot(Visualizer *vis, double dt) {
         vis->parrot_state.blink_timer = 0.0;
     }
     
-    // Head bobbing to the beat (bass frequencies)
-    double target_bob = sin(vis->time_offset * 3.0) * bass_energy * 15.0;
+    // Head bobbing to the beat (bass frequencies) - only when music is playing
+    double target_bob = 0.0;
+    if (vis->volume_level > 0.05) {
+        target_bob = sin(vis->time_offset * 3.0) * bass_energy * 15.0;
+    }
     vis->parrot_state.head_bob_offset += (target_bob - vis->parrot_state.head_bob_offset) * 6.0 * dt;
     
-    // Body bounce
-    double target_bounce = vis->volume_level * 8.0;
+    // Body bounce - only when music is playing
+    double target_bounce = 0.0;
+    if (vis->volume_level > 0.05) {
+        target_bounce = vis->volume_level * 8.0;
+    }
     vis->parrot_state.body_bounce += (target_bounce - vis->parrot_state.body_bounce) * 5.0 * dt;
     
     // Wing flapping
@@ -68,9 +75,13 @@ void update_parrot(Visualizer *vis, double dt) {
     // Tail feather sway
     vis->parrot_state.tail_sway = sin(vis->time_offset * 2.5) * 10.0 * vis->volume_level;
     
-    // Pupil tracking (follows music notes)
-    double target_pupil_x = -sin(vis->time_offset * 3.0) * 8.0;
-    double target_pupil_y = cos(vis->time_offset * 2.0) * 5.0;
+    // Pupil tracking (follows music notes) - only when music is playing
+    double target_pupil_x = 0.0;
+    double target_pupil_y = 0.0;
+    if (vis->volume_level > 0.1) {
+        target_pupil_x = -sin(vis->time_offset * 3.0) * 8.0;
+        target_pupil_y = cos(vis->time_offset * 2.0) * 5.0;
+    }
     vis->parrot_state.pupil_x += (target_pupil_x - vis->parrot_state.pupil_x) * 4.0 * dt;
     vis->parrot_state.pupil_y += (target_pupil_y - vis->parrot_state.pupil_y) * 4.0 * dt;
     
@@ -78,11 +89,15 @@ void update_parrot(Visualizer *vis, double dt) {
     double target_chest = 1.0 + vis->volume_level * 0.15;
     vis->parrot_state.chest_scale += (target_chest - vis->parrot_state.chest_scale) * 7.0 * dt;
     
-    // Foot tapping
-    if (bass_energy > 0.4) {
-        vis->parrot_state.foot_tap = sin(vis->time_offset * 8.0) * 8.0;
+    // Foot tapping - both feet alternating
+    if (vis->volume_level > 0.05 && bass_energy > 0.4) {
+        double target_left_tap = sin(vis->time_offset * 8.0) * 8.0;
+        double target_right_tap = sin(vis->time_offset * 8.0 + M_PI) * 8.0; // Offset by PI for alternating
+        vis->parrot_state.foot_tap += (target_left_tap - vis->parrot_state.foot_tap) * 10.0 * dt;
+        vis->parrot_state.right_foot_tap += (target_right_tap - vis->parrot_state.right_foot_tap) * 10.0 * dt;
     } else {
-        vis->parrot_state.foot_tap *= 0.95;
+        vis->parrot_state.foot_tap *= 0.9;
+        vis->parrot_state.right_foot_tap *= 0.9;
     }
     
     // Glow intensity
@@ -350,20 +365,21 @@ void draw_parrot(Visualizer *vis, cairo_t *cr) {
     cairo_line_to(cr, cx + 15 * scale, cy + 120 * scale - left_foot_offset * scale);
     cairo_stroke(cr);
     
-    // Right leg
+    // Right leg (tapping foot)
+    double right_foot_offset = vis->parrot_state.right_foot_tap;
     cairo_move_to(cr, cx + 35 * scale, cy + 75 * scale);
-    cairo_line_to(cr, cx + 35 * scale, cy + 115 * scale);
+    cairo_line_to(cr, cx + 35 * scale, cy + 115 * scale - right_foot_offset * scale);
     cairo_stroke(cr);
     
     // Right foot toes
-    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale);
-    cairo_line_to(cr, cx + 25 * scale, cy + 125 * scale);
+    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale - right_foot_offset * scale);
+    cairo_line_to(cr, cx + 25 * scale, cy + 125 * scale - right_foot_offset * scale);
     cairo_stroke(cr);
-    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale);
-    cairo_line_to(cr, cx + 35 * scale, cy + 127 * scale);
+    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale - right_foot_offset * scale);
+    cairo_line_to(cr, cx + 35 * scale, cy + 127 * scale - right_foot_offset * scale);
     cairo_stroke(cr);
-    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale);
-    cairo_line_to(cr, cx + 45 * scale, cy + 125 * scale);
+    cairo_move_to(cr, cx + 35 * scale, cy + 115 * scale - right_foot_offset * scale);
+    cairo_line_to(cr, cx + 45 * scale, cy + 125 * scale - right_foot_offset * scale);
     cairo_stroke(cr);
     
     // Blue head with bobbing
