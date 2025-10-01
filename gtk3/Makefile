@@ -111,7 +111,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	karaoke.cpp \
 	zip_support.cpp \
 	metadata.cpp \
-	parrot.cpp
+	parrot.cpp \
+	sauron.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
