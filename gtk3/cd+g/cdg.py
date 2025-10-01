@@ -33,31 +33,35 @@ def create_border_preset_packet(color):
     return CDGPacket(0x09, 2, data)
 
 def create_load_color_table_low_packet(colors):
-    """Load colors 0-7 into color table"""
+    """Load colors 0-7 into color table with correct CDG bit packing"""
     data = bytearray(16)
     for i in range(8):
         if i < len(colors):
             r, g, b = colors[i]
+            # CDG spec: high_byte = 00RRRRGG, low_byte = 00GGBBBB  
+            # From the spec: [---high byte---] [---low byte----]
+            #                X X r r r r g g   X X g g b b b b
             high_byte = ((r & 0x0F) << 2) | ((g & 0x0C) >> 2)
             low_byte = ((g & 0x03) << 4) | (b & 0x0F)
-            data[i * 2] = high_byte
-            data[i * 2 + 1] = low_byte
+            data[i * 2] = high_byte & 0x3F      # Mask to 6 bits
+            data[i * 2 + 1] = low_byte & 0x3F   # Mask to 6 bits
     return CDGPacket(0x09, 30, data)
 
 def create_load_color_table_high_packet(colors):
-    """Load colors 8-15 into color table"""
+    """Load colors 8-15 into color table with correct CDG bit packing"""
     data = bytearray(16)
     for i in range(8):
         if i < len(colors):
             r, g, b = colors[i]
+            # CDG spec: high_byte = 00RRRRGG, low_byte = 00GGBBBB
             high_byte = ((r & 0x0F) << 2) | ((g & 0x0C) >> 2)
             low_byte = ((g & 0x03) << 4) | (b & 0x0F)
-            data[i * 2] = high_byte
-            data[i * 2 + 1] = low_byte
+            data[i * 2] = high_byte & 0x3F      # Mask to 6 bits  
+            data[i * 2 + 1] = low_byte & 0x3F   # Mask to 6 bits
     return CDGPacket(0x09, 31, data)
 
 def create_tile_block_packet(color0, color1, row, column, tile_data):
-    """Create a tile block packet"""
+    """Create a tile block packet (instruction 6)"""
     data = bytearray(16)
     data[0] = color0 & 0x0F
     data[1] = color1 & 0x0F
@@ -68,8 +72,20 @@ def create_tile_block_packet(color0, color1, row, column, tile_data):
             data[4 + i] = tile_data[i] & 0x3F
     return CDGPacket(0x09, 6, data)
 
+def create_tile_block_xor_packet(color0, color1, row, column, tile_data):
+    """Create a tile block XOR packet (instruction 38) for highlighting"""
+    data = bytearray(16)
+    data[0] = color0 & 0x0F
+    data[1] = color1 & 0x0F
+    data[2] = row & 0x1F
+    data[3] = column & 0x3F
+    for i in range(12):
+        if i < len(tile_data):
+            data[4 + i] = tile_data[i] & 0x3F
+    return CDGPacket(0x09, 38, data)
+
 def render_text_to_tiles(text, max_width_tiles=48, font_size=12):
-    """Render text and return tile data"""
+    """Render text and return tile data with pixel width"""
     width_pixels = max_width_tiles * 6
     height_pixels = 24
     
@@ -79,7 +95,14 @@ def render_text_to_tiles(text, max_width_tiles=48, font_size=12):
     cr.set_source_rgb(1, 1, 1)
     cr.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
     cr.set_font_size(font_size)
-    cr.move_to(4, 19)
+    
+    # Get text extents for centering (returns tuple: x_bearing, y_bearing, width, height, x_advance, y_advance)
+    extents = cr.text_extents(text)
+    text_width = extents[2]  # width is the 3rd element
+    
+    # Center the text
+    x_pos = (width_pixels - text_width) / 2
+    cr.move_to(x_pos, 19)
     cr.show_text(text)
     surface.flush()
     
@@ -102,7 +125,64 @@ def render_text_to_tiles(text, max_width_tiles=48, font_size=12):
                 tile_data.append(bits)
             tiles.append((tile_row, tile_data))
     
-    return tiles
+    return tiles, int(text_width)
+
+def render_word_to_tiles(word, font_size=12):
+    """Render a single word and return tile data with exact boundaries"""
+    # Render with generous padding
+    width_pixels = 200
+    height_pixels = 24
+    
+    surface = cairo.ImageSurface(cairo.FORMAT_A8, width_pixels, height_pixels)
+    cr = cairo.Context(surface)
+    
+    cr.set_source_rgb(1, 1, 1)
+    cr.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+    cr.set_font_size(font_size)
+    
+    # Get text extents (returns tuple)
+    extents = cr.text_extents(word)
+    text_width = extents[2]  # width is the 3rd element
+    
+    cr.move_to(10, 19)
+    cr.show_text(word)
+    surface.flush()
+    
+    data = bytes(surface.get_data())
+    stride = surface.get_stride()
+    
+    # Find actual bounds of rendered text
+    min_x, max_x = width_pixels, 0
+    for y in range(height_pixels):
+        for x in range(width_pixels):
+            if data[y * stride + x] > 128:
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+    
+    if max_x < min_x:
+        return [], 0, 0
+    
+    # Convert to tiles
+    tile_start = min_x // 6
+    tile_end = (max_x // 6) + 1
+    
+    tiles = []
+    for tile_x in range(tile_start, tile_end):
+        for tile_row in range(2):
+            tile_data = []
+            for row in range(12):
+                bits = 0
+                for col in range(6):
+                    x = tile_x * 6 + col
+                    y = tile_row * 12 + row
+                    if x < width_pixels and y < height_pixels:
+                        pixel = data[y * stride + x]
+                        if pixel > 128:
+                            bits |= (1 << (5 - col))
+                tile_data.append(bits)
+            tiles.append((tile_row, tile_data))
+    
+    return tiles, tile_start, tile_end - tile_start
 
 def quantize_color_to_4bit(r, g, b):
     """Quantize 8-bit RGB to 4-bit per channel"""
@@ -129,7 +209,6 @@ def load_and_render_image_color(image_path):
             r = palette_img[i * 3]
             g = palette_img[i * 3 + 1]
             b = palette_img[i * 3 + 2]
-            # Quantize to 4-bit per channel
             palette.append(quantize_color_to_4bit(r, g, b))
         
         print(f"Generated 16-color palette from image")
@@ -154,10 +233,7 @@ def load_and_render_image_color(image_path):
                         x = tile_x * 6 + col
                         y = tile_y * 12 + row
                         if x < 300 and y < 216:
-                            # Get pixel color index (0-15)
                             color_idx = pixel_map[y][x]
-                            # For now, store as binary (we'll use color indices later)
-                            # This is a simplified approach - store if color is in upper half
                             if color_idx >= 8:
                                 bits |= (1 << (5 - col))
                     tile_data.append(bits)
@@ -173,8 +249,8 @@ def load_and_render_image_color(image_path):
         traceback.print_exc()
         return None, None
 
-def group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line=5):
-    """Group words into lines, keeping each line under 24 characters or 5 words"""
+def group_words_into_lines(transcript, max_chars_per_line=40, max_words_per_line=6):
+    """Group words into lines with better spacing"""
     lines = []
     current_line_words = []
     current_line_text = ""
@@ -184,12 +260,9 @@ def group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line
         if not word:
             continue
         
-        # Check if adding this word would exceed the limits
         test_text = current_line_text + (' ' if current_line_text else '') + word
         
-        # Break line if either limit WOULD BE exceeded by adding this word
         if current_line_words and (len(test_text) > max_chars_per_line or len(current_line_words) >= max_words_per_line):
-            # Save current line and start a new one
             lines.append({
                 'words': current_line_words,
                 'text': current_line_text,
@@ -207,7 +280,6 @@ def group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line
         })
         current_line_text = test_text
     
-    # Add remaining words
     if current_line_words:
         lines.append({
             'words': current_line_words,
@@ -219,7 +291,7 @@ def group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line
     return lines
 
 def generate_cdg_packets(transcript, song_duration, image_path=None):
-    """Generate CDG packets with white text and optional color image"""
+    """Generate CDG packets with centered text and word-by-word XOR highlighting"""
     total_packets = int(song_duration * CDG_PACKETS_PER_SECOND)
     
     print(f"Generating {total_packets} packets for {song_duration:.2f} seconds")
@@ -238,13 +310,29 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
     
     # Initialize color table
     if image_palette:
-        # Use image palette (16 colors)
+        # If we have an image palette, modify it to ensure we have good highlighting colors
         colors_low = image_palette[:8]
         colors_high = image_palette[8:16]
+        
+        # Override specific slots to ensure we have highlighting colors
+        colors_low[2] = (15, 0, 0)   # Force slot 2 to be pure red
+        colors_low[3] = (0, 15, 0)   # Force slot 3 to be pure green  
+        colors_low[4] = (0, 0, 15)   # Force slot 4 to be pure blue
+        
+        print(f"Modified image palette to include highlighting colors:")
+        print(f"  Color 2 (red): {colors_low[2]}")
+        print(f"  Color 3 (green): {colors_low[3]}")
+        print(f"  Color 4 (blue): {colors_low[4]}")
     else:
-        # Default palette - Black and White
-        colors_low = [(0, 0, 0), (15, 15, 15), (0, 0, 0), (0, 0, 0), 
-                      (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
+        # Simplified test palette - try pure colors with no mixing
+        colors_low = [(0, 0, 0),     # 0 = Black
+                      (15, 15, 15),  # 1 = White  
+                      (15, 0, 0),    # 2 = Pure Red
+                      (0, 15, 0),    # 3 = Pure Green
+                      (0, 0, 15),    # 4 = Pure Blue
+                      (0, 0, 0),     # 5 = Black (unused)
+                      (0, 0, 0),     # 6 = Black (unused)
+                      (0, 0, 0)]     # 7 = Black (unused)
         colors_high = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0),
                        (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
     
@@ -270,21 +358,18 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         for idx, (tile_y, tile_x, tile_data) in enumerate(image_tiles):
             packet_idx = start_packet + idx
             if packet_idx < len(packets):
-                # Use colors from palette - 0 as background, higher indices as foreground
                 packets[packet_idx] = create_tile_block_packet(0, 8, tile_y, tile_x, tile_data)
     
     # Group words into lines
     print("\nGrouping words into lines...")
-    lines = group_words_into_lines(transcript, max_chars_per_line=24, max_words_per_line=5)
+    lines = group_words_into_lines(transcript, max_chars_per_line=40, max_words_per_line=6)
     print(f"Created {len(lines)} lines\n")
     
-    print("Adding lyrics to CDG:")
+    print("Adding lyrics to CDG with word highlighting:")
     print("-" * 60)
     
-    # Define 4 line positions (vertically centered on screen)
-    # CDG screen is 18 tiles high, each text line takes 2 tiles
-    # 4 lines = 8 tiles, center them: start at row (18-8)/2 = 5
-    line_rows = [5, 7, 9, 11]  # 4 lines, 2 tiles per line
+    # Define 4 line positions (vertically centered)
+    line_rows = [5, 7, 9, 11]
     
     for line_idx, line in enumerate(lines):
         start_time = line['start']
@@ -292,15 +377,13 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
         
         print(f"[{start_time:6.2f}s - {end_time:6.2f}s] Line {line_idx+1:3d}: {line['text']}")
         
-        # Clear entire screen before first lyric (to remove image)
-        # Only do this if first lyric starts late enough (1 second or later)
+        # Clear entire screen before first lyric
         if line_idx == 0 and start_time >= 1.0:
             clear_start_time = max(0.5, start_time - 3.0)
             clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
                 empty_tile = [0] * 12
-                # Write black tiles to entire screen (900 tiles = 50×18)
                 packet_offset = 0
                 for row in range(CDG_SCREEN_HEIGHT):
                     for col in range(CDG_SCREEN_WIDTH):
@@ -309,37 +392,51 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                             packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
                         packet_offset += 1
                 
-                print(f"  [Clearing full screen from {clear_start_time:.2f}s to {start_time:.2f}s (3.0 seconds)]")
+                print(f"  [Clearing full screen at {clear_start_time:.2f}s]")
         
-        # Determine which line position to use (0-3, scrolling upward)
         display_position = line_idx % 4
         
-        # If we're wrapping around (line 4+), clear the line we're about to overwrite
-        if line_idx >= 4:
-            clear_start_time = max(0, start_time - 0.5)
-            clear_packet = int(clear_start_time * CDG_PACKETS_PER_SECOND)
+        # AGGRESSIVE CLEARING: Clear previous line when starting a new one
+        # Clear the line that's about to scroll off (if we're at position 0 and have shown 4+ lines)
+        if line_idx >= 4 and display_position == 0:
+            # Clear line at position 3 (the oldest line)
+            clear_time = max(0, start_time - 0.3)
+            clear_packet = int(clear_time * CDG_PACKETS_PER_SECOND)
             
             if clear_packet > 50:
                 empty_tile = [0] * 12
                 packet_offset = 0
-                # Clear the 2 rows for this line position
-                for row in range(line_rows[display_position], line_rows[display_position] + 2):
-                    if 0 <= row < CDG_SCREEN_HEIGHT:
-                        for col in range(CDG_SCREEN_WIDTH):
-                            idx = clear_packet + packet_offset
-                            if idx < len(packets):
-                                packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
-                            packet_offset += 1
+                for row in range(line_rows[3], line_rows[3] + 2):
+                    for col in range(CDG_SCREEN_WIDTH):
+                        idx = clear_packet + packet_offset
+                        if idx < len(packets):
+                            packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
+                        packet_offset += 1
         
-        # Render and display the line at the determined position
-        tiles = render_text_to_tiles(line['text'], font_size=12)
+        # Also clear the line we're about to write to
+        if line_idx >= 1:
+            clear_time = max(0, start_time - 0.2)
+            clear_packet = int(clear_time * CDG_PACKETS_PER_SECOND)
+            
+            if clear_packet > 50:
+                empty_tile = [0] * 12
+                packet_offset = 0
+                for row in range(line_rows[display_position], line_rows[display_position] + 2):
+                    for col in range(CDG_SCREEN_WIDTH):
+                        idx = clear_packet + packet_offset
+                        if idx < len(packets):
+                            packets[idx] = create_tile_block_packet(0, 0, row, col, empty_tile)
+                        packet_offset += 1
+        
+        # Render the full line (centered)
+        tiles, text_width_pixels = render_text_to_tiles(line['text'], font_size=12)
         text_width_tiles = len(tiles) // 2
         start_column = (CDG_SCREEN_WIDTH - text_width_tiles) // 2
         
         start_packet = int(start_time * CDG_PACKETS_PER_SECOND)
-        
         base_row = line_rows[display_position]
         
+        # Draw the full line
         tile_idx = 0
         for col_offset in range(text_width_tiles):
             col = start_column + col_offset
@@ -353,6 +450,50 @@ def generate_cdg_packets(transcript, song_duration, image_path=None):
                                 0, 1, base_row + row_offset, col, tile_data
                             )
                         tile_idx += 1
+        
+        # Test with color 3 (green) to see if color indices are working correctly
+        first_word = line['words'][0] if line['words'] else None
+        if first_word:
+            word_start_time = first_word['start']
+            word_end_time = first_word['end']
+            
+            print(f"  [Highlighting first word '{first_word['word']}' from {word_start_time:.2f}s to {word_end_time:.2f}s with color 3 (green)]")
+            
+            # Try color 3 (green) instead of 4 (blue)
+            highlight_packet = int(word_start_time * CDG_PACKETS_PER_SECOND)
+            
+            tile_idx = 0
+            for col_offset in range(text_width_tiles):
+                col = start_column + col_offset
+                if 0 <= col < CDG_SCREEN_WIDTH:
+                    for row_offset in range(2):
+                        if tile_idx < len(tiles):
+                            row_in_tile, tile_data = tiles[tile_idx]
+                            packet_idx = highlight_packet + col_offset * 2 + row_offset
+                            if packet_idx < len(packets):
+                                # Try color 3 (should be green)
+                                packets[packet_idx] = create_tile_block_packet(
+                                    0, 3, base_row + row_offset, col, tile_data
+                                )
+                            tile_idx += 1
+            
+            # Un-highlight: redraw back to white after 2 seconds
+            unhighlight_packet = int((word_start_time + 2.0) * CDG_PACKETS_PER_SECOND)
+            
+            tile_idx = 0
+            for col_offset in range(text_width_tiles):
+                col = start_column + col_offset
+                if 0 <= col < CDG_SCREEN_WIDTH:
+                    for row_offset in range(2):
+                        if tile_idx < len(tiles):
+                            row_in_tile, tile_data = tiles[tile_idx]
+                            packet_idx = unhighlight_packet + col_offset * 2 + row_offset
+                            if packet_idx < len(packets):
+                                # Draw back in WHITE (color 1)
+                                packets[packet_idx] = create_tile_block_packet(
+                                    0, 1, base_row + row_offset, col, tile_data
+                                )
+                            tile_idx += 1
     
     print("-" * 60)
     print(f"Total lines added: {len(lines)}\n")
@@ -396,28 +537,23 @@ def add_silence_to_mp3(input_mp3, output_mp3, silence_duration_ms):
 
 def transcribe_mp3(mp3_path, image_path=None):
     """Transcribe MP3 and adjust for silence if needed"""
-    # Check if we need to add silence
     silence_offset = 0.0
     modified_mp3 = mp3_path
     
     model = whisper.load_model("base")
     result = model.transcribe(mp3_path, word_timestamps=True)
     
-    # Check if audio starts in first 2 seconds
     first_word_time = float('inf')
     for segment in result['segments']:
         if segment['words']:
             first_word_time = min(first_word_time, segment['words'][0]['start'])
     
-    # Determine if we need to add silence
     if image_path:
-        # If image specified, add 7 seconds for logo display
         silence_offset = 7.0
         print(f"\nImage specified: Adding 7 seconds of silence for logo display")
         temp_mp3 = mp3_path.rsplit('.', 1)[0] + '_with_silence.mp3'
         modified_mp3 = add_silence_to_mp3(mp3_path, temp_mp3, 7000)
     elif first_word_time < 2.0:
-        # If audio starts in first 2 seconds, add 2 seconds of silence
         silence_offset = 2.0
         print(f"\nAudio starts at {first_word_time:.2f}s: Adding 2 seconds of silence")
         temp_mp3 = mp3_path.rsplit('.', 1)[0] + '_with_silence.mp3'
@@ -428,7 +564,6 @@ def transcribe_mp3(mp3_path, image_path=None):
         if segment['end'] > song_duration:
             song_duration = segment['end']
     
-    # Adjust duration for added silence
     song_duration += silence_offset
     
     transcript = []
@@ -445,7 +580,6 @@ def transcribe_mp3(mp3_path, image_path=None):
 def create_zip_file(cdg_file, mp3_file, output_zip):
     """Create a ZIP file containing the CDG and MP3"""
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Add files with just their basename (no path)
         zipf.write(cdg_file, os.path.basename(cdg_file))
         zipf.write(mp3_file, os.path.basename(mp3_file))
     print(f"Created karaoke ZIP: {output_zip}")
@@ -510,11 +644,9 @@ def main():
     print(f"Done. CDG file size: {file_size} bytes ({len(packets)} packets)")
     print(f"CDG duration: {expected_duration:.2f} seconds")
     
-    # Create ZIP if MP3 was processed and zip requested
     if final_mp3 and zip_path:
         create_zip_file(output_cdg, final_mp3, zip_path)
     elif final_mp3 and not zip_path:
-        # Auto-create zip with same name as CDG
         auto_zip = output_cdg.rsplit('.', 1)[0] + '.zip'
         create_zip_file(output_cdg, final_mp3, auto_zip)
 
