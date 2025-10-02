@@ -1,2 +1,8 @@
 *.o
 build/
+*.o
+*.zip
+*.cdg
+*.dll
+*.mp3
+build/
