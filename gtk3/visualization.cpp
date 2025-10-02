@@ -5,6 +5,13 @@
 #include "visualization.h"
 #include "audio_player.h"
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <sys/types.h>
+#else
+#include <shlobj.h>
+#endif
+
 Visualizer* visualizer_new(void) {
     Visualizer *vis = g_malloc0(sizeof(Visualizer));
     
