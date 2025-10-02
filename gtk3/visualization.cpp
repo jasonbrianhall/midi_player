@@ -12,9 +12,11 @@
 #include <shlobj.h>
 #endif
 
+#include <time.h>
+
 Visualizer* visualizer_new(void) {
     Visualizer *vis = g_malloc0(sizeof(Visualizer));
-    
+    srand(time(NULL));
     // Initialize arrays
     vis->audio_samples = g_malloc0(VIS_SAMPLES * sizeof(double));
     vis->frequency_bands = g_malloc0(VIS_FREQUENCY_BARS * sizeof(double));
@@ -96,6 +98,8 @@ Visualizer* visualizer_new(void) {
     init_radial_wave_system(vis);
 
     init_blockstack_system(vis);
+
+    init_hanoi_system(vis);
     
     return vis;
 }
@@ -367,7 +371,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_EYE_OF_SAURON:
           draw_eye_of_sauron(vis, cr);
           break;
-          
+       case VIS_TOWER_OF_HANOI:
+          draw_hanoi(vis, cr);
+          break;    
         case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -454,7 +460,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_EYE_OF_SAURON:
                 update_eye_of_sauron(vis, 0.033);
-                break;                
+                break;
+            case VIS_TOWER_OF_HANOI:
+                update_hanoi(vis, 0.033);
+                break;                                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -547,6 +556,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Block Stack");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Dancing Parrot");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "The All Seeing Eye");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Tower of Hanoi");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

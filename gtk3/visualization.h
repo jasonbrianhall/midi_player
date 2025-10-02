@@ -23,6 +23,7 @@
 #include "zip_support.h"
 #include "parrot.h"
 #include "sauron.h"
+#include "hanoi.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -51,6 +52,7 @@ typedef enum {
     VIS_BLOCK_STACK,
     VIS_PARROT,
     VIS_EYE_OF_SAURON,
+    VIS_TOWER_OF_HANOI,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -281,6 +283,9 @@ typedef struct {
     // EOS
     EyeOfSauronState eye_of_sauron;
 
+    // Tower of Hanoi
+    HanoiSystem hanoi;
+
 } Visualizer;
 
 // Function declarations
@@ -468,4 +473,11 @@ void update_parrot(Visualizer *vis, double dt);
 // EOS
 void update_eye_of_sauron(Visualizer *vis, double dt);
 void draw_eye_of_sauron(Visualizer *vis, cairo_t *cr);
+
+// TOH
+void init_hanoi_system(Visualizer *vis);
+void update_hanoi(Visualizer *vis, double dt);
+void draw_hanoi(Visualizer *vis, cairo_t *cr);
+
 #endif
+
