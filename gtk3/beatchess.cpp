@@ -11,7 +11,7 @@
 // CORE CHESS ENGINE
 // ============================================================================
 
-#define MAX_MOVES_BEFORE_DRAW 300
+#define MAX_MOVES_BEFORE_DRAW 150
 
 bool chess_is_in_bounds(int r, int c) {
     return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
@@ -190,12 +190,113 @@ int chess_evaluate_position(ChessGameState *game) {
     int piece_values[] = {0, 100, 320, 330, 500, 900, 20000};
     int score = 0;
     
+    // Piece-square tables for positional bonuses
+    int pawn_table[8][8] = {
+        {0,  0,  0,  0,  0,  0,  0,  0},
+        {50, 50, 50, 50, 50, 50, 50, 50},
+        {10, 10, 20, 30, 30, 20, 10, 10},
+        {5,  5, 10, 25, 25, 10,  5,  5},
+        {0,  0,  0, 20, 20,  0,  0,  0},
+        {5, -5,-10,  0,  0,-10, -5,  5},
+        {5, 10, 10,-20,-20, 10, 10,  5},
+        {0,  0,  0,  0,  0,  0,  0,  0}
+    };
+    
+    int knight_table[8][8] = {
+        {-50,-40,-30,-30,-30,-30,-40,-50},
+        {-40,-20,  0,  0,  0,  0,-20,-40},
+        {-30,  0, 10, 15, 15, 10,  0,-30},
+        {-30,  5, 15, 20, 20, 15,  5,-30},
+        {-30,  0, 15, 20, 20, 15,  0,-30},
+        {-30,  5, 10, 15, 15, 10,  5,-30},
+        {-40,-20,  0,  5,  5,  0,-20,-40},
+        {-50,-40,-30,-30,-30,-30,-40,-50}
+    };
+    
+    int bishop_table[8][8] = {
+        {-20,-10,-10,-10,-10,-10,-10,-20},
+        {-10,  0,  0,  0,  0,  0,  0,-10},
+        {-10,  0,  5, 10, 10,  5,  0,-10},
+        {-10,  5,  5, 10, 10,  5,  5,-10},
+        {-10,  0, 10, 10, 10, 10,  0,-10},
+        {-10, 10, 10, 10, 10, 10, 10,-10},
+        {-10,  5,  0,  0,  0,  0,  5,-10},
+        {-20,-10,-10,-10,-10,-10,-10,-20}
+    };
+    
+    int king_middle_game[8][8] = {
+        {-30,-40,-40,-50,-50,-40,-40,-30},
+        {-30,-40,-40,-50,-50,-40,-40,-30},
+        {-30,-40,-40,-50,-50,-40,-40,-30},
+        {-30,-40,-40,-50,-50,-40,-40,-30},
+        {-20,-30,-30,-40,-40,-30,-30,-20},
+        {-10,-20,-20,-20,-20,-20,-20,-10},
+        { 20, 20,  0,  0,  0,  0, 20, 20},
+        { 20, 30, 10,  0,  0, 10, 30, 20}
+    };
+    
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             ChessPiece p = game->board[r][c];
             if (p.type != EMPTY) {
                 int value = piece_values[p.type];
-                score += (p.color == WHITE) ? value : -value;
+                int positional_bonus = 0;
+                
+                // Add positional bonuses
+                if (p.type == PAWN) {
+                    if (p.color == WHITE) {
+                        positional_bonus = pawn_table[r][c];
+                    } else {
+                        positional_bonus = pawn_table[7-r][c];
+                    }
+                } else if (p.type == KNIGHT) {
+                    positional_bonus = knight_table[r][c];
+                } else if (p.type == BISHOP) {
+                    positional_bonus = bishop_table[r][c];
+                } else if (p.type == KING) {
+                    positional_bonus = king_middle_game[r][c];
+                }
+                
+                // Bonus for center control (e4, d4, e5, d5)
+                if ((r == 3 || r == 4) && (c == 3 || c == 4)) {
+                    if (p.type == PAWN || p.type == KNIGHT) {
+                        positional_bonus += 10;
+                    }
+                }
+                
+                int total_value = value + positional_bonus;
+                score += (p.color == WHITE) ? total_value : -total_value;
+            }
+        }
+    }
+    
+    // Mobility bonus - more legal moves is better
+    ChessMove moves[256];
+    int white_mobility = chess_get_all_moves(game, WHITE, moves);
+    int black_mobility = chess_get_all_moves(game, BLACK, moves);
+    score += (white_mobility - black_mobility) * 5;
+    
+    // King safety - penalize if king is exposed
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            if (game->board[r][c].type == KING) {
+                int pawn_shield = 0;
+                ChessColor king_color = game->board[r][c].color;
+                int direction = (king_color == WHITE) ? -1 : 1;
+                
+                // Check for pawns in front of king
+                for (int dc = -1; dc <= 1; dc++) {
+                    int check_r = r + direction;
+                    int check_c = c + dc;
+                    if (chess_is_in_bounds(check_r, check_c)) {
+                        if (game->board[check_r][check_c].type == PAWN && 
+                            game->board[check_r][check_c].color == king_color) {
+                            pawn_shield += 15;
+                        }
+                    }
+                }
+                
+                score += (king_color == WHITE) ? pawn_shield : -pawn_shield;
             }
         }
     }
