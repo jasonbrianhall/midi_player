@@ -2141,6 +2141,7 @@ bool save_current_queue_on_exit(AudioPlayer *player) {
     }
     
     char temp_playlist_path[1024];
+    char position_path[1024];
     char config_dir[512];
     
 #ifdef _WIN32
@@ -2150,6 +2151,7 @@ bool save_current_queue_on_exit(AudioPlayer *player) {
     }
     snprintf(config_dir, sizeof(config_dir), "%s\\Zenamp", app_data);
     snprintf(temp_playlist_path, sizeof(temp_playlist_path), "%s\\temp_queue.m3u", config_dir);
+    snprintf(position_path, sizeof(position_path), "%s\\temp_queue_state.txt", config_dir);
     CreateDirectoryA(config_dir, NULL);
 #else
     const char *home = getenv("HOME");
@@ -2158,12 +2160,23 @@ bool save_current_queue_on_exit(AudioPlayer *player) {
     }
     snprintf(config_dir, sizeof(config_dir), "%s/.zenamp", home);
     snprintf(temp_playlist_path, sizeof(temp_playlist_path), "%s/temp_queue.m3u", config_dir);
+    snprintf(position_path, sizeof(position_path), "%s/temp_queue_state.txt", config_dir);
     mkdir(config_dir, 0755);
 #endif
     
     // Save the current queue to a temporary M3U file
     if (save_m3u_playlist(player, temp_playlist_path)) {
         printf("Saved current queue to: %s\n", temp_playlist_path);
+        
+        // Save current index and playback position
+        FILE *f = fopen(position_path, "w");
+        if (f) {
+            fprintf(f, "%d\n", player->queue.current_index);
+            fprintf(f, "%.2f\n", playTime);
+            fclose(f);
+            printf("Saved playback state: index=%d, time=%.2f\n", 
+                   player->queue.current_index, playTime);
+        }
         
         // Now save this path as the last playlist
         if (save_last_playlist_path(temp_playlist_path)) {
@@ -2368,6 +2381,42 @@ bool load_last_playlist_path(char *playlist_path, size_t path_size) {
     return true;
 }
 
+bool load_playlist_state(int *current_index, double *position) {
+    char position_path[1024];
+    
+#ifdef _WIN32
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(position_path, sizeof(position_path), "%s\\Zenamp\\temp_queue_state.txt", app_data);
+#else
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(position_path, sizeof(position_path), "%s/.zenamp/temp_queue_state.txt", home);
+#endif
+    
+    FILE *f = fopen(position_path, "r");
+    if (!f) {
+        return false;
+    }
+    
+    if (fscanf(f, "%d\n", current_index) != 1) {
+        fclose(f);
+        return false;
+    }
+    
+    if (fscanf(f, "%lf\n", position) != 1) {
+        fclose(f);
+        return false;
+    }
+    
+    fclose(f);
+    printf("Loaded playback state: index=%d, time=%.2f\n", *current_index, *position);
+    return true;
+}
 
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
@@ -2438,12 +2487,30 @@ int main(int argc, char *argv[]) {
             printf("Auto-loading last playlist: %s\n", last_playlist);
             if (load_m3u_playlist(player, last_playlist)) {
                 printf("Successfully loaded last playlist\n");
+                
+                // Try to restore playback state
+                int saved_index = 0;
+                double saved_position = 0.0;
+                if (load_playlist_state(&saved_index, &saved_position)) {
+                    // Set queue to saved index
+                    if (saved_index >= 0 && saved_index < player->queue.count) {
+                        player->queue.current_index = saved_index;
+                        printf("Restored queue index to %d\n", saved_index);
+                        
+                        // Load the file
+                        if (load_file_from_queue(player)) {
+                            // Seek to saved position if valid
+                            if (saved_position > 0 && saved_position < player->song_duration) {
+                                seek_to_position(player, saved_position);
+                                gtk_range_set_value(GTK_RANGE(player->progress_scale), saved_position);
+                                printf("Restored playback position to %.2f\n", saved_position);
+                            }
+                        }
+                    }
+                }
+                
                 update_queue_display(player);
                 update_gui_state(player);
-                // Optionally auto-start playback:
-                // if (player->queue.count > 0 && load_file_from_queue(player)) {
-                //     start_playback(player);
-                // }
             }
         }
     }
