@@ -307,12 +307,17 @@ void* chess_think_continuously(void* arg) {
             int best_move_count = 0;
             int best_score = (game_copy.turn == WHITE) ? INT_MIN : INT_MAX;
             
+            bool depth_completed = true;
+            
             for (int i = 0; i < move_count; i++) {
                 pthread_mutex_lock(&ts->lock);
                 bool should_stop = !ts->thinking;
                 pthread_mutex_unlock(&ts->lock);
                 
-                if (should_stop) break;
+                if (should_stop) {
+                    depth_completed = false;
+                    break;
+                }
                 
                 ChessGameState temp = game_copy;
                 chess_make_move(&temp, moves[i]);
@@ -338,14 +343,20 @@ void* chess_think_continuously(void* arg) {
                 }
             }
             
+            // Only update if we completed this depth
             pthread_mutex_lock(&ts->lock);
-            if (ts->thinking && best_move_count > 0) {
+            if (depth_completed && ts->thinking && best_move_count > 0) {
                 ts->best_move = best_moves[rand() % best_move_count];
                 ts->best_score = best_score;
                 ts->current_depth = depth;
                 ts->has_move = true;
             }
             pthread_mutex_unlock(&ts->lock);
+            
+            // If we were interrupted, stop iterative deepening
+            if (!depth_completed) {
+                break;
+            }
         }
         
         pthread_mutex_lock(&ts->lock);
@@ -378,11 +389,12 @@ ChessMove chess_get_best_move_now(ChessThinkingState *ts) {
     pthread_mutex_lock(&ts->lock);
     ChessMove move = ts->best_move;
     bool has_move = ts->has_move;
+    int depth = ts->current_depth;
     ts->thinking = false; // Stop thinking
     pthread_mutex_unlock(&ts->lock);
     
     if (!has_move) {
-        // No move found yet - pick random legal move
+        // No move found yet - pick random legal move as fallback
         ChessMove moves[256];
         int count = chess_get_all_moves(&ts->game, ts->game.turn, moves);
         if (count > 0) {
@@ -390,6 +402,7 @@ ChessMove chess_get_best_move_now(ChessThinkingState *ts) {
         }
     }
     
+    // Return the best move found so far (stored in ts->best_move)
     return move;
 }
 
