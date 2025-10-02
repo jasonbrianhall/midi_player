@@ -303,6 +303,8 @@ void draw_volume_meter(Visualizer *vis, cairo_t *cr);
 void draw_bubbles(Visualizer *vis, cairo_t *cr);
 void process_audio_simple(Visualizer *vis);
 void init_frequency_bands(Visualizer *vis);
+bool save_last_visualization(VisualizationType vis_type);
+bool load_last_visualization(VisualizationType *vis_type);
 
 // Bubble system function declarations
 void init_bubble_system(Visualizer *vis);

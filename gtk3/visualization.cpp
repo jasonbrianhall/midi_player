@@ -32,6 +32,15 @@ Visualizer* visualizer_new(void) {
     
     // Default settings
     vis->type = VIS_WAVEFORM;
+    
+    // Try to load last visualization type
+    VisualizationType last_vis_type;
+    if (load_last_visualization(&last_vis_type)) {
+        vis->type = last_vis_type;
+        printf("Restored last visualization type: %d\n", last_vis_type);
+    }    
+    
+    
     vis->sensitivity = 1.0;
     vis->decay_rate = 0.95;
     vis->enabled = TRUE;
@@ -87,6 +96,10 @@ Visualizer* visualizer_new(void) {
 void visualizer_free(Visualizer *vis) {
     if (!vis) return;
     
+    if (player->visualizer) {
+        save_last_visualization(player->visualizer->type);
+    }
+
     if (vis->timer_id > 0) {
         g_source_remove(vis->timer_id);
     }
@@ -561,4 +574,68 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_box_pack_start(GTK_BOX(controls_box), sens_scale, FALSE, FALSE, 0);
     
     return controls_box;
+}
+
+bool save_last_visualization(VisualizationType vis_type) {
+    char config_path[1024];
+    
+#ifdef _WIN32
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(config_path, sizeof(config_path), "%s\\Zenamp\\last_visualization.txt", app_data);
+#else
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(config_path, sizeof(config_path), "%s/.zenamp/last_visualization.txt", home);
+#endif
+    
+    FILE *f = fopen(config_path, "w");
+    if (!f) {
+        printf("Failed to save last visualization type\n");
+        return false;
+    }
+    
+    fprintf(f, "%d\n", (int)vis_type);
+    fclose(f);
+    printf("Saved last visualization: %d\n", vis_type);
+    return true;
+}
+
+bool load_last_visualization(VisualizationType *vis_type) {
+    char config_path[1024];
+    
+#ifdef _WIN32
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(config_path, sizeof(config_path), "%s\\Zenamp\\last_visualization.txt", app_data);
+#else
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(config_path, sizeof(config_path), "%s/.zenamp/last_visualization.txt", home);
+#endif
+    
+    FILE *f = fopen(config_path, "r");
+    if (!f) {
+        printf("No last visualization file found\n");
+        return false;
+    }
+    
+    int type_int;
+    if (fscanf(f, "%d", &type_int) != 1) {
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+    
+    *vis_type = (VisualizationType)type_int;
+    printf("Loaded last visualization: %d\n", type_int);
+    return true;
 }
