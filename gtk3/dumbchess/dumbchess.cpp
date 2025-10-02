@@ -5,9 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #define BOARD_SIZE 8
-#define MAX_DEPTH 3
+#define MAX_DEPTH 4
 
 typedef enum { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } PieceType;
 typedef enum { NONE, WHITE, BLACK } Color;
@@ -31,8 +32,17 @@ typedef struct {
     bool black_rook_a_moved, black_rook_h_moved;
 } GameState;
 
+typedef struct {
+    GameState game;
+    Move best_move;
+    int best_score;
+    bool has_move;
+    bool thinking;
+    pthread_mutex_t lock;
+    pthread_t thread;
+} ThinkingState;
+
 void init_board(GameState *game) {
-    // Clear board
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             game->board[r][c].type = EMPTY;
@@ -40,7 +50,6 @@ void init_board(GameState *game) {
         }
     }
     
-    // Set up pieces
     PieceType back_row[] = {ROOK, KNIGHT, BISHOP, QUEEN, KING, BISHOP, KNIGHT, ROOK};
     
     for (int c = 0; c < BOARD_SIZE; c++) {
@@ -226,7 +235,6 @@ int evaluate_position(GameState *game) {
         }
     }
     
-    // Add small random factor to make play less predictable
     score += (rand() % 10) - 5;
     
     return score;
@@ -264,11 +272,8 @@ int minimax(GameState *game, int depth, int alpha, int beta, bool maximizing) {
     
     if (move_count == 0) {
         if (is_in_check(game, game->turn)) {
-            // Checkmate - return score based on depth to prefer faster mates
-            // The closer to root, the better (lower depth = found mate sooner)
             return maximizing ? (-1000000 + depth) : (1000000 - depth);
         }
-        // Stalemate - slightly negative for the side that caused it
         return maximizing ? -50 : 50;
     }
     
@@ -301,74 +306,179 @@ int minimax(GameState *game, int depth, int alpha, int beta, bool maximizing) {
     }
 }
 
-Move get_best_move(GameState *game) {
-    Move moves[256];
-    int move_count = get_all_moves(game, game->turn, moves);
+void* think_continuously(void* arg) {
+    ThinkingState *ts = (ThinkingState*)arg;
     
-    Move best_moves[256];
-    int best_move_count = 0;
-    int best_score = (game->turn == WHITE) ? INT_MIN : INT_MAX;
-    
-    printf("Thinking...\n");
-    
-    // Find all moves with the best score
-    for (int i = 0; i < move_count; i++) {
-        GameState temp = *game;
-        make_move(&temp, moves[i]);
-        int score = minimax(&temp, MAX_DEPTH - 1, INT_MIN, INT_MAX, game->turn == BLACK);
+    while (true) {
+        pthread_mutex_lock(&ts->lock);
+        if (!ts->thinking) {
+            pthread_mutex_unlock(&ts->lock);
+            usleep(10000);
+            continue;
+        }
         
-        if (game->turn == WHITE) {
-            if (score > best_score) {
-                best_score = score;
-                best_moves[0] = moves[i];
-                best_move_count = 1;
-            } else if (score == best_score) {
-                best_moves[best_move_count++] = moves[i];
+        GameState game_copy = ts->game;
+        pthread_mutex_unlock(&ts->lock);
+        
+        Move moves[256];
+        int move_count = get_all_moves(&game_copy, game_copy.turn, moves);
+        
+        if (move_count == 0) {
+            pthread_mutex_lock(&ts->lock);
+            ts->has_move = false;
+            ts->thinking = false;
+            pthread_mutex_unlock(&ts->lock);
+            continue;
+        }
+        
+        for (int depth = 1; depth <= MAX_DEPTH; depth++) {
+            Move best_moves[256];
+            int best_move_count = 0;
+            int best_score = (game_copy.turn == WHITE) ? INT_MIN : INT_MAX;
+            
+            for (int i = 0; i < move_count; i++) {
+                pthread_mutex_lock(&ts->lock);
+                bool should_stop = !ts->thinking;
+                pthread_mutex_unlock(&ts->lock);
+                
+                if (should_stop) break;
+                
+                GameState temp = game_copy;
+                make_move(&temp, moves[i]);
+                int score = minimax(&temp, depth - 1, INT_MIN, INT_MAX, game_copy.turn == BLACK);
+                
+                if (game_copy.turn == WHITE) {
+                    if (score > best_score) {
+                        best_score = score;
+                        best_moves[0] = moves[i];
+                        best_move_count = 1;
+                    } else if (score == best_score) {
+                        best_moves[best_move_count++] = moves[i];
+                    }
+                } else {
+                    if (score < best_score) {
+                        best_score = score;
+                        best_moves[0] = moves[i];
+                        best_move_count = 1;
+                    } else if (score == best_score) {
+                        best_moves[best_move_count++] = moves[i];
+                    }
+                }
             }
-        } else {
-            if (score < best_score) {
-                best_score = score;
-                best_moves[0] = moves[i];
-                best_move_count = 1;
-            } else if (score == best_score) {
-                best_moves[best_move_count++] = moves[i];
+            
+            pthread_mutex_lock(&ts->lock);
+            if (ts->thinking && best_move_count > 0) {
+                ts->best_move = best_moves[rand() % best_move_count];
+                ts->best_score = best_score;
+                ts->has_move = true;
             }
+            pthread_mutex_unlock(&ts->lock);
+        }
+        
+        pthread_mutex_lock(&ts->lock);
+        ts->thinking = false;
+        pthread_mutex_unlock(&ts->lock);
+    }
+    
+    return NULL;
+}
+
+void start_thinking(ThinkingState *ts, GameState *game) {
+    pthread_mutex_lock(&ts->lock);
+    ts->game = *game;
+    ts->thinking = true;
+    ts->has_move = false;
+    pthread_mutex_unlock(&ts->lock);
+}
+
+Move get_best_move_now(ThinkingState *ts) {
+    pthread_mutex_lock(&ts->lock);
+    Move move = ts->best_move;
+    bool has_move = ts->has_move;
+    pthread_mutex_unlock(&ts->lock);
+    
+    if (!has_move) {
+        Move moves[256];
+        int count = get_all_moves(&ts->game, ts->game.turn, moves);
+        if (count > 0) {
+            move = moves[rand() % count];
         }
     }
     
-    // Randomly choose from equally good moves
-    return best_moves[rand() % best_move_count];
+    return move;
+}
+
+void print_help() {
+    printf("Beat-Synchronized Chess Engine\n");
+    printf("Usage: chess [OPTIONS]\n\n");
+    printf("Options:\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("  -b, --beat-sync         Enable beat synchronization mode (AI vs AI)\n");
+    printf("  --bpm <value>           Set beats per minute (default: 120)\n");
+    printf("  -s, --self-play         AI vs AI in manual mode\n");
+    printf("  --delay <ms>            Delay between moves in manual self-play (default: 1000)\n");
+    printf("\nExamples:\n");
+    printf("  chess --beat-sync --bpm 140    # AI plays itself at 140 BPM\n");
+    printf("  chess --self-play              # AI plays itself, press ENTER for moves\n");
+    printf("  chess                          # Play against AI (you are White)\n");
+    exit(0);
 }
 
 int main(int argc, char *argv[]) {
-    // Seed random number generator
     srand(time(NULL));
     
     GameState game;
     init_board(&game);
     
-    bool ai_vs_ai = false;
+    ThinkingState thinking_state;
+    thinking_state.thinking = false;
+    thinking_state.has_move = false;
+    pthread_mutex_init(&thinking_state.lock, NULL);
+    
+    pthread_create(&thinking_state.thread, NULL, think_continuously, &thinking_state);
+    
+    bool beat_sync_mode = false;
+    bool self_play = false;
+    double bpm = 120.0;
     int delay_ms = 1000;
     
-    // Check for self-play mode
     for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_help();
+        }
+        if (strcmp(argv[i], "--beat-sync") == 0 || strcmp(argv[i], "-b") == 0) {
+            beat_sync_mode = true;
+            self_play = true;
+        }
         if (strcmp(argv[i], "--self-play") == 0 || strcmp(argv[i], "-s") == 0) {
-            ai_vs_ai = true;
+            self_play = true;
+        }
+        if (strcmp(argv[i], "--bpm") == 0 && i + 1 < argc) {
+            bpm = atof(argv[i + 1]);
         }
         if (strcmp(argv[i], "--delay") == 0 && i + 1 < argc) {
             delay_ms = atoi(argv[i + 1]);
         }
     }
     
-    printf("Simple Chess Engine with Minimax + Alpha-Beta Pruning\n");
-    if (ai_vs_ai) {
-        printf("AI vs AI mode - watching computer play itself\n\n");
+    printf("Beat-Synchronized Chess Engine\n");
+    if (beat_sync_mode) {
+        printf("♪ Beat sync mode: %.1f BPM (AI vs AI)\n", bpm);
+        printf("Moves will happen on each beat!\n\n");
+    } else if (self_play) {
+        printf("Self-play mode: AI vs AI\n");
+        printf("Press ENTER for next move\n\n");
     } else {
         printf("You are White (♙). Computer is Black (♟).\n");
-        printf("Enter moves as: e2 e4 (from square to square)\n\n");
+        printf("Enter moves as: e2 e4\n\n");
     }
     
     int move_number = 1;
+    double beat_interval = 60.0 / bpm;
+    struct timespec last_beat = {0, 0};
+    clock_gettime(CLOCK_MONOTONIC, &last_beat);
+    
+    start_thinking(&thinking_state, &game);
     
     while (true) {
         print_board(&game);
@@ -389,52 +499,81 @@ int main(int argc, char *argv[]) {
             printf("Check!\n");
         }
         
-        if (ai_vs_ai || game.turn == BLACK) {
-            printf("%s thinking...\n", game.turn == WHITE ? "White" : "Black");
-            Move ai_move = get_best_move(&game);
-            printf("Move %d: %s plays %c%d %c%d\n", 
+        if (beat_sync_mode) {
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            double elapsed = (now.tv_sec - last_beat.tv_sec) + 
+                           (now.tv_nsec - last_beat.tv_nsec) / 1e9;
+            
+            if (elapsed < beat_interval) {
+                usleep((beat_interval - elapsed) * 1e6);
+            }
+            
+            clock_gettime(CLOCK_MONOTONIC, &last_beat);
+            
+            Move ai_move = get_best_move_now(&thinking_state);
+            printf("♪ Move %d: %s plays %c%d→%c%d\n", 
                    move_number++,
                    game.turn == WHITE ? "White" : "Black",
                    'a' + ai_move.from_col, 8 - ai_move.from_row,
                    'a' + ai_move.to_col, 8 - ai_move.to_row);
+            
             make_move(&game, ai_move);
+            start_thinking(&thinking_state, &game);
+        } else if (self_play) {
+            printf("Press ENTER for next move...");
+            getchar();
             
-            if (ai_vs_ai) {
-                // Add delay for self-play visualization
-                #ifdef _WIN32
-                    #include <windows.h>
-                    Sleep(delay_ms);
-                #else
-                    usleep(delay_ms * 1000);
-                #endif
-            }
+            Move ai_move = get_best_move_now(&thinking_state);
+            printf("Move %d: %s plays %c%d→%c%d\n", 
+                   move_number++,
+                   game.turn == WHITE ? "White" : "Black",
+                   'a' + ai_move.from_col, 8 - ai_move.from_row,
+                   'a' + ai_move.to_col, 8 - ai_move.to_row);
+            
+            make_move(&game, ai_move);
+            start_thinking(&thinking_state, &game);
         } else {
-            char from[3], to[3];
-            printf("Your move (e.g., e2 e4): ");
-            if (scanf("%s %s", from, to) != 2) {
-                printf("Invalid input!\n");
-                while (getchar() != '\n');
-                continue;
-            }
-            
-            int fc = from[0] - 'a';
-            int fr = 8 - (from[1] - '0');
-            int tc = to[0] - 'a';
-            int tr = 8 - (to[1] - '0');
-            
-            Move player_move = {fr, fc, tr, tc, 0};
-            
-            if (is_valid_move(&game, fr, fc, tr, tc)) {
-                GameState temp = game;
-                make_move(&temp, player_move);
+            if (game.turn == WHITE) {
+                char from[3], to[3];
+                printf("Your move (e.g., e2 e4): ");
+                if (scanf("%s %s", from, to) != 2) {
+                    printf("Invalid input!\n");
+                    while (getchar() != '\n');
+                    continue;
+                }
                 
-                if (!is_in_check(&temp, WHITE)) {
-                    make_move(&game, player_move);
+                int fc = from[0] - 'a';
+                int fr = 8 - (from[1] - '0');
+                int tc = to[0] - 'a';
+                int tr = 8 - (to[1] - '0');
+                
+                Move player_move = {fr, fc, tr, tc, 0};
+                
+                if (is_valid_move(&game, fr, fc, tr, tc)) {
+                    GameState temp = game;
+                    make_move(&temp, player_move);
+                    
+                    if (!is_in_check(&temp, WHITE)) {
+                        make_move(&game, player_move);
+                        start_thinking(&thinking_state, &game);
+                    } else {
+                        printf("That move would put you in check!\n");
+                    }
                 } else {
-                    printf("That move would put you in check!\n");
+                    printf("Invalid move!\n");
                 }
             } else {
-                printf("Invalid move!\n");
+                printf("Black thinking...\n");
+                usleep(500000);
+                Move ai_move = get_best_move_now(&thinking_state);
+                printf("Move %d: Black plays %c%d→%c%d\n", 
+                       move_number++,
+                       'a' + ai_move.from_col, 8 - ai_move.from_row,
+                       'a' + ai_move.to_col, 8 - ai_move.to_row);
+                
+                make_move(&game, ai_move);
+                start_thinking(&thinking_state, &game);
             }
         }
     }
