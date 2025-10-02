@@ -106,8 +106,58 @@ bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
                    (dr != 0 || dc != 0) &&
                    chess_is_path_clear(game, fr, fc, tr, tc);
         
-        case KING:
-            return abs(dr) <= 1 && abs(dc) <= 1 && (dr != 0 || dc != 0);
+        case KING: {
+            // Normal king move
+            if (abs(dr) <= 1 && abs(dc) <= 1 && (dr != 0 || dc != 0)) {
+                return true;
+            }
+            
+            // Castling
+            if (dr == 0 && abs(dc) == 2) {
+                // Must not have moved king
+                if (piece.color == WHITE && game->white_king_moved) return false;
+                if (piece.color == BLACK && game->black_king_moved) return false;
+                
+                // Kingside castling
+                if (dc == 2) {
+                    if (piece.color == WHITE && game->white_rook_h_moved) return false;
+                    if (piece.color == BLACK && game->black_rook_h_moved) return false;
+                    
+                    // Check path is clear
+                    if (!chess_is_path_clear(game, fr, fc, tr, 7)) return false;
+                    
+                    // Check king doesn't move through check
+                    if (chess_is_in_check(game, piece.color)) return false;
+                    
+                    ChessGameState temp = *game;
+                    temp.board[fr][fc+1] = piece;
+                    temp.board[fr][fc].type = EMPTY;
+                    if (chess_is_in_check(&temp, piece.color)) return false;
+                    
+                    return true;
+                }
+                
+                // Queenside castling
+                if (dc == -2) {
+                    if (piece.color == WHITE && game->white_rook_a_moved) return false;
+                    if (piece.color == BLACK && game->black_rook_a_moved) return false;
+                    
+                    // Check path is clear
+                    if (!chess_is_path_clear(game, fr, fc, tr, 0)) return false;
+                    
+                    // Check king doesn't move through check
+                    if (chess_is_in_check(game, piece.color)) return false;
+                    
+                    ChessGameState temp = *game;
+                    temp.board[fr][fc-1] = piece;
+                    temp.board[fr][fc].type = EMPTY;
+                    if (chess_is_in_check(&temp, piece.color)) return false;
+                    
+                    return true;
+                }
+            }
+            return false;
+        }
         
         default:
             return false;
@@ -159,6 +209,23 @@ void chess_make_move(ChessGameState *game, ChessMove move) {
     game->board[move.to_row][move.to_col] = piece;
     game->board[move.from_row][move.from_col].type = EMPTY;
     game->board[move.from_row][move.from_col].color = NONE;
+    
+    // Handle castling - move the rook too
+    if (piece.type == KING && abs(move.to_col - move.from_col) == 2) {
+        if (move.to_col > move.from_col) {
+            // Kingside castle - move rook from h to f
+            ChessPiece rook = game->board[move.from_row][7];
+            game->board[move.from_row][5] = rook;
+            game->board[move.from_row][7].type = EMPTY;
+            game->board[move.from_row][7].color = NONE;
+        } else {
+            // Queenside castle - move rook from a to d
+            ChessPiece rook = game->board[move.from_row][0];
+            game->board[move.from_row][3] = rook;
+            game->board[move.from_row][0].type = EMPTY;
+            game->board[move.from_row][0].color = NONE;
+        }
+    }
     
     // Pawn promotion
     if (piece.type == PAWN) {
@@ -235,6 +302,9 @@ int chess_evaluate_position(ChessGameState *game) {
         { 20, 30, 10,  0,  0, 10, 30, 20}
     };
     
+    int white_pieces = 0;
+    int black_pieces = 0;
+    
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             ChessPiece p = game->board[r][c];
@@ -242,12 +312,41 @@ int chess_evaluate_position(ChessGameState *game) {
                 int value = piece_values[p.type];
                 int positional_bonus = 0;
                 
+                if (p.color == WHITE) white_pieces++;
+                else black_pieces++;
+                
                 // Add positional bonuses
                 if (p.type == PAWN) {
                     if (p.color == WHITE) {
                         positional_bonus = pawn_table[r][c];
+                        // Bonus for passed pawns
+                        bool passed = true;
+                        for (int check_r = r - 1; check_r >= 0; check_r--) {
+                            for (int check_c = c - 1; check_c <= c + 1; check_c++) {
+                                if (chess_is_in_bounds(check_r, check_c)) {
+                                    if (game->board[check_r][check_c].type == PAWN && 
+                                        game->board[check_r][check_c].color == BLACK) {
+                                        passed = false;
+                                    }
+                                }
+                            }
+                        }
+                        if (passed && r < 4) positional_bonus += 20;
                     } else {
                         positional_bonus = pawn_table[7-r][c];
+                        // Bonus for passed pawns
+                        bool passed = true;
+                        for (int check_r = r + 1; check_r < 8; check_r++) {
+                            for (int check_c = c - 1; check_c <= c + 1; check_c++) {
+                                if (chess_is_in_bounds(check_r, check_c)) {
+                                    if (game->board[check_r][check_c].type == PAWN && 
+                                        game->board[check_r][check_c].color == WHITE) {
+                                        passed = false;
+                                    }
+                                }
+                            }
+                        }
+                        if (passed && r > 3) positional_bonus += 20;
                     }
                 } else if (p.type == KNIGHT) {
                     positional_bonus = knight_table[r][c];
@@ -260,7 +359,7 @@ int chess_evaluate_position(ChessGameState *game) {
                 // Bonus for center control (e4, d4, e5, d5)
                 if ((r == 3 || r == 4) && (c == 3 || c == 4)) {
                     if (p.type == PAWN || p.type == KNIGHT) {
-                        positional_bonus += 10;
+                        positional_bonus += 15;
                     }
                 }
                 
@@ -274,13 +373,13 @@ int chess_evaluate_position(ChessGameState *game) {
     ChessMove moves[256];
     int white_mobility = chess_get_all_moves(game, WHITE, moves);
     int black_mobility = chess_get_all_moves(game, BLACK, moves);
-    score += (white_mobility - black_mobility) * 5;
+    score += (white_mobility - black_mobility) * 10;
     
     // King safety - penalize if king is exposed
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             if (game->board[r][c].type == KING) {
-                int pawn_shield = 0;
+                int safety_score = 0;
                 ChessColor king_color = game->board[r][c].color;
                 int direction = (king_color == WHITE) ? -1 : 1;
                 
@@ -291,15 +390,34 @@ int chess_evaluate_position(ChessGameState *game) {
                     if (chess_is_in_bounds(check_r, check_c)) {
                         if (game->board[check_r][check_c].type == PAWN && 
                             game->board[check_r][check_c].color == king_color) {
-                            pawn_shield += 15;
+                            safety_score += 20;
                         }
                     }
                 }
                 
-                score += (king_color == WHITE) ? pawn_shield : -pawn_shield;
+                // Bonus for castling (king on g1/g8 or c1/c8)
+                if ((king_color == WHITE && r == 7 && (c == 6 || c == 2)) ||
+                    (king_color == BLACK && r == 0 && (c == 6 || c == 2))) {
+                    safety_score += 30;
+                }
+                
+                score += (king_color == WHITE) ? safety_score : -safety_score;
             }
         }
     }
+    
+    // Bishop pair bonus
+    int white_bishops = 0, black_bishops = 0;
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            if (game->board[r][c].type == BISHOP) {
+                if (game->board[r][c].color == WHITE) white_bishops++;
+                else black_bishops++;
+            }
+        }
+    }
+    if (white_bishops >= 2) score += 30;
+    if (black_bishops >= 2) score -= 30;
     
     // Small random factor for variety
     score += (rand() % 10) - 5;
