@@ -902,6 +902,10 @@ bool load_file(AudioPlayer *player, const char *filename) {
         player->is_playing = false;
         player->is_paused = false;
         playTime = 0;
+
+        if (player->has_cdg && player->visualizer) {
+            visualizer_set_type(player->visualizer, VIS_KARAOKE);
+        }
         
         // Extract and display metadata (for non-ZIP files)
         char *metadata = extract_metadata(filename);
