@@ -6,3 +6,9 @@ build/
 *.dll
 *.mp3
 build/
+*.o
+*.zip
+*.cdg
+*.dll
+*.mp3
+build/
