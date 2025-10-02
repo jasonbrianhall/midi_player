@@ -101,6 +101,8 @@ Visualizer* visualizer_new(void) {
 
     init_hanoi_system(vis);
     
+    init_beat_chess_system(vis);
+    
     return vis;
 }
 
@@ -374,6 +376,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_TOWER_OF_HANOI:
           draw_hanoi(vis, cr);
           break;    
+       case VIS_BEAT_CHESS:
+          draw_beat_chess(vis, cr);
+          break;
         case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -463,6 +468,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_TOWER_OF_HANOI:
                 update_hanoi(vis, 0.033);
+                break;
+            case VIS_BEAT_CHESS:
+                update_beat_chess(vis, 0.033);
                 break;                                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
@@ -557,6 +565,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Dancing Parrot");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "The All Seeing Eye");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Tower of Hanoi");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Stupid Chess");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

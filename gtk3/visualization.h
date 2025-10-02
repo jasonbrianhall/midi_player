@@ -24,6 +24,7 @@
 #include "parrot.h"
 #include "sauron.h"
 #include "hanoi.h"
+#include "beatchess.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -53,6 +54,7 @@ typedef enum {
     VIS_PARROT,
     VIS_EYE_OF_SAURON,
     VIS_TOWER_OF_HANOI,
+    VIS_BEAT_CHESS,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -286,6 +288,9 @@ typedef struct {
     // Tower of Hanoi
     HanoiSystem hanoi;
 
+    // Beat Chess
+    BeatChessVisualization beat_chess;
+
 } Visualizer;
 
 // Function declarations
@@ -478,6 +483,43 @@ void draw_eye_of_sauron(Visualizer *vis, cairo_t *cr);
 void init_hanoi_system(Visualizer *vis);
 void update_hanoi(Visualizer *vis, double dt);
 void draw_hanoi(Visualizer *vis, cairo_t *cr);
+
+// Beatchess (stupid chess engine)
+// Core chess engine functions
+void chess_init_board(ChessGameState *game);
+bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc);
+bool chess_is_in_check(ChessGameState *game, ChessColor color);
+void chess_make_move(ChessGameState *game, ChessMove move);
+int chess_evaluate_position(ChessGameState *game);
+int chess_get_all_moves(ChessGameState *game, ChessColor color, ChessMove *moves);
+int chess_minimax(ChessGameState *game, int depth, int alpha, int beta, bool maximizing);
+
+// Thinking state management
+void chess_init_thinking_state(ChessThinkingState *ts);
+void chess_start_thinking(ChessThinkingState *ts, ChessGameState *game);
+ChessMove chess_get_best_move_now(ChessThinkingState *ts);
+void chess_stop_thinking(ChessThinkingState *ts);
+void* chess_think_continuously(void* arg);
+
+// Visualization functions
+void init_beat_chess_system(void *vis);
+void update_beat_chess(void *vis, double dt);
+void draw_beat_chess(void *vis, cairo_t *cr);
+bool beat_chess_detect_beat(void *vis);
+
+// Helper drawing functions
+void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr);
+void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr);
+void draw_chess_last_move_highlight(BeatChessVisualization *chess, cairo_t *cr);
+void draw_chess_status(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
+void draw_chess_eval_bar(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
+void get_piece_symbol(PieceType type, ChessColor color, char *buffer);
+
+// Chess functions
+bool chess_is_in_bounds(int r, int c);
+bool chess_is_path_clear(ChessGameState *game, int fr, int fc, int tr, int tc);
+ChessGameStatus chess_check_game_status(ChessGameState *game);
+void update_beat_chess(void *vis_ptr, double dt);
 
 #endif
 

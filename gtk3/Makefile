@@ -113,7 +113,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	metadata.cpp \
 	parrot.cpp \
 	sauron.cpp \
-	hanoi.cpp
+	hanoi.cpp \
+	beatchess.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
