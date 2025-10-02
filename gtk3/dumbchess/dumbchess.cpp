@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <string.h>
+#include <unistd.h>
+#include <time.h>
 
 #define BOARD_SIZE 8
 #define MAX_DEPTH 3
@@ -63,9 +65,9 @@ void init_board(GameState *game) {
 }
 
 void print_board(GameState *game) {
-    char symbols[7][2] = {
-        {' ', ' '}, {'P', 'p'}, {'N', 'n'}, {'B', 'b'}, 
-        {'R', 'r'}, {'Q', 'q'}, {'K', 'k'}
+    const char *symbols[7][2] = {
+        {" ", " "}, {"♙", "♟"}, {"♘", "♞"}, {"♗", "♝"}, 
+        {"♖", "♜"}, {"♕", "♛"}, {"♔", "♚"}
     };
     
     printf("\n  a b c d e f g h\n");
@@ -74,9 +76,9 @@ void print_board(GameState *game) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             Piece p = game->board[r][c];
             if (p.type == EMPTY) {
-                printf(". ");
+                printf("· ");
             } else {
-                printf("%c ", symbols[p.type][p.color == BLACK ? 1 : 0]);
+                printf("%s ", symbols[p.type][p.color == BLACK ? 1 : 0]);
             }
         }
         printf("%d\n", 8 - r);
@@ -224,6 +226,9 @@ int evaluate_position(GameState *game) {
         }
     }
     
+    // Add small random factor to make play less predictable
+    score += (rand() % 10) - 5;
+    
     return score;
 }
 
@@ -254,18 +259,21 @@ int get_all_moves(GameState *game, Color color, Move *moves) {
 }
 
 int minimax(GameState *game, int depth, int alpha, int beta, bool maximizing) {
-    if (depth == 0) {
-        return evaluate_position(game);
-    }
-    
     Move moves[256];
     int move_count = get_all_moves(game, game->turn, moves);
     
     if (move_count == 0) {
         if (is_in_check(game, game->turn)) {
-            return maximizing ? -999999 : 999999;
+            // Checkmate - return score based on depth to prefer faster mates
+            // The closer to root, the better (lower depth = found mate sooner)
+            return maximizing ? (-1000000 + depth) : (1000000 - depth);
         }
-        return 0;
+        // Stalemate - slightly negative for the side that caused it
+        return maximizing ? -50 : 50;
+    }
+    
+    if (depth == 0) {
+        return evaluate_position(game);
     }
     
     if (maximizing) {
@@ -297,35 +305,70 @@ Move get_best_move(GameState *game) {
     Move moves[256];
     int move_count = get_all_moves(game, game->turn, moves);
     
-    Move best_move = moves[0];
+    Move best_moves[256];
+    int best_move_count = 0;
     int best_score = (game->turn == WHITE) ? INT_MIN : INT_MAX;
     
     printf("Thinking...\n");
     
+    // Find all moves with the best score
     for (int i = 0; i < move_count; i++) {
         GameState temp = *game;
         make_move(&temp, moves[i]);
         int score = minimax(&temp, MAX_DEPTH - 1, INT_MIN, INT_MAX, game->turn == BLACK);
         
-        if (game->turn == WHITE && score > best_score) {
-            best_score = score;
-            best_move = moves[i];
-        } else if (game->turn == BLACK && score < best_score) {
-            best_score = score;
-            best_move = moves[i];
+        if (game->turn == WHITE) {
+            if (score > best_score) {
+                best_score = score;
+                best_moves[0] = moves[i];
+                best_move_count = 1;
+            } else if (score == best_score) {
+                best_moves[best_move_count++] = moves[i];
+            }
+        } else {
+            if (score < best_score) {
+                best_score = score;
+                best_moves[0] = moves[i];
+                best_move_count = 1;
+            } else if (score == best_score) {
+                best_moves[best_move_count++] = moves[i];
+            }
         }
     }
     
-    return best_move;
+    // Randomly choose from equally good moves
+    return best_moves[rand() % best_move_count];
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Seed random number generator
+    srand(time(NULL));
+    
     GameState game;
     init_board(&game);
     
+    bool ai_vs_ai = false;
+    int delay_ms = 1000;
+    
+    // Check for self-play mode
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--self-play") == 0 || strcmp(argv[i], "-s") == 0) {
+            ai_vs_ai = true;
+        }
+        if (strcmp(argv[i], "--delay") == 0 && i + 1 < argc) {
+            delay_ms = atoi(argv[i + 1]);
+        }
+    }
+    
     printf("Simple Chess Engine with Minimax + Alpha-Beta Pruning\n");
-    printf("You are White (uppercase). Computer is Black (lowercase).\n");
-    printf("Enter moves as: e2 e4 (from square to square)\n\n");
+    if (ai_vs_ai) {
+        printf("AI vs AI mode - watching computer play itself\n\n");
+    } else {
+        printf("You are White (♙). Computer is Black (♟).\n");
+        printf("Enter moves as: e2 e4 (from square to square)\n\n");
+    }
+    
+    int move_number = 1;
     
     while (true) {
         print_board(&game);
@@ -346,7 +389,26 @@ int main() {
             printf("Check!\n");
         }
         
-        if (game.turn == WHITE) {
+        if (ai_vs_ai || game.turn == BLACK) {
+            printf("%s thinking...\n", game.turn == WHITE ? "White" : "Black");
+            Move ai_move = get_best_move(&game);
+            printf("Move %d: %s plays %c%d %c%d\n", 
+                   move_number++,
+                   game.turn == WHITE ? "White" : "Black",
+                   'a' + ai_move.from_col, 8 - ai_move.from_row,
+                   'a' + ai_move.to_col, 8 - ai_move.to_row);
+            make_move(&game, ai_move);
+            
+            if (ai_vs_ai) {
+                // Add delay for self-play visualization
+                #ifdef _WIN32
+                    #include <windows.h>
+                    Sleep(delay_ms);
+                #else
+                    usleep(delay_ms * 1000);
+                #endif
+            }
+        } else {
             char from[3], to[3];
             printf("Your move (e.g., e2 e4): ");
             if (scanf("%s %s", from, to) != 2) {
@@ -374,12 +436,6 @@ int main() {
             } else {
                 printf("Invalid move!\n");
             }
-        } else {
-            Move ai_move = get_best_move(&game);
-            printf("Computer moves: %c%d %c%d\n", 
-                   'a' + ai_move.from_col, 8 - ai_move.from_row,
-                   'a' + ai_move.to_col, 8 - ai_move.to_row);
-            make_move(&game, ai_move);
         }
     }
     
