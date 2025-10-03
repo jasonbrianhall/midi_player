@@ -1,7 +1,7 @@
 #include "audio_player.h"
 
 // Global variable to track drag source row
-int drag_source_index = -1;
+static GtkTreeRowReference *drag_source_ref = NULL;
 
 static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data) {
     (void)event;
@@ -23,6 +23,167 @@ static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpoin
     }
     
     return FALSE;
+}
+
+void setup_queue_drag_and_drop(AudioPlayer *player) {
+    GtkWidget *tree_view = player->queue_tree_view;
+    
+    // Enable the tree view as both drag source and drag destination
+    gtk_tree_view_enable_model_drag_source(
+        GTK_TREE_VIEW(tree_view),
+        GDK_BUTTON1_MASK,
+        target_list,
+        n_targets,
+        GDK_ACTION_MOVE
+    );
+    
+    gtk_tree_view_enable_model_drag_dest(
+        GTK_TREE_VIEW(tree_view),
+        target_list,
+        n_targets,
+        GDK_ACTION_MOVE
+    );
+    
+    // Connect drag-and-drop signals
+    g_signal_connect(tree_view, "drag-begin",
+                     G_CALLBACK(on_queue_drag_begin), player);
+    g_signal_connect(tree_view, "drag-data-get",
+                     G_CALLBACK(on_queue_drag_data_get), player);
+    g_signal_connect(tree_view, "drag-data-received",
+                     G_CALLBACK(on_queue_drag_data_received), player);
+    g_signal_connect(tree_view, "drag-end",
+                     G_CALLBACK(on_queue_drag_end), player);
+}
+
+void on_queue_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(widget));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+        drag_source_ref = gtk_tree_row_reference_new(model, path);
+        
+        gint *indices = gtk_tree_path_get_indices(path);
+        int source_index = indices[0];
+        
+        // Create drag icon
+        char *basename = g_path_get_basename(player->queue.files[source_index]);
+        
+        // Get the column values for a nicer drag icon
+        gchar *title = NULL, *artist = NULL;
+        gtk_tree_model_get(model, &iter, 
+                          COL_TITLE, &title,
+                          COL_ARTIST, &artist,
+                          -1);
+        
+        char drag_text[512];
+        if (title && title[0]) {
+            if (artist && artist[0]) {
+                snprintf(drag_text, sizeof(drag_text), "♪ %s - %s", artist, title);
+            } else {
+                snprintf(drag_text, sizeof(drag_text), "♪ %s", title);
+            }
+        } else {
+            snprintf(drag_text, sizeof(drag_text), "♪ %s", basename);
+        }
+        
+        GtkWidget *drag_icon = gtk_label_new(drag_text);
+        gtk_widget_show(drag_icon);
+        gtk_drag_set_icon_widget(context, drag_icon, 0, 0);
+        
+        g_free(basename);
+        g_free(title);
+        g_free(artist);
+        gtk_tree_path_free(path);
+        
+        printf("Drag begin: source index %d\n", source_index);
+    }
+}
+
+void on_queue_drag_data_get(GtkWidget *widget, GdkDragContext *context,
+                            GtkSelectionData *selection_data, guint target_type,
+                            guint time, gpointer user_data) {
+    (void)widget;
+    (void)context;
+    (void)time;
+    (void)user_data;
+    
+    if (target_type == TARGET_STRING && drag_source_ref) {
+        GtkTreePath *path = gtk_tree_row_reference_get_path(drag_source_ref);
+        if (path) {
+            gint *indices = gtk_tree_path_get_indices(path);
+            char index_str[16];
+            snprintf(index_str, sizeof(index_str), "%d", indices[0]);
+            gtk_selection_data_set_text(selection_data, index_str, -1);
+            printf("Drag data get: sending index %d\n", indices[0]);
+            gtk_tree_path_free(path);
+        }
+    }
+}
+
+void on_queue_drag_data_received(GtkWidget *widget, GdkDragContext *context,
+                                 gint x, gint y, GtkSelectionData *selection_data,
+                                 guint target_type, guint time, gpointer user_data) {
+    (void)x;
+    (void)y;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (target_type == TARGET_STRING) {
+        const gchar *data = (const gchar*)gtk_selection_data_get_text(selection_data);
+        if (data) {
+            int source_index = atoi(data);
+            
+            // Get drop position
+            GtkTreePath *dest_path = NULL;
+            GtkTreeViewDropPosition pos;
+            
+            gtk_tree_view_get_drag_dest_row(GTK_TREE_VIEW(widget), &dest_path, &pos);
+            
+            if (dest_path) {
+                gint *indices = gtk_tree_path_get_indices(dest_path);
+                int dest_index = indices[0];
+                
+                // Adjust destination based on drop position
+                if (pos == GTK_TREE_VIEW_DROP_AFTER || 
+                    pos == GTK_TREE_VIEW_DROP_INTO_OR_AFTER) {
+                    dest_index++;
+                }
+                
+                // Adjust if dropping after source (since source will be removed first)
+                if (dest_index > source_index) {
+                    dest_index--;
+                }
+                
+                printf("Drag data received: moving from %d to %d\n", source_index, dest_index);
+                
+                // Perform the reorder
+                if (reorder_queue_item(&player->queue, source_index, dest_index)) {
+                    update_queue_display(player);
+                    update_gui_state(player);
+                    printf("Queue reordered successfully\n");
+                }
+                
+                gtk_tree_path_free(dest_path);
+            }
+        }
+    }
+    
+    gtk_drag_finish(context, TRUE, FALSE, time);
+}
+
+void on_queue_drag_end(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
+    (void)widget;
+    (void)context;
+    (void)user_data;
+    
+    // Clean up the row reference
+    if (drag_source_ref) {
+        gtk_tree_row_reference_free(drag_source_ref);
+        drag_source_ref = NULL;
+    }
 }
 
 void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
@@ -451,44 +612,6 @@ void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer use
     }
 }
 
-
-
-// Drag begin callback
-void on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    // Get the row being dragged
-    GtkListBoxRow *row = GTK_LIST_BOX_ROW(gtk_widget_get_ancestor(widget, GTK_TYPE_LIST_BOX_ROW));
-    if (row) {
-        drag_source_index = gtk_list_box_row_get_index(row);
-        printf("Drag begin: source index %d\n", drag_source_index);
-        
-        // Set drag icon to show which item is being dragged
-        char *basename = g_path_get_basename(player->queue.files[drag_source_index]);
-        GtkWidget *drag_icon = gtk_label_new(basename);
-        gtk_widget_show(drag_icon);
-        gtk_drag_set_icon_widget(context, drag_icon, 0, 0);
-        g_free(basename);
-    }
-}
-
-// Drag data get callback
-void on_drag_data_get(GtkWidget *widget, GdkDragContext *context,
-                           GtkSelectionData *selection_data, guint target_type,
-                           guint time, gpointer user_data) {
-    (void)widget;
-    (void)context;
-    (void)time;
-    (void)user_data;
-    
-    if (target_type == TARGET_STRING && drag_source_index >= 0) {
-        char index_str[16];
-        snprintf(index_str, sizeof(index_str), "%d", drag_source_index);
-        gtk_selection_data_set_text(selection_data, index_str, -1);
-        printf("Drag data get: sending index %d\n", drag_source_index);
-    }
-}
-
 // Drag motion callback (for visual feedback)
 gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
                               gint x, gint y, guint time, gpointer user_data) {
@@ -502,43 +625,6 @@ gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
     gdk_drag_status(context, GDK_ACTION_MOVE, time);
     return TRUE;
 }
-
-// Drag data received callback
-void on_drag_data_received(GtkWidget *widget, GdkDragContext *context,
-                                gint x, gint y, GtkSelectionData *selection_data,
-                                guint target_type, guint time, gpointer user_data) {
-    (void)x;
-    (void)y;
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    if (target_type == TARGET_STRING) {
-        // Get the source index from drag data
-        const gchar *data = (const gchar*)gtk_selection_data_get_text(selection_data);
-        if (data) {
-            int source_index = atoi(data);
-            
-            // Get the destination index (row we're dropping on)
-            GtkListBoxRow *target_row = GTK_LIST_BOX_ROW(gtk_widget_get_ancestor(widget, GTK_TYPE_LIST_BOX_ROW));
-            if (target_row) {
-                int target_index = gtk_list_box_row_get_index(target_row);
-                
-                printf("Drag data received: moving from %d to %d\n", source_index, target_index);
-                
-                // Perform the reorder
-                if (reorder_queue_item(&player->queue, source_index, target_index)) {
-                    // Update the display
-                    update_queue_display(player);
-                    update_gui_state(player);
-                    printf("Queue reordered successfully\n");
-                }
-            }
-        }
-    }
-    
-    gtk_drag_finish(context, TRUE, FALSE, time);
-    drag_source_index = -1; // Reset
-}
-
 
 gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
                             gint x, gint y, guint time, gpointer user_data) {

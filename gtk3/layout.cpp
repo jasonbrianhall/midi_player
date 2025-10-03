@@ -474,6 +474,10 @@ void create_queue_treeview(AudioPlayer *player) {
     
     // Add to scrolled window
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
+    
+    // Setup drag-and-drop after tree view is created
+    setup_queue_drag_and_drop(player);
+
 }
 
 static void connect_widget_signals(AudioPlayer *player) {

@@ -256,6 +256,12 @@ void move_queue_item_down(AudioPlayer *player, int index);
 void on_queue_move_up(GtkMenuItem *menuitem, gpointer user_data);
 void on_queue_move_down(GtkMenuItem *menuitem, gpointer user_data);
 gboolean on_queue_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
+void setup_queue_drag_and_drop(AudioPlayer *player);
+void on_queue_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data);
+void on_queue_drag_data_get(GtkWidget *widget, GdkDragContext *context, GtkSelectionData *selection_data, guint target_type, guint time, gpointer user_data);
+void on_queue_drag_data_received(GtkWidget *widget, GdkDragContext *context, gint x, gint y, GtkSelectionData *selection_data, guint target_type, guint time, gpointer user_data);
+void on_queue_drag_end(GtkWidget *widget, GdkDragContext *context, gpointer user_data);
+bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);
