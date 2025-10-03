@@ -256,52 +256,40 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
 }
 
 void update_queue_display(AudioPlayer *player) {
-    // Clear existing items
     GList *children = gtk_container_get_children(GTK_CONTAINER(player->queue_listbox));
     for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
         gtk_widget_destroy(GTK_WIDGET(iter->data));
     }
     g_list_free(children);
     
-    // Add queue items with drag and drop support
     for (int i = 0; i < player->queue.count; i++) {
         char *basename = g_path_get_basename(player->queue.files[i]);
         
         GtkWidget *row = gtk_list_box_row_new();
         
-        // Create an event box to handle events properly
         GtkWidget *event_box = gtk_event_box_new();
         gtk_container_add(GTK_CONTAINER(row), event_box);
         
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
         gtk_container_add(GTK_CONTAINER(event_box), box);
         
-        // Current playing indicator
         const char *indicator = (i == player->queue.current_index) ? "▶ " : "  ";
         GtkWidget *indicator_label = gtk_label_new(indicator);
         gtk_box_pack_start(GTK_BOX(box), indicator_label, FALSE, FALSE, 0);
         
-        // Drag handle (visual indicator that item can be dragged)
         GtkWidget *drag_handle = gtk_label_new("☰");
         gtk_widget_set_tooltip_text(drag_handle, "Drag to reorder");
         gtk_box_pack_start(GTK_BOX(box), drag_handle, FALSE, FALSE, 0);
 
         GtkWidget *filename_label = gtk_label_new(basename);
-
-        // Left-align the label inside the box
         gtk_widget_set_halign(filename_label, GTK_ALIGN_START);
-
-        // Left-align the text inside the label itself
         gtk_label_set_xalign(GTK_LABEL(filename_label), 0.0);
-
         gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
 
-        // Add remove button
         GtkWidget *remove_button = gtk_button_new_with_label("✗");
         gtk_widget_set_size_request(remove_button, 30, 30);
         gtk_widget_set_tooltip_text(remove_button, "Remove from queue");
         
-        // Store the index in the button data
         g_object_set_data(G_OBJECT(remove_button), "queue_index", GINT_TO_POINTER(i));
         g_object_set_data(G_OBJECT(remove_button), "player", player);
         
@@ -309,30 +297,25 @@ void update_queue_display(AudioPlayer *player) {
         
         gtk_box_pack_end(GTK_BOX(box), remove_button, FALSE, FALSE, 0);
         
-        // Set up drag source on the EVENT BOX (not the row)
         gtk_drag_source_set(event_box, 
                            GDK_BUTTON1_MASK,
                            target_list, 
                            n_targets, 
                            GDK_ACTION_MOVE);
         
-        // Connect drag signals to the EVENT BOX
         g_signal_connect(event_box, "drag-begin", G_CALLBACK(on_drag_begin), player);
         g_signal_connect(event_box, "drag-data-get", G_CALLBACK(on_drag_data_get), player);
         
-        // Set up drop target on the EVENT BOX
         gtk_drag_dest_set(event_box, 
                          GTK_DEST_DEFAULT_ALL,
                          target_list, 
                          n_targets, 
                          GDK_ACTION_MOVE);
         
-        // Connect drop signals to the EVENT BOX
         g_signal_connect(event_box, "drag-motion", G_CALLBACK(on_drag_motion), player);
         g_signal_connect(event_box, "drag-data-received", G_CALLBACK(on_drag_data_received), player);
         g_signal_connect(event_box, "drag-drop", G_CALLBACK(on_drag_drop), player);
         
-        // Handle clicks on the event box (but not on the remove button)
         g_signal_connect(event_box, "button-press-event", G_CALLBACK(on_queue_item_button_press), player);
         
         gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
@@ -340,6 +323,16 @@ void update_queue_display(AudioPlayer *player) {
     }
     
     gtk_widget_show_all(player->queue_listbox);
+    
+    if (player->queue.count > 0 && player->queue.current_index >= 0) {
+        GtkListBoxRow *current_row = gtk_list_box_get_row_at_index(
+            GTK_LIST_BOX(player->queue_listbox), 
+            player->queue.current_index
+        );
+        if (current_row) {
+            gtk_list_box_select_row(GTK_LIST_BOX(player->queue_listbox), current_row);
+        }
+    }
 }
 
 gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {

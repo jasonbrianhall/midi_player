@@ -14,24 +14,83 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     (void)widget;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    // Check for Ctrl modifier
     gboolean ctrl_pressed = (event->state & GDK_CONTROL_MASK) != 0;
-    // Check for Shift modifier  
     gboolean shift_pressed = (event->state & GDK_SHIFT_MASK) != 0;
     
+    // Check if queue has focus for special handling
+    gboolean queue_focused = gtk_widget_has_focus(player->queue_listbox);
+    
     switch (event->keyval) {
+        case GDK_KEY_Return:
+        case GDK_KEY_KP_Enter:
+            // Enter: Play selected queue item if queue has focus
+            if (queue_focused) {
+                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
+                if (selected_row) {
+                    int selected_index = gtk_list_box_row_get_index(selected_row);
+                    
+                    if (selected_index == player->queue.current_index && player->is_playing) {
+                        printf("Already playing this song\n");
+                        return TRUE;
+                    }
+                    
+                    stop_playback(player);
+                    player->queue.current_index = selected_index;
+                    
+                    if (load_file_from_queue(player)) {
+                        update_queue_display(player);
+                        update_gui_state(player);
+                        start_playback(player);
+                        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+                    }
+                }
+                return TRUE;
+            }
+            break;
+            
+        case GDK_KEY_x:
+        case GDK_KEY_X:
+            // X: Remove selected item if queue has focus
+            if (queue_focused) {
+                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
+                if (selected_row) {
+                    int selected_index = gtk_list_box_row_get_index(selected_row);
+                    printf("Removing item %d from queue via keyboard\n", selected_index);
+                    
+                    bool was_current_playing = (selected_index == player->queue.current_index && player->is_playing);
+                    bool queue_will_be_empty = (player->queue.count <= 1);
+                    
+                    if (remove_from_queue(&player->queue, selected_index)) {
+                        if (queue_will_be_empty) {
+                            stop_playback(player);
+                            player->is_loaded = false;
+                            gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+                        } else if (was_current_playing) {
+                            stop_playback(player);
+                            if (load_file_from_queue(player)) {
+                                update_gui_state(player);
+                                start_playback(player);
+                            }
+                        }
+                        update_queue_display(player);
+                        update_gui_state(player);
+                    }
+                }
+                return TRUE;
+            }
+            break;
+            
         case GDK_KEY_F9:
         case GDK_KEY_F:
         case GDK_KEY_f:
             toggle_vis_fullscreen(player);
             return TRUE;
+            
         case GDK_KEY_space:
-            // Check if queue listbox has focus
-            if (gtk_widget_has_focus(player->queue_listbox)) {
-                return FALSE; // Let the queue handle it
+            if (queue_focused) {
+                return FALSE;
             }
-    
-            // Space: Play/Pause toggle
+            
             if (player->is_playing) {
                 toggle_pause(player);
             } else if (player->is_loaded) {
@@ -42,7 +101,36 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_Delete:
         case GDK_KEY_d:
-            // Delete or 'd': Remove current song from queue
+            // If queue has focus, handle in the 'x' case above
+            if (queue_focused && event->keyval == GDK_KEY_Delete) {
+                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
+                if (selected_row) {
+                    int selected_index = gtk_list_box_row_get_index(selected_row);
+                    printf("Removing item %d from queue via Delete\n", selected_index);
+                    
+                    bool was_current_playing = (selected_index == player->queue.current_index && player->is_playing);
+                    bool queue_will_be_empty = (player->queue.count <= 1);
+                    
+                    if (remove_from_queue(&player->queue, selected_index)) {
+                        if (queue_will_be_empty) {
+                            stop_playback(player);
+                            player->is_loaded = false;
+                            gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+                        } else if (was_current_playing) {
+                            stop_playback(player);
+                            if (load_file_from_queue(player)) {
+                                update_gui_state(player);
+                                start_playback(player);
+                            }
+                        }
+                        update_queue_display(player);
+                        update_gui_state(player);
+                    }
+                }
+                return TRUE;
+            }
+            
+            // Otherwise, remove currently playing song
             if (player->queue.count > 0) {
                 int current_index = player->queue.current_index;
                 printf("Removing current song (index %d) via keyboard\n", current_index);
@@ -69,7 +157,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             return TRUE;
             
         case GDK_KEY_n:
-            // 'n' or Right Arrow: Next song
             if (!ctrl_pressed) {
                 next_song(player);
                 return TRUE;
@@ -77,7 +164,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_p:
-            // 'p' or Left Arrow: Previous song  
             if (!ctrl_pressed) {
                 previous_song(player);
                 return TRUE;
@@ -85,7 +171,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_s:
-            // 's': Stop
             if (!ctrl_pressed) {
                 stop_playback(player);
                 update_gui_state(player);
@@ -94,7 +179,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_r:
-            // 'r': Toggle repeat
             if (!ctrl_pressed) {
                 player->queue.repeat_queue = !player->queue.repeat_queue;
                 gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), 
@@ -107,19 +191,16 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
         case GDK_KEY_Left:
         case GDK_KEY_comma:
         case GDK_KEY_less:
-            // ',' or '<': Rewind 5 seconds
             rewind_5_seconds(player);
             return TRUE;
             
         case GDK_KEY_Right:
         case GDK_KEY_period:
         case GDK_KEY_greater:
-            // '.' or '>': Fast forward 5 seconds
             fast_forward_5_seconds(player);
             return TRUE;
             
         case GDK_KEY_Home:
-            // Home: Go to beginning of song
             if (player->is_loaded) {
                 seek_to_position(player, 0.0);
                 gtk_range_set_value(GTK_RANGE(player->progress_scale), 0.0);
@@ -127,15 +208,16 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             return TRUE;
             
         case GDK_KEY_End:
-            // End: Go to end of song (basically skip to next)
             if (player->is_loaded && player->queue.count > 1) {
                 next_song(player);
             }
             return TRUE;
             
         case GDK_KEY_Up:
-            // Up Arrow: Volume up
             {
+                if (queue_focused) {
+                    return FALSE;
+                }
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current + 0.1;
                 if (new_vol > 5.0) new_vol = 5.0;
@@ -145,9 +227,10 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_Down:
-            // Down Arrow: Volume down
             {
-                // Shift+Down: Volume down by 10%
+                if (queue_focused) {
+                    return FALSE;
+                }
                 double current = gtk_range_get_value(GTK_RANGE(player->volume_scale));
                 double new_vol = current - 0.1;
                 if (new_vol < 0.0) new_vol = 0.0;
@@ -157,7 +240,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_o:
-            // Ctrl+O: Open file
             if (ctrl_pressed) {
                 on_menu_open(NULL, player);
                 return TRUE;
@@ -165,7 +247,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_a:
-            // Ctrl+A: Add to queue
             if (ctrl_pressed) {
                 on_add_to_queue_clicked(NULL, player);
                 return TRUE;
@@ -173,7 +254,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_c:
-            // Ctrl+C: Clear queue
             if (ctrl_pressed) {
                 on_clear_queue_clicked(NULL, player);
                 return TRUE;
@@ -181,7 +261,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_q:
-            // Ctrl+Q: Quit
             if (ctrl_pressed) {
                 gtk_main_quit();
                 return TRUE;
@@ -189,12 +268,10 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             break;
             
         case GDK_KEY_F1:
-            // F1: Show help
             show_keyboard_help(player);
             return TRUE;
             
         case GDK_KEY_F11:
-            // F11: Toggle fullscreen
             toggle_fullscreen(player);
             return TRUE;
 
@@ -208,9 +285,8 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
         case GDK_KEY_7:
         case GDK_KEY_8:
         case GDK_KEY_9:
-            // Number keys: Jump to queue position (1-9)
             {
-                int queue_pos = event->keyval - GDK_KEY_1; // 0-based index
+                int queue_pos = event->keyval - GDK_KEY_1;
                 if (queue_pos < player->queue.count) {
                     stop_playback(player);
                     player->queue.current_index = queue_pos;
@@ -224,7 +300,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             return TRUE;
     }
     
-    return FALSE; // Event not handled
+    return FALSE;
 }
 
 void toggle_fullscreen(AudioPlayer *player) {

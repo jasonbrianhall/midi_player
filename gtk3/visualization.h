@@ -315,6 +315,7 @@ void process_audio_simple(Visualizer *vis);
 void init_frequency_bands(Visualizer *vis);
 bool save_last_visualization(VisualizationType vis_type);
 bool load_last_visualization(VisualizationType *vis_type);
+static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data);
 
 // Bubble system function declarations
 void init_bubble_system(Visualizer *vis);
@@ -501,7 +502,7 @@ ChessMove chess_get_best_move_now(ChessThinkingState *ts);
 void chess_stop_thinking(ChessThinkingState *ts);
 void* chess_think_continuously(void* arg);
 
-// Visualization functions
+// Chess Visualization functions
 void init_beat_chess_system(void *vis);
 void update_beat_chess(void *vis, double dt);
 void draw_beat_chess(void *vis, cairo_t *cr);

@@ -402,7 +402,6 @@ static void create_icon_section(AudioPlayer *player) {
 }
 
 static void create_queue_display(AudioPlayer *player) {
-    // Queue display - now on the right side but arranged vertically
     player->layout.queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_box_pack_start(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, TRUE, TRUE, 0);
 
@@ -410,23 +409,46 @@ static void create_queue_display(AudioPlayer *player) {
     gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), queue_label, FALSE, FALSE, 0);
 
-    // Set size based on layout config - adjust height to leave room for equalizer
     player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     
-    // Reduce queue height to make room for equalizer below
-    int adjusted_queue_height = player->layout.config.queue_height - 150; // Reserve space for equalizer
+    int adjusted_queue_height = player->layout.config.queue_height - 150;
     gtk_widget_set_size_request(player->queue_scrolled_window, 
                                player->layout.config.queue_width, 
                                adjusted_queue_height);
 
     player->queue_listbox = gtk_list_box_new();
+    gtk_widget_set_can_focus(player->queue_listbox, TRUE);
+    gtk_list_box_set_selection_mode(GTK_LIST_BOX(player->queue_listbox), GTK_SELECTION_SINGLE);
+    gtk_list_box_set_activate_on_single_click(GTK_LIST_BOX(player->queue_listbox), FALSE);
+    
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
     
-    // Add equalizer at the bottom of the right side
     gtk_box_pack_end(GTK_BOX(player->layout.queue_vbox), player->layout.shared_equalizer, FALSE, FALSE, 0);
+}
+
+static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data) {
+    (void)event;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // When queue gains focus, select the currently playing item if nothing is selected
+    GtkListBoxRow *selected = gtk_list_box_get_selected_row(GTK_LIST_BOX(widget));
+    if (!selected && player->queue.count > 0) {
+        // Select the currently playing song
+        GtkListBoxRow *current_row = gtk_list_box_get_row_at_index(
+            GTK_LIST_BOX(widget), 
+            player->queue.current_index
+        );
+        if (current_row) {
+            gtk_list_box_select_row(GTK_LIST_BOX(widget), current_row);
+            printf("Auto-selected current playing song (index %d) when queue gained focus\n", 
+                   player->queue.current_index);
+        }
+    }
+    
+    return FALSE;
 }
 
 static void connect_widget_signals(AudioPlayer *player) {
