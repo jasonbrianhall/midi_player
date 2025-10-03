@@ -207,7 +207,7 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
     }
     fclose(mp3_file);
     
-    // Read metadata from MP3
+    /*// Read metadata from MP3
     printf("\n--- Reading MP3 Metadata ---\n");
     
     // Try ID3v2 first (at beginning of file)
@@ -256,7 +256,7 @@ bool convert_mp3_to_wav(AudioPlayer *player, const char* filename) {
         printf("No metadata found in MP3 file\n");
     }
     printf("--- End Metadata ---\n\n");
-    
+    */
     // Convert MP3 to WAV in memory
     std::vector<uint8_t> wav_data;
     if (!convertMp3ToWavInMemory(mp3_data, wav_data)) {
