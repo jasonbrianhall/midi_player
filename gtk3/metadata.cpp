@@ -20,6 +20,7 @@ char* extract_metadata(const char *filepath) {
         const char *title = taglib_tag_title(tag);
         const char *artist = taglib_tag_artist(tag);
         const char *album = taglib_tag_album(tag);
+        const char *genre = taglib_tag_genre(tag);  // ADD THIS
         unsigned int year = taglib_tag_year(tag);
         
         if (title && strlen(title) > 0)
@@ -31,15 +32,26 @@ char* extract_metadata(const char *filepath) {
         if (album && strlen(album) > 0)
             snprintf(metadata + strlen(metadata), sizeof(metadata) - strlen(metadata), 
                     "<b>Album:</b> %s\n", album);
+        if (genre && strlen(genre) > 0)  // ADD THIS
+            snprintf(metadata + strlen(metadata), sizeof(metadata) - strlen(metadata), 
+                    "<b>Genre:</b> %s\n", genre);
         if (year > 0)
             snprintf(metadata + strlen(metadata), sizeof(metadata) - strlen(metadata), 
                     "<b>Year:</b> %u\n", year);
     }
     
     if (props) {
+        int duration = taglib_audioproperties_length(props);
         int bitrate = taglib_audioproperties_bitrate(props);
         int samplerate = taglib_audioproperties_samplerate(props);
         int channels = taglib_audioproperties_channels(props);
+        
+        if (duration > 0) {
+            int minutes = duration / 60;
+            int seconds = duration % 60;
+            snprintf(metadata + strlen(metadata), sizeof(metadata) - strlen(metadata), 
+                    "<b>Duration:</b> %d:%02d\n", minutes, seconds);
+        }
         
         if (bitrate > 0)
             snprintf(metadata + strlen(metadata), sizeof(metadata) - strlen(metadata), 

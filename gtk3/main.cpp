@@ -255,44 +255,6 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
     }
 }
 
-void update_queue_display(AudioPlayer *player) {
-    // Clear existing model
-    if (player->queue_store) {
-        gtk_list_store_clear(player->queue_store);
-    }
-    
-    // Add each queue item
-    for (int i = 0; i < player->queue.count; i++) {
-        GtkTreeIter iter;
-        gtk_list_store_append(player->queue_store, &iter);
-        
-        // Extract metadata for this file
-        char *metadata = extract_metadata(player->queue.files[i]);
-        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
-        parse_metadata(metadata, title, artist, album, genre);
-        g_free(metadata);
-        
-        // Get duration
-        // You'll need to implement get_file_duration() or cache this
-        int duration = get_file_duration(player->queue.files[i]);
-        char duration_str[16];
-        snprintf(duration_str, sizeof(duration_str), "%d:%02d", 
-                 duration / 60, duration % 60);
-        
-        const char *indicator = (i == player->queue.current_index) ? "▶" : "";
-        
-        gtk_list_store_set(player->queue_store, &iter,
-            COL_FILEPATH, player->queue.files[i],
-            COL_PLAYING, indicator,
-            COL_TITLE, title,
-            COL_ARTIST, artist,
-            COL_ALBUM, album,
-            COL_GENRE, genre,
-            COL_DURATION, duration_str,
-            -1);
-    }
-}
-
 gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
@@ -2530,41 +2492,6 @@ bool load_player_settings(AudioPlayer *player) {
     
     printf("Settings loaded successfully\n");
     return true;
-}
-
-void create_queue_treeview(AudioPlayer *player) {
-    // Create list store
-    player->queue_store = gtk_list_store_new(NUM_COLS,
-        G_TYPE_STRING,  // filepath
-        G_TYPE_STRING,  // playing indicator
-        G_TYPE_STRING,  // title
-        G_TYPE_STRING,  // artist
-        G_TYPE_STRING,  // album
-        G_TYPE_STRING,  // genre
-        G_TYPE_STRING); // duration
-    
-    // Create tree view
-    GtkWidget *tree_view = gtk_tree_view_new_with_model(
-        GTK_TREE_MODEL(player->queue_store));
-    
-    // Create columns
-    add_column(tree_view, "", COL_PLAYING, 30, FALSE);
-    add_column(tree_view, "Title", COL_TITLE, 200, TRUE);
-    add_column(tree_view, "Artist", COL_ARTIST, 150, TRUE);
-    add_column(tree_view, "Album", COL_ALBUM, 150, TRUE);
-    add_column(tree_view, "Genre", COL_GENRE, 100, TRUE);
-    add_column(tree_view, "Time", COL_DURATION, 60, TRUE);
-    
-    // Enable sorting
-    gtk_tree_view_set_enable_search(GTK_TREE_VIEW(tree_view), TRUE);
-    gtk_tree_view_set_search_column(GTK_TREE_VIEW(tree_view), COL_TITLE);
-    
-    // Connect click handler
-    g_signal_connect(tree_view, "row-activated",
-                     G_CALLBACK(on_queue_row_activated), player);
-    
-    // Add to scrolled window
-    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
 }
 
 void parse_metadata(const char *metadata_str, char *title, char *artist, 

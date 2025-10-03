@@ -431,6 +431,45 @@ static void create_queue_display(AudioPlayer *player) {
     gtk_box_pack_end(GTK_BOX(player->layout.queue_vbox), player->layout.shared_equalizer, FALSE, FALSE, 0);
 }
 
+void create_queue_treeview(AudioPlayer *player) {
+    // Create list store
+    player->queue_store = gtk_list_store_new(NUM_COLS,
+        G_TYPE_STRING,  // filepath
+        G_TYPE_STRING,  // playing indicator
+        G_TYPE_STRING,  // filename
+        G_TYPE_STRING,  // title
+        G_TYPE_STRING,  // artist
+        G_TYPE_STRING,  // album
+        G_TYPE_STRING,  // genre
+        G_TYPE_STRING); // duration
+    
+    // Create tree view
+    GtkWidget *tree_view = gtk_tree_view_new_with_model(
+        GTK_TREE_MODEL(player->queue_store));
+    
+    player->queue_tree_view = tree_view; // Store reference
+    
+    // Create columns - Filename first, then others
+    add_column(tree_view, "", COL_PLAYING, 30, FALSE);
+    add_column(tree_view, "Filename", COL_FILENAME, 200, TRUE);
+    add_column(tree_view, "Title", COL_TITLE, 180, TRUE);
+    add_column(tree_view, "Artist", COL_ARTIST, 150, TRUE);
+    add_column(tree_view, "Album", COL_ALBUM, 150, TRUE);
+    add_column(tree_view, "Genre", COL_GENRE, 100, TRUE);
+    add_column(tree_view, "Time", COL_DURATION, 60, TRUE);
+    
+    // Enable sorting
+    gtk_tree_view_set_enable_search(GTK_TREE_VIEW(tree_view), TRUE);
+    gtk_tree_view_set_search_column(GTK_TREE_VIEW(tree_view), COL_FILENAME);
+    
+    // Connect click handler
+    g_signal_connect(tree_view, "row-activated",
+                     G_CALLBACK(on_queue_row_activated), player);
+    
+    // Add to scrolled window
+    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
+}
+
 static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data) {
     (void)event;
     AudioPlayer *player = (AudioPlayer*)user_data;

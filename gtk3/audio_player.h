@@ -36,6 +36,7 @@ typedef struct {
 enum {
     COL_FILEPATH = 0,
     COL_PLAYING,      // "▶" indicator
+    COL_FILENAME,
     COL_TITLE,
     COL_ARTIST,
     COL_ALBUM,
