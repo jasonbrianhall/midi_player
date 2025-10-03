@@ -171,6 +171,7 @@ void update_status_text(ChessGUI *gui) {
 }
 
 void make_ai_move(ChessGUI *gui) {
+    // This stops thinking and gets whatever move has been found so far
     ChessMove ai_move = chess_get_best_move_now(&gui->thinking_state);
     
     if (chess_is_valid_move(&gui->game, ai_move.from_row, ai_move.from_col,
@@ -193,7 +194,15 @@ void make_ai_move(ChessGUI *gui) {
                 chess_start_thinking(&gui->thinking_state, &gui->game);
                 gui->ai_think_time = 0;  // Reset think timer
             }
+        } else {
+            // Move was invalid - restart thinking
+            chess_start_thinking(&gui->thinking_state, &gui->game);
+            gui->ai_think_time = 0;
         }
+    } else {
+        // Move was invalid - restart thinking  
+        chess_start_thinking(&gui->thinking_state, &gui->game);
+        gui->ai_think_time = 0;
     }
     
     update_status_text(gui);
@@ -216,39 +225,23 @@ gboolean ai_move_timeout(gpointer data) {
         return G_SOURCE_CONTINUE;
     }
     
+    bool should_move = false;
+    
     if (gui->zero_players) {
-        // AI vs AI - check if AI has completed a reasonable depth
-        pthread_mutex_lock(&gui->thinking_state.lock);
-        bool has_move = gui->thinking_state.has_move;
-        int depth = gui->thinking_state.current_depth;
-        bool is_thinking = gui->thinking_state.thinking;
-        pthread_mutex_unlock(&gui->thinking_state.lock);
-        
+        // AI vs AI mode
+        should_move = true;
+    } else {
+        // Single player - only when it's AI's turn
+        should_move = (gui->player_is_white && gui->game.turn == BLACK) ||
+                      (!gui->player_is_white && gui->game.turn == WHITE);
+    }
+    
+    if (should_move) {
         gui->ai_think_time += 1.0;
         
-        // Move when: depth 2+ completed, finished thinking, or 10 second timeout
-        if ((has_move && depth >= 2) || !is_thinking || gui->ai_think_time >= 10.0) {
+        // Force move after 2 seconds for fast-paced play, 10 seconds as hard limit
+        if (gui->ai_think_time >= 2.0) {
             make_ai_move(gui);
-        }
-        return G_SOURCE_CONTINUE;
-    } else {
-        // Check if it's AI's turn
-        if ((gui->player_is_white && gui->game.turn == BLACK) ||
-            (!gui->player_is_white && gui->game.turn == WHITE)) {
-            
-            // Check if AI has completed a reasonable depth
-            pthread_mutex_lock(&gui->thinking_state.lock);
-            bool has_move = gui->thinking_state.has_move;
-            int depth = gui->thinking_state.current_depth;
-            bool is_thinking = gui->thinking_state.thinking;
-            pthread_mutex_unlock(&gui->thinking_state.lock);
-            
-            gui->ai_think_time += 1.0;
-            
-            // Move when: depth 2+ completed, finished thinking, or 10 second timeout
-            if ((has_move && depth >= 2) || !is_thinking || gui->ai_think_time >= 10.0) {
-                make_ai_move(gui);
-            }
         }
     }
     
