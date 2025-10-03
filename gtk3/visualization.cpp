@@ -524,7 +524,6 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
         screen_width/=scale;
     }
 
-
     bool use_compact_controls = (screen_width <= 1024);
     
     GtkWidget *controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, use_compact_controls ? 3 : 5);
@@ -532,6 +531,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     // Enable/disable checkbox
     GtkWidget *enable_check = gtk_check_button_new_with_label("Enable");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(enable_check), vis->enabled);
+    gtk_widget_set_tooltip_text(enable_check, "Enable/disable visualization");
     g_signal_connect(enable_check, "toggled", G_CALLBACK(on_vis_enabled_toggled), vis);
     gtk_box_pack_start(GTK_BOX(controls_box), enable_check, FALSE, FALSE, 0);
     
@@ -570,6 +570,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
+    gtk_widget_set_tooltip_text(type_combo, "Select visualization type (Q: Next | A: Previous)");
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     
     if (use_compact_controls) {
@@ -587,6 +588,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     
     GtkWidget *sens_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(sens_scale), vis->sensitivity);
+    gtk_widget_set_tooltip_text(sens_scale, "Adjust visualization sensitivity to audio");
     
     if (use_compact_controls) {
         // Smaller sensitivity slider for compact layout
@@ -601,7 +603,6 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     
     return controls_box;
 }
-
 void visualizer_next_mode(Visualizer *vis) {
     if (!vis) return;
     

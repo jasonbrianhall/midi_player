@@ -246,6 +246,7 @@ static void create_visualization_section(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
     
     printf("Double-click handler added to visualizer\n");
+
 }
 
 static void create_player_controls(AudioPlayer *player) {
