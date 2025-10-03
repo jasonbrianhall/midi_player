@@ -10,9 +10,23 @@
 #include <ctype.h>
 #include "audio_player.h"
 
+static gboolean is_text_input_widget(GtkWidget *widget) {
+    return GTK_IS_ENTRY(widget) || 
+           GTK_IS_TEXT_VIEW(widget) || 
+           GTK_IS_SEARCH_ENTRY(widget) ||
+           GTK_IS_SPIN_BUTTON(widget);
+}
+
 gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
     (void)widget;
     AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkWidget *focused_widget = gtk_window_get_focus(GTK_WINDOW(player->window));
+    
+    // If a text input widget has focus, don't handle global shortcuts at all
+    if (focused_widget && is_text_input_widget(focused_widget)) {
+        return FALSE; // Let the text input handle all keys
+    }
     
     gboolean ctrl_pressed = (event->state & GDK_CONTROL_MASK) != 0;
     gboolean shift_pressed = (event->state & GDK_SHIFT_MASK) != 0;
@@ -314,6 +328,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     
     return FALSE;
 }
+
 void toggle_fullscreen(AudioPlayer *player) {
     GdkWindow *gdk_window = gtk_widget_get_window(player->window);
     if (!gdk_window) {
@@ -324,11 +339,9 @@ void toggle_fullscreen(AudioPlayer *player) {
     GdkWindowState state = gdk_window_get_state(gdk_window);
     
     if (state & GDK_WINDOW_STATE_FULLSCREEN) {
-        // Currently fullscreen, switch to windowed
         gtk_window_unfullscreen(GTK_WINDOW(player->window));
         printf("Exiting fullscreen mode\n");
     } else {
-        // Currently windowed, switch to fullscreen
         gtk_window_fullscreen(GTK_WINDOW(player->window));
         printf("Entering fullscreen mode\n");
     }
@@ -349,7 +362,6 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             
         case GDK_KEY_q:
         case GDK_KEY_Q:
-            // Q: Next visualization
             if (player->visualizer) {
                 visualizer_next_mode(player->visualizer);
                 printf("Switched to next visualization in fullscreen\n");
@@ -358,7 +370,6 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             
         case GDK_KEY_a:
         case GDK_KEY_A:
-            // A: Previous visualization
             if (player->visualizer) {
                 visualizer_prev_mode(player->visualizer);
                 printf("Switched to previous visualization in fullscreen\n");
@@ -376,7 +387,6 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             
         case GDK_KEY_Delete:
         case GDK_KEY_d:
-            // Remove currently playing song
             if (player->queue.count > 0) {
                 int current_index = player->queue.current_index;
                 printf("Removing current song (index %d) via keyboard in fullscreen\n", current_index);
@@ -514,7 +524,6 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
 }
 
 void show_keyboard_help(AudioPlayer *player) {
-    // Get screen resolution to adapt dialog size
     GdkScreen *screen = gtk_widget_get_screen(player->window);
     int screen_height = gdk_screen_get_height(screen);
     bool use_compact_dialog = (screen_height <= 700);
@@ -529,11 +538,10 @@ void show_keyboard_help(AudioPlayer *player) {
     gtk_container_set_border_width(GTK_CONTAINER(content_area), use_compact_dialog ? 10 : 15);
     
     if (use_compact_dialog) {
-        // Compact version for small screens - use scrolled window
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), 
                                       GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-        gtk_widget_set_size_request(scrolled, 400, 400); // Fit in 800x600
+        gtk_widget_set_size_request(scrolled, 400, 400);
         
         GtkWidget *label = gtk_label_new(
             "Shortcuts:\n\n"
@@ -557,7 +565,6 @@ void show_keyboard_help(AudioPlayer *player) {
         gtk_container_add(GTK_CONTAINER(content_area), scrolled);
         
     } else {
-        // Full version for larger screens
         GtkWidget *label = gtk_label_new(
             "Keyboard Shortcuts:\n\n"
             "Playback Control:\n"
@@ -594,7 +601,6 @@ void show_keyboard_help(AudioPlayer *player) {
         gtk_container_add(GTK_CONTAINER(content_area), label);
     }
     
-    // Set dialog size constraints
     if (use_compact_dialog) {
         gtk_window_set_default_size(GTK_WINDOW(dialog), 420, 450);
         gtk_window_set_resizable(GTK_WINDOW(dialog), TRUE);
@@ -608,16 +614,13 @@ void show_keyboard_help(AudioPlayer *player) {
 }
 
 void setup_keyboard_shortcuts(AudioPlayer *player) {
-    // Make window focusable and able to receive key events
     gtk_widget_set_can_focus(player->window, TRUE);
     gtk_widget_grab_focus(player->window);
     
-    // Connect key press event
     g_signal_connect(player->window, "key-press-event", 
                      G_CALLBACK(on_key_press_event), player);
 }
 
-// Separate callback function for the shortcuts menu
 static void on_shortcuts_menu_clicked(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     show_keyboard_help((AudioPlayer*)user_data);
