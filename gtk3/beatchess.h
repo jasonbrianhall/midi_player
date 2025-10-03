@@ -22,12 +22,15 @@ typedef struct {
     int score;
 } ChessMove;
 
+
 typedef struct {
     ChessPiece board[BOARD_SIZE][BOARD_SIZE];
     ChessColor turn;
     bool white_king_moved, black_king_moved;
     bool white_rook_a_moved, white_rook_h_moved;
     bool black_rook_a_moved, black_rook_h_moved;
+    int en_passant_col; // -1 if no en passant available, otherwise the column
+    int en_passant_row; // The row where en passant capture would land
 } ChessGameState;
 
 typedef struct {
@@ -47,6 +50,8 @@ typedef enum {
     CHESS_CHECKMATE_BLACK,
     CHESS_STALEMATE
 } ChessGameStatus;
+
+
 
 typedef struct {
     // Game state

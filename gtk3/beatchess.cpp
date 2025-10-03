@@ -63,6 +63,8 @@ void chess_init_board(ChessGameState *game) {
     game->white_rook_h_moved = false;
     game->black_rook_a_moved = false;
     game->black_rook_h_moved = false;
+    game->en_passant_col = -1;
+    game->en_passant_row = -1;
 }
 
 bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
@@ -83,12 +85,21 @@ bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
             int direction = (piece.color == WHITE) ? -1 : 1;
             int start_row = (piece.color == WHITE) ? 6 : 1;
             
+            // Normal pawn moves
             if (dc == 0 && target.type == EMPTY) {
                 if (dr == direction) return true;
                 if (fr == start_row && dr == 2 * direction && 
                     game->board[fr + direction][fc].type == EMPTY) return true;
             }
+            // Regular captures
             if (abs(dc) == 1 && dr == direction && target.type != EMPTY) return true;
+            
+            // En passant capture
+            if (abs(dc) == 1 && dr == direction && target.type == EMPTY) {
+                if (game->en_passant_col == tc && game->en_passant_row == tr) {
+                    return true;
+                }
+            }
             return false;
         }
         
@@ -206,9 +217,29 @@ bool chess_is_in_check(ChessGameState *game, ChessColor color) {
 void chess_make_move(ChessGameState *game, ChessMove move) {
     ChessPiece piece = game->board[move.from_row][move.from_col];
     
+    // Clear en passant state before making move
+    game->en_passant_col = -1;
+    game->en_passant_row = -1;
+    
+    // Handle en passant capture
+    if (piece.type == PAWN && move.to_col != move.from_col && 
+        game->board[move.to_row][move.to_col].type == EMPTY) {
+        // This is an en passant capture - remove the captured pawn
+        int captured_pawn_row = (piece.color == WHITE) ? move.to_row + 1 : move.to_row - 1;
+        game->board[captured_pawn_row][move.to_col].type = EMPTY;
+        game->board[captured_pawn_row][move.to_col].color = NONE;
+    }
+    
+    // Move the piece
     game->board[move.to_row][move.to_col] = piece;
     game->board[move.from_row][move.from_col].type = EMPTY;
     game->board[move.from_row][move.from_col].color = NONE;
+    
+    // Set en passant state if pawn moved two squares
+    if (piece.type == PAWN && abs(move.to_row - move.from_row) == 2) {
+        game->en_passant_col = move.to_col;
+        game->en_passant_row = (move.from_row + move.to_row) / 2;
+    }
     
     // Handle castling - move the rook too
     if (piece.type == KING && abs(move.to_col - move.from_col) == 2) {
@@ -256,6 +287,10 @@ void chess_make_move(ChessGameState *game, ChessMove move) {
 int chess_evaluate_position(ChessGameState *game) {
     int piece_values[] = {0, 100, 320, 330, 500, 900, 20000};
     int score = 0;
+    
+    // Count pieces for material difference
+    int white_material = 0;
+    int black_material = 0;
     
     // Piece-square tables for positional bonuses
     int pawn_table[8][8] = {
@@ -314,6 +349,12 @@ int chess_evaluate_position(ChessGameState *game) {
                 
                 if (p.color == WHITE) white_pieces++;
                 else black_pieces++;
+                
+                // Track material
+                if (p.type != KING) {
+                    if (p.color == WHITE) white_material += piece_values[p.type];
+                    else black_material += piece_values[p.type];
+                }
                 
                 // Add positional bonuses
                 if (p.type == PAWN) {
@@ -418,6 +459,73 @@ int chess_evaluate_position(ChessGameState *game) {
     }
     if (white_bishops >= 2) score += 30;
     if (black_bishops >= 2) score -= 30;
+    
+    // Tactical bonuses - check for forks, pins, and piece threats
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            ChessPiece piece = game->board[r][c];
+            if (piece.type == EMPTY) continue;
+            
+            ChessColor saved_turn = game->turn;
+            game->turn = piece.color;
+            
+            // Count attacks on enemy pieces
+            int targets_count = 0;
+            int target_values[8] = {0};
+            PieceType target_types[8];
+            
+            for (int tr = 0; tr < BOARD_SIZE; tr++) {
+                for (int tc = 0; tc < BOARD_SIZE; tc++) {
+                    ChessPiece target = game->board[tr][tc];
+                    if (target.type != EMPTY && target.color != piece.color) {
+                        if (chess_is_valid_move(game, r, c, tr, tc)) {
+                            if (targets_count < 8) {
+                                target_values[targets_count] = piece_values[target.type];
+                                target_types[targets_count] = target.type;
+                                targets_count++;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            game->turn = saved_turn;
+            
+            // Fork bonus - attacking 2+ pieces
+            if (targets_count >= 2) {
+                int fork_bonus = 0;
+                
+                // Knight forks are especially valuable
+                if (piece.type == KNIGHT) {
+                    fork_bonus = 40;
+                    // Extra bonus for forking valuable pieces
+                    if (targets_count >= 2 && target_values[0] >= 500 && target_values[1] >= 500) {
+                        fork_bonus += 30;
+                    }
+                } else {
+                    fork_bonus = 25;
+                }
+                
+                // Bonus scales with number of targets
+                fork_bonus *= targets_count;
+                
+                score += (piece.color == WHITE) ? fork_bonus : -fork_bonus;
+            }
+            
+            // Reward attacking higher-value pieces with lower-value pieces
+            if (targets_count > 0 && piece.type != KING) {
+                int my_value = piece_values[piece.type];
+                for (int i = 0; i < targets_count; i++) {
+                    int target_value = target_values[i];
+                    // Only reward if target is worth more (favorable trade)
+                    if (target_value > my_value + 50) {
+                        int trade_bonus = (target_value - my_value) / 10;
+                        score += (piece.color == WHITE) ? trade_bonus : -trade_bonus;
+                    }
+                }
+            }
+        }
+    }
     
     // Small random factor for variety
     score += (rand() % 10) - 5;
