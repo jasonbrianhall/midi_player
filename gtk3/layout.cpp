@@ -246,21 +246,19 @@ static void create_visualization_section(AudioPlayer *player) {
 }
 
 static void create_player_controls(AudioPlayer *player) {
-    // File label
     player->file_label = gtk_label_new("No file loaded");
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->file_label, FALSE, FALSE, 0);
     
-    // Progress scale
     player->progress_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 0.1);
     gtk_scale_set_draw_value(GTK_SCALE(player->progress_scale), FALSE);
     gtk_widget_set_sensitive(player->progress_scale, FALSE);
+    gtk_widget_set_can_focus(player->progress_scale, TRUE);
     g_signal_connect(player->progress_scale, "value-changed", G_CALLBACK(on_progress_scale_value_changed), player);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->progress_scale, FALSE, FALSE, 0);
     
     player->time_label = gtk_label_new("00:00 / 00:00");
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->time_label, FALSE, FALSE, 0);
     
-    // Navigation buttons
     player->layout.nav_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_set_homogeneous(GTK_BOX(player->layout.nav_button_box), TRUE);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.nav_button_box, FALSE, FALSE, 0);
@@ -273,7 +271,14 @@ static void create_player_controls(AudioPlayer *player) {
     player->fast_forward_button = gtk_button_new_with_label("5s ►►");
     player->next_button = gtk_button_new_with_label("▶|");
     
-    // Add tooltips showing keyboard shortcuts
+    gtk_widget_set_can_focus(player->prev_button, TRUE);
+    gtk_widget_set_can_focus(player->rewind_button, TRUE);
+    gtk_widget_set_can_focus(player->play_button, TRUE);
+    gtk_widget_set_can_focus(player->pause_button, TRUE);
+    gtk_widget_set_can_focus(player->stop_button, TRUE);
+    gtk_widget_set_can_focus(player->fast_forward_button, TRUE);
+    gtk_widget_set_can_focus(player->next_button, TRUE);
+    
     gtk_widget_set_tooltip_text(player->prev_button, "Previous Track (P)");
     gtk_widget_set_tooltip_text(player->rewind_button, "Rewind 5s (< or ,)");
     gtk_widget_set_tooltip_text(player->play_button, "Play (Space)");
@@ -290,22 +295,21 @@ static void create_player_controls(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(player->layout.nav_button_box), player->fast_forward_button, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(player->layout.nav_button_box), player->next_button, TRUE, TRUE, 0);
     
-    // Volume and Speed controls
     player->layout.volume_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.volume_box, FALSE, FALSE, 0);
 
-    // Volume control (takes majority of space)
     GtkWidget *volume_label = gtk_label_new("Volume:");
     player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(player->volume_scale), (double)globalVolume / 100.0);
     gtk_widget_set_tooltip_text(player->volume_scale, "Volume (↑/↓ arrows)");
+    gtk_widget_set_can_focus(player->volume_scale, TRUE);
 
-    // Speed control (takes less space)
     GtkWidget *speed_label = gtk_label_new("Speed:");
     player->speed_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 4.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->speed_scale), 1.0);
     gtk_scale_set_digits(GTK_SCALE(player->speed_scale), 1);
     gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.5x to 4.0x)");
+    gtk_widget_set_can_focus(player->speed_scale, TRUE);
 
     gtk_widget_set_size_request(player->volume_scale, 200, -1);
     gtk_widget_set_size_request(player->speed_scale, 120, -1);
@@ -319,21 +323,22 @@ static void create_player_controls(AudioPlayer *player) {
 static void create_queue_controls_compact(AudioPlayer *player) {
     printf("Creating compact queue controls layout\n");
     
-    // Create horizontal box for bottom controls (only queue controls, no equalizer)
     player->layout.compact.bottom_controls_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->layout.compact.bottom_controls_hbox, FALSE, FALSE, 0);
     
-    // Queue controls in horizontal layout for compact
     player->add_to_queue_button = gtk_button_new_with_label("Add");
     player->clear_queue_button = gtk_button_new_with_label("Clear");
     player->repeat_queue_button = gtk_check_button_new_with_label("Repeat");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
     
+    gtk_widget_set_can_focus(player->add_to_queue_button, TRUE);
+    gtk_widget_set_can_focus(player->clear_queue_button, TRUE);
+    gtk_widget_set_can_focus(player->repeat_queue_button, TRUE);
+    
     gtk_widget_set_tooltip_text(player->add_to_queue_button, "Add to Queue (Ctrl+A)");
     gtk_widget_set_tooltip_text(player->clear_queue_button, "Clear Queue (Ctrl+C)");
     gtk_widget_set_tooltip_text(player->repeat_queue_button, "Toggle Repeat (R)");
-
-    // Set smaller button sizes for compact layout
+    
     gtk_widget_set_size_request(player->add_to_queue_button, 80, 30);
     gtk_widget_set_size_request(player->clear_queue_button, 80, 30);
     
@@ -353,6 +358,10 @@ static void create_queue_controls_regular(AudioPlayer *player) {
     player->clear_queue_button = gtk_button_new_with_label("Clear Queue");
     player->repeat_queue_button = gtk_check_button_new_with_label("Repeat Queue");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->repeat_queue_button), TRUE);
+    
+    gtk_widget_set_can_focus(player->add_to_queue_button, TRUE);
+    gtk_widget_set_can_focus(player->clear_queue_button, TRUE);
+    gtk_widget_set_can_focus(player->repeat_queue_button, TRUE);
     
     gtk_widget_set_tooltip_text(player->add_to_queue_button, "Add to Queue (Ctrl+A)");
     gtk_widget_set_tooltip_text(player->clear_queue_button, "Clear Queue (Ctrl+C)");

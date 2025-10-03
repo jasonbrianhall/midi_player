@@ -26,6 +26,11 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             toggle_vis_fullscreen(player);
             return TRUE;
         case GDK_KEY_space:
+            // Check if queue listbox has focus
+            if (gtk_widget_has_focus(player->queue_listbox)) {
+                return FALSE; // Let the queue handle it
+            }
+    
             // Space: Play/Pause toggle
             if (player->is_playing) {
                 toggle_pause(player);
