@@ -423,12 +423,9 @@ static void create_queue_display(AudioPlayer *player) {
                                player->layout.config.queue_width, 
                                adjusted_queue_height);
 
-    player->queue_listbox = gtk_list_box_new();
-    gtk_widget_set_can_focus(player->queue_listbox, TRUE);
-    gtk_list_box_set_selection_mode(GTK_LIST_BOX(player->queue_listbox), GTK_SELECTION_SINGLE);
-    gtk_list_box_set_activate_on_single_click(GTK_LIST_BOX(player->queue_listbox), FALSE);
-    
-    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), player->queue_listbox);
+    // Create the tree view with columns instead of listbox
+    create_queue_treeview(player);
+
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
     
     gtk_box_pack_end(GTK_BOX(player->layout.queue_vbox), player->layout.shared_equalizer, FALSE, FALSE, 0);

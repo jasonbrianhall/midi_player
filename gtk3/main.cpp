@@ -256,82 +256,40 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
 }
 
 void update_queue_display(AudioPlayer *player) {
-    GList *children = gtk_container_get_children(GTK_CONTAINER(player->queue_listbox));
-    for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
-        gtk_widget_destroy(GTK_WIDGET(iter->data));
+    // Clear existing model
+    if (player->queue_store) {
+        gtk_list_store_clear(player->queue_store);
     }
-    g_list_free(children);
     
+    // Add each queue item
     for (int i = 0; i < player->queue.count; i++) {
-        char *basename = g_path_get_basename(player->queue.files[i]);
+        GtkTreeIter iter;
+        gtk_list_store_append(player->queue_store, &iter);
         
-        GtkWidget *row = gtk_list_box_row_new();
+        // Extract metadata for this file
+        char *metadata = extract_metadata(player->queue.files[i]);
+        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+        parse_metadata(metadata, title, artist, album, genre);
+        g_free(metadata);
         
-        GtkWidget *event_box = gtk_event_box_new();
-        gtk_container_add(GTK_CONTAINER(row), event_box);
+        // Get duration
+        // You'll need to implement get_file_duration() or cache this
+        int duration = get_file_duration(player->queue.files[i]);
+        char duration_str[16];
+        snprintf(duration_str, sizeof(duration_str), "%d:%02d", 
+                 duration / 60, duration % 60);
         
-        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-        gtk_container_add(GTK_CONTAINER(event_box), box);
+        const char *indicator = (i == player->queue.current_index) ? "▶" : "";
         
-        const char *indicator = (i == player->queue.current_index) ? "▶ " : "  ";
-        GtkWidget *indicator_label = gtk_label_new(indicator);
-        gtk_box_pack_start(GTK_BOX(box), indicator_label, FALSE, FALSE, 0);
-        
-        GtkWidget *drag_handle = gtk_label_new("☰");
-        gtk_widget_set_tooltip_text(drag_handle, "Drag to reorder");
-        gtk_box_pack_start(GTK_BOX(box), drag_handle, FALSE, FALSE, 0);
-
-        GtkWidget *filename_label = gtk_label_new(basename);
-        gtk_widget_set_halign(filename_label, GTK_ALIGN_START);
-        gtk_label_set_xalign(GTK_LABEL(filename_label), 0.0);
-        gtk_box_pack_start(GTK_BOX(box), filename_label, TRUE, TRUE, 0);
-
-        GtkWidget *remove_button = gtk_button_new_with_label("✗");
-        gtk_widget_set_size_request(remove_button, 30, 30);
-        gtk_widget_set_tooltip_text(remove_button, "Remove from queue");
-        
-        g_object_set_data(G_OBJECT(remove_button), "queue_index", GINT_TO_POINTER(i));
-        g_object_set_data(G_OBJECT(remove_button), "player", player);
-        
-        g_signal_connect(remove_button, "clicked", G_CALLBACK(on_remove_from_queue_clicked), NULL);
-        
-        gtk_box_pack_end(GTK_BOX(box), remove_button, FALSE, FALSE, 0);
-        
-        gtk_drag_source_set(event_box, 
-                           GDK_BUTTON1_MASK,
-                           target_list, 
-                           n_targets, 
-                           GDK_ACTION_MOVE);
-        
-        g_signal_connect(event_box, "drag-begin", G_CALLBACK(on_drag_begin), player);
-        g_signal_connect(event_box, "drag-data-get", G_CALLBACK(on_drag_data_get), player);
-        
-        gtk_drag_dest_set(event_box, 
-                         GTK_DEST_DEFAULT_ALL,
-                         target_list, 
-                         n_targets, 
-                         GDK_ACTION_MOVE);
-        
-        g_signal_connect(event_box, "drag-motion", G_CALLBACK(on_drag_motion), player);
-        g_signal_connect(event_box, "drag-data-received", G_CALLBACK(on_drag_data_received), player);
-        g_signal_connect(event_box, "drag-drop", G_CALLBACK(on_drag_drop), player);
-        
-        g_signal_connect(event_box, "button-press-event", G_CALLBACK(on_queue_item_button_press), player);
-        
-        gtk_container_add(GTK_CONTAINER(player->queue_listbox), row);
-        g_free(basename);
-    }
-    
-    gtk_widget_show_all(player->queue_listbox);
-    
-    if (player->queue.count > 0 && player->queue.current_index >= 0) {
-        GtkListBoxRow *current_row = gtk_list_box_get_row_at_index(
-            GTK_LIST_BOX(player->queue_listbox), 
-            player->queue.current_index
-        );
-        if (current_row) {
-            gtk_list_box_select_row(GTK_LIST_BOX(player->queue_listbox), current_row);
-        }
+        gtk_list_store_set(player->queue_store, &iter,
+            COL_FILEPATH, player->queue.files[i],
+            COL_PLAYING, indicator,
+            COL_TITLE, title,
+            COL_ARTIST, artist,
+            COL_ALBUM, album,
+            COL_GENRE, genre,
+            COL_DURATION, duration_str,
+            -1);
     }
 }
 
@@ -2573,6 +2531,185 @@ bool load_player_settings(AudioPlayer *player) {
     printf("Settings loaded successfully\n");
     return true;
 }
+
+void create_queue_treeview(AudioPlayer *player) {
+    // Create list store
+    player->queue_store = gtk_list_store_new(NUM_COLS,
+        G_TYPE_STRING,  // filepath
+        G_TYPE_STRING,  // playing indicator
+        G_TYPE_STRING,  // title
+        G_TYPE_STRING,  // artist
+        G_TYPE_STRING,  // album
+        G_TYPE_STRING,  // genre
+        G_TYPE_STRING); // duration
+    
+    // Create tree view
+    GtkWidget *tree_view = gtk_tree_view_new_with_model(
+        GTK_TREE_MODEL(player->queue_store));
+    
+    // Create columns
+    add_column(tree_view, "", COL_PLAYING, 30, FALSE);
+    add_column(tree_view, "Title", COL_TITLE, 200, TRUE);
+    add_column(tree_view, "Artist", COL_ARTIST, 150, TRUE);
+    add_column(tree_view, "Album", COL_ALBUM, 150, TRUE);
+    add_column(tree_view, "Genre", COL_GENRE, 100, TRUE);
+    add_column(tree_view, "Time", COL_DURATION, 60, TRUE);
+    
+    // Enable sorting
+    gtk_tree_view_set_enable_search(GTK_TREE_VIEW(tree_view), TRUE);
+    gtk_tree_view_set_search_column(GTK_TREE_VIEW(tree_view), COL_TITLE);
+    
+    // Connect click handler
+    g_signal_connect(tree_view, "row-activated",
+                     G_CALLBACK(on_queue_row_activated), player);
+    
+    // Add to scrolled window
+    gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
+}
+
+void parse_metadata(const char *metadata_str, char *title, char *artist, 
+                   char *album, char *genre) {
+    // Initialize outputs
+    strcpy(title, "Unknown Title");
+    strcpy(artist, "Unknown Artist");
+    strcpy(album, "Unknown Album");
+    strcpy(genre, "Unknown Genre");
+    
+    if (!metadata_str) return;
+    
+    // Parse the markup text - extract_metadata returns markup like:
+    // <b>Title:</b> Something\n<b>Artist:</b> Someone\n...
+    
+    const char *title_start = strstr(metadata_str, "<b>Title:</b>");
+    if (title_start) {
+        title_start = strchr(title_start + 13, ' ');
+        if (title_start) {
+            title_start++; // skip space
+            const char *title_end = strchr(title_start, '\n');
+            if (title_end) {
+                int len = title_end - title_start;
+                if (len > 0 && len < 255) {
+                    strncpy(title, title_start, len);
+                    title[len] = '\0';
+                }
+            } else {
+                // No newline, copy to end
+                strncpy(title, title_start, 255);
+                title[255] = '\0';
+            }
+        }
+    }
+    
+    const char *artist_start = strstr(metadata_str, "<b>Artist:</b>");
+    if (artist_start) {
+        artist_start = strchr(artist_start + 14, ' ');
+        if (artist_start) {
+            artist_start++;
+            const char *artist_end = strchr(artist_start, '\n');
+            if (artist_end) {
+                int len = artist_end - artist_start;
+                if (len > 0 && len < 255) {
+                    strncpy(artist, artist_start, len);
+                    artist[len] = '\0';
+                }
+            } else {
+                strncpy(artist, artist_start, 255);
+                artist[255] = '\0';
+            }
+        }
+    }
+    
+    const char *album_start = strstr(metadata_str, "<b>Album:</b>");
+    if (album_start) {
+        album_start = strchr(album_start + 13, ' ');
+        if (album_start) {
+            album_start++;
+            const char *album_end = strchr(album_start, '\n');
+            if (album_end) {
+                int len = album_end - album_start;
+                if (len > 0 && len < 255) {
+                    strncpy(album, album_start, len);
+                    album[len] = '\0';
+                }
+            } else {
+                strncpy(album, album_start, 255);
+                album[255] = '\0';
+            }
+        }
+    }
+    
+    const char *genre_start = strstr(metadata_str, "<b>Genre:</b>");
+    if (genre_start) {
+        genre_start = strchr(genre_start + 13, ' ');
+        if (genre_start) {
+            genre_start++;
+            const char *genre_end = strchr(genre_start, '\n');
+            if (genre_end) {
+                int len = genre_end - genre_start;
+                if (len > 0 && len < 255) {
+                    strncpy(genre, genre_start, len);
+                    genre[len] = '\0';
+                }
+            } else {
+                strncpy(genre, genre_start, 255);
+                genre[255] = '\0';
+            }
+        }
+    }
+}
+
+int get_file_duration(const char *filepath) {
+    // Return 0 for now - will be populated when file is actually loaded
+    (void)filepath;
+    return 0;
+}
+
+void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
+                           GtkTreeViewColumn *column, gpointer user_data) {
+    (void)tree_view;
+    (void)column;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    gint *indices = gtk_tree_path_get_indices(path);
+    if (!indices) return;
+    
+    int clicked_index = indices[0];
+    
+    printf("Queue row activated: index %d\n", clicked_index);
+    
+    if (clicked_index == player->queue.current_index && player->is_playing) {
+        printf("Already playing this song\n");
+        return;
+    }
+    
+    stop_playback(player);
+    player->queue.current_index = clicked_index;
+    
+    if (load_file_from_queue(player)) {
+        update_queue_display(player);
+        update_gui_state(player);
+        start_playback(player);
+        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+    }
+}
+
+void add_column(GtkWidget *tree_view, const char *title, int col_id,  int width, gboolean sortable) {
+    GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+    GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(
+        title, renderer, "text", col_id, NULL);
+    
+    gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_FIXED);
+    gtk_tree_view_column_set_fixed_width(column, width);
+    gtk_tree_view_column_set_resizable(column, TRUE);
+    
+    if (sortable) {
+        gtk_tree_view_column_set_sort_column_id(column, col_id);
+        gtk_tree_view_column_set_clickable(column, TRUE);
+    }
+    
+    gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
+}
+
 
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);

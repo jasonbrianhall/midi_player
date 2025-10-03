@@ -23,6 +23,27 @@
 #include "cdg.h"
 #include "zip_support.h"
 
+typedef struct {
+    char *filepath;
+    char *title;
+    char *artist;
+    char *album;
+    char *genre;
+    int duration_seconds;
+} QueueItem;
+
+// Column enumeration for the tree model
+enum {
+    COL_FILEPATH = 0,
+    COL_PLAYING,      // "▶" indicator
+    COL_TITLE,
+    COL_ARTIST,
+    COL_ALBUM,
+    COL_GENRE,
+    COL_DURATION,
+    NUM_COLS
+};
+
 // Structure to hold audio metadata
 struct AudioMetadata {
     std::string title;
@@ -133,6 +154,8 @@ typedef struct {
     GtkWidget *repeat_queue_button;
     GtkWidget *next_button;
     GtkWidget *prev_button;
+    GtkListStore *queue_store;
+    GtkWidget *queue_tree_view;
     
     PlayQueue queue;
     ConversionCache conversion_cache;
@@ -219,6 +242,11 @@ const char* get_current_queue_file(PlayQueue *queue);
 bool advance_queue(PlayQueue *queue);
 bool previous_queue(PlayQueue *queue);
 void update_queue_display(AudioPlayer *player);
+void add_column(GtkWidget *tree_view, const char *title, int col_id, int width, gboolean sortable);
+void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewColumn *column, gpointer user_data);
+void parse_metadata(const char *metadata_str, char *title, char *artist, char *album, char *genre);
+int get_file_duration(const char *filepath);
+void create_queue_treeview(AudioPlayer *player);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);
