@@ -1179,10 +1179,34 @@ void toggle_pause(AudioPlayer *player) {
 
 gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
-    if (event->keyval == GDK_KEY_F9 || event->keyval == GDK_KEY_Escape || event->keyval == GDK_KEY_F || event->keyval == GDK_KEY_f) {
-        toggle_vis_fullscreen(player);
-        return TRUE;
+    
+    switch (event->keyval) {
+        case GDK_KEY_F9:
+        case GDK_KEY_Escape:
+        case GDK_KEY_F:
+        case GDK_KEY_f:
+            toggle_vis_fullscreen(player);
+            return TRUE;
+            
+        case GDK_KEY_q:
+        case GDK_KEY_Q:
+            // Next visualization
+            if (player->visualizer) {
+                visualizer_next_mode(player->visualizer);
+                printf("Switched to next visualization in fullscreen\n");
+            }
+            return TRUE;
+            
+        case GDK_KEY_a:
+        case GDK_KEY_A:
+            // Previous visualization
+            if (player->visualizer) {
+                visualizer_prev_mode(player->visualizer);
+                printf("Switched to previous visualization in fullscreen\n");
+            }
+            return TRUE;
     }
+    
     return FALSE;
 }
 
