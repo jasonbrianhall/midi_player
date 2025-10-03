@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import whisper
 import cairocffi as cairo
 import struct
