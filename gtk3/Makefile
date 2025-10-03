@@ -114,7 +114,8 @@ SOURCES_CPP_COMMON = dbopl.cpp \
 	parrot.cpp \
 	sauron.cpp \
 	hanoi.cpp \
-	beatchess.cpp
+	beatchess.cpp \
+	queue.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \

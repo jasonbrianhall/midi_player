@@ -447,9 +447,9 @@ void create_queue_treeview(AudioPlayer *player) {
     GtkWidget *tree_view = gtk_tree_view_new_with_model(
         GTK_TREE_MODEL(player->queue_store));
     
-    player->queue_tree_view = tree_view; // Store reference
+    player->queue_tree_view = tree_view;
     
-    // Create columns - Filename first, then others
+    // Create columns
     add_column(tree_view, "", COL_PLAYING, 30, FALSE);
     add_column(tree_view, "Filename", COL_FILENAME, 200, TRUE);
     add_column(tree_view, "Title", COL_TITLE, 180, TRUE);
@@ -462,34 +462,16 @@ void create_queue_treeview(AudioPlayer *player) {
     gtk_tree_view_set_enable_search(GTK_TREE_VIEW(tree_view), TRUE);
     gtk_tree_view_set_search_column(GTK_TREE_VIEW(tree_view), COL_FILENAME);
     
-    // Connect click handler
+    // Connect click handler for double-click
     g_signal_connect(tree_view, "row-activated",
                      G_CALLBACK(on_queue_row_activated), player);
     
+    // Connect right-click handler for context menu
+    g_signal_connect(tree_view, "button-press-event",
+                     G_CALLBACK(on_queue_context_menu), player);
+    
     // Add to scrolled window
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
-}
-
-static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data) {
-    (void)event;
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    // When queue gains focus, select the currently playing item if nothing is selected
-    GtkListBoxRow *selected = gtk_list_box_get_selected_row(GTK_LIST_BOX(widget));
-    if (!selected && player->queue.count > 0) {
-        // Select the currently playing song
-        GtkListBoxRow *current_row = gtk_list_box_get_row_at_index(
-            GTK_LIST_BOX(widget), 
-            player->queue.current_index
-        );
-        if (current_row) {
-            gtk_list_box_select_row(GTK_LIST_BOX(widget), current_row);
-            printf("Auto-selected current playing song (index %d) when queue gained focus\n", 
-                   player->queue.current_index);
-        }
-    }
-    
-    return FALSE;
 }
 
 static void connect_widget_signals(AudioPlayer *player) {

@@ -157,6 +157,8 @@ typedef struct {
     GtkWidget *prev_button;
     GtkListStore *queue_store;
     GtkWidget *queue_tree_view;
+    void on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+    void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data);
     
     PlayQueue queue;
     ConversionCache conversion_cache;
@@ -248,6 +250,7 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path, GtkTreeVi
 void parse_metadata(const char *metadata_str, char *title, char *artist, char *album, char *genre);
 int get_file_duration(const char *filepath);
 void create_queue_treeview(AudioPlayer *player);
+gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);
