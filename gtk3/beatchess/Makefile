@@ -8,7 +8,7 @@ LDFLAGS = `pkg-config --libs gtk+-3.0` -lpthread -lm
 all: chess_main
 
 chess_main: chess_main.o beatchess.o
-	$(CXX) -o chess_main chess_main.o beatchess.o $(LDFLAGS)
+	$(CXX) -o beatchess chess_main.o beatchess.o $(LDFLAGS)
 
 chess_main.o: chess_main.cpp beatchess.h
 	$(CXX) $(CXXFLAGS) -c chess_main.cpp
@@ -17,6 +17,6 @@ beatchess.o: beatchess.cpp beatchess.h visualization.h
 	$(CXX) $(CXXFLAGS) -c beatchess.cpp
 
 clean:
-	rm -f *.o chess_main
+	rm -f *.o beatchess
 
 .PHONY: all clean
