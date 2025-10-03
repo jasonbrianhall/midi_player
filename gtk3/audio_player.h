@@ -251,6 +251,11 @@ void parse_metadata(const char *metadata_str, char *title, char *artist, char *a
 int get_file_duration(const char *filepath);
 void create_queue_treeview(AudioPlayer *player);
 gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+void move_queue_item_up(AudioPlayer *player, int index);
+void move_queue_item_down(AudioPlayer *player, int index);
+void on_queue_move_up(GtkMenuItem *menuitem, gpointer user_data);
+void on_queue_move_down(GtkMenuItem *menuitem, gpointer user_data);
+gboolean on_queue_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);

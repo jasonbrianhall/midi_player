@@ -469,6 +469,8 @@ void create_queue_treeview(AudioPlayer *player) {
     // Connect right-click handler for context menu
     g_signal_connect(tree_view, "button-press-event",
                      G_CALLBACK(on_queue_context_menu), player);
+    g_signal_connect(tree_view, "key-press-event",
+                     G_CALLBACK(on_queue_key_press), player);
     
     // Add to scrolled window
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);

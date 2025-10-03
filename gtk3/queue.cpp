@@ -204,9 +204,49 @@ void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
 gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    // Only handle right-click
+    // Handle middle-click (button 2) - direct delete
+    if (event->type == GDK_BUTTON_PRESS && event->button == 2) {
+        GtkTreePath *path;
+        if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(widget), 
+                                         (gint)event->x, (gint)event->y, 
+                                         &path, NULL, NULL, NULL)) {
+            gint *indices = gtk_tree_path_get_indices(path);
+            int index = indices[0];
+            gtk_tree_path_free(path);
+            
+            printf("Removing item %d from queue via middle-click\n", index);
+            
+            bool was_current_playing = (index == player->queue.current_index && player->is_playing);
+            bool queue_will_be_empty = (player->queue.count <= 1);
+            
+            if (remove_from_queue(&player->queue, index)) {
+                if (queue_will_be_empty) {
+                    stop_playback(player);
+                    player->is_loaded = false;
+                    gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+                } else if (was_current_playing) {
+                    stop_playback(player);
+                    if (load_file_from_queue(player)) {
+                        update_gui_state(player);
+                        start_playback(player);
+                    }
+                    if (player->cdg_display) {
+                        cdg_reset(player->cdg_display);
+                        player->cdg_display->packet_count = 0;
+                        player->has_cdg = false;
+                    }
+                }
+                
+                update_queue_display(player);
+                update_gui_state(player);
+            }
+            
+            return TRUE;
+        }
+    }
+    
+    // Handle right-click (button 3) - show context menu
     if (event->type == GDK_BUTTON_PRESS && event->button == 3) {
-        // Get the tree path at the click position
         GtkTreePath *path;
         if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(widget), 
                                          (gint)event->x, (gint)event->y, 
@@ -214,11 +254,30 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
             // Select the row
             GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(widget));
             gtk_tree_selection_select_path(selection, path);
+            
+            gint *indices = gtk_tree_path_get_indices(path);
+            int index = indices[0];
             gtk_tree_path_free(path);
             
             // Create context menu
             GtkWidget *menu = gtk_menu_new();
             
+            // Move Up
+            GtkWidget *move_up_item = gtk_menu_item_new_with_label("Move Up (Ctrl+↑)");
+            g_signal_connect(move_up_item, "activate", G_CALLBACK(on_queue_move_up), player);
+            gtk_widget_set_sensitive(move_up_item, index > 0);
+            gtk_menu_shell_append(GTK_MENU_SHELL(menu), move_up_item);
+            
+            // Move Down
+            GtkWidget *move_down_item = gtk_menu_item_new_with_label("Move Down (Ctrl+↓)");
+            g_signal_connect(move_down_item, "activate", G_CALLBACK(on_queue_move_down), player);
+            gtk_widget_set_sensitive(move_down_item, index < player->queue.count - 1);
+            gtk_menu_shell_append(GTK_MENU_SHELL(menu), move_down_item);
+            
+            // Separator
+            gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
+            
+            // Delete
             GtkWidget *delete_item = gtk_menu_item_new_with_label("Remove from Queue");
             g_signal_connect(delete_item, "activate", G_CALLBACK(on_queue_delete_item), player);
             gtk_menu_shell_append(GTK_MENU_SHELL(menu), delete_item);
@@ -496,6 +555,130 @@ gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
     if (target != GDK_NONE) {
         gtk_drag_get_data(widget, context, target, time);
         return TRUE;
+    }
+    
+    return FALSE;
+}
+
+void move_queue_item_up(AudioPlayer *player, int index) {
+    if (index <= 0 || index >= player->queue.count) {
+        return; // Can't move first item up or invalid index
+    }
+    
+    // Swap with previous item
+    char *temp = player->queue.files[index];
+    player->queue.files[index] = player->queue.files[index - 1];
+    player->queue.files[index - 1] = temp;
+    
+    // Update current_index if needed
+    if (player->queue.current_index == index) {
+        player->queue.current_index = index - 1;
+    } else if (player->queue.current_index == index - 1) {
+        player->queue.current_index = index;
+    }
+    
+    update_queue_display(player);
+    
+    // Re-select the moved item
+    if (player->queue_tree_view) {
+        GtkTreePath *path = gtk_tree_path_new_from_indices(index - 1, -1);
+        GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+        gtk_tree_selection_select_path(selection, path);
+        gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view), path, NULL, FALSE, 0.0, 0.0);
+        gtk_tree_path_free(path);
+    }
+}
+
+void move_queue_item_down(AudioPlayer *player, int index) {
+    if (index < 0 || index >= player->queue.count - 1) {
+        return; // Can't move last item down or invalid index
+    }
+    
+    // Swap with next item
+    char *temp = player->queue.files[index];
+    player->queue.files[index] = player->queue.files[index + 1];
+    player->queue.files[index + 1] = temp;
+    
+    // Update current_index if needed
+    if (player->queue.current_index == index) {
+        player->queue.current_index = index + 1;
+    } else if (player->queue.current_index == index + 1) {
+        player->queue.current_index = index;
+    }
+    
+    update_queue_display(player);
+    
+    // Re-select the moved item
+    if (player->queue_tree_view) {
+        GtkTreePath *path = gtk_tree_path_new_from_indices(index + 1, -1);
+        GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+        gtk_tree_selection_select_path(selection, path);
+        gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view), path, NULL, FALSE, 0.0, 0.0);
+        gtk_tree_path_free(path);
+    }
+}
+
+void on_queue_move_up(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+        gint *indices = gtk_tree_path_get_indices(path);
+        int index = indices[0];
+        gtk_tree_path_free(path);
+        
+        move_queue_item_up(player, index);
+    }
+}
+
+void on_queue_move_down(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+        gint *indices = gtk_tree_path_get_indices(path);
+        int index = indices[0];
+        gtk_tree_path_free(path);
+        
+        move_queue_item_down(player, index);
+    }
+}
+
+gboolean on_queue_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(widget));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (!gtk_tree_selection_get_selected(selection, &model, &iter)) {
+        return FALSE;
+    }
+    
+    GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+    gint *indices = gtk_tree_path_get_indices(path);
+    int index = indices[0];
+    gtk_tree_path_free(path);
+    
+    // Check for Ctrl+Up or Ctrl+Down
+    if (event->state & GDK_CONTROL_MASK) {
+        if (event->keyval == GDK_KEY_Up) {
+            move_queue_item_up(player, index);
+            return TRUE;
+        } else if (event->keyval == GDK_KEY_Down) {
+            move_queue_item_down(player, index);
+            return TRUE;
+        }
     }
     
     return FALSE;
