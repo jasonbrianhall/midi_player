@@ -247,7 +247,7 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
             }
         }
         
-        update_queue_display(player);
+        update_queue_display_with_filter(player);
         update_gui_state(player);
     }
 }
@@ -1063,7 +1063,7 @@ void next_song(AudioPlayer *player) {
     
     if (advance_queue(&player->queue)) {
         if (load_file_from_queue(player)) {
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
             start_playback(player);
         }
@@ -1077,7 +1077,7 @@ void previous_song(AudioPlayer *player) {
     
     if (previous_queue(&player->queue)) {
         if (load_file_from_queue(player)) {
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
             start_playback(player);
         }
@@ -1229,7 +1229,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
             }
         }
         
-        update_queue_display(player);
+        update_queue_display_with_filter(player);
         update_gui_state(player);
         
         printf("Total files in queue: %d\n", player->queue.count);
@@ -1341,7 +1341,7 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
             }
         }
         
-        update_queue_display(player);
+        update_queue_display_with_filter(player);
         update_gui_state(player);
     }
     
@@ -1356,7 +1356,7 @@ void on_clear_queue_clicked(GtkButton *button, gpointer user_data) {
     
     stop_playback(player);
     clear_queue(&player->queue);
-    update_queue_display(player);
+    update_queue_display_with_filter(player);
     update_gui_state(player);
     player->is_loaded = false;
     
@@ -1383,7 +1383,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
         
         if (load_file_from_queue(player)) {
             printf("Successfully loaded: %s\n", filename);
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
         }
     }
@@ -1483,7 +1483,7 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
         
         if (load_file_from_queue(player)) {
             printf("Successfully loaded: %s\n", filename);
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
             // load_file now auto-starts playback
         } else {
@@ -2400,7 +2400,7 @@ int main(int argc, char *argv[]) {
         
         if (player->queue.count > 0 && load_file_from_queue(player)) {
             printf("Loaded and auto-starting first file in queue\n");
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
         }
     } else {
@@ -2427,7 +2427,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 
-                update_queue_display(player);
+                update_queue_display_with_filter(player);
                 update_gui_state(player);
             }
         }
