@@ -52,7 +52,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                     player->queue.current_index = selected_index;
                     
                     if (load_file_from_queue(player)) {
-                        update_queue_display(player);
+                        update_queue_display_with_filter(player);
                         update_gui_state(player);
                         start_playback(player);
                         printf("Started playing: %s\n", get_current_queue_file(&player->queue));
@@ -86,7 +86,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                                 start_playback(player);
                             }
                         }
-                        update_queue_display(player);
+                        update_queue_display_with_filter(player);
                         update_gui_state(player);
                     }
                 }
@@ -163,7 +163,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                                 start_playback(player);
                             }
                         }
-                        update_queue_display(player);
+                        update_queue_display_with_filter(player);
                         update_gui_state(player);
                     }
                 }
@@ -190,7 +190,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                             start_playback(player);
                         }
                     }
-                    update_queue_display(player);
+                    update_queue_display_with_filter(player);
                     update_gui_state(player);
                 }
             }
@@ -317,7 +317,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                     stop_playback(player);
                     player->queue.current_index = queue_pos;
                     if (load_file_from_queue(player)) {
-                        update_queue_display(player);
+                        update_queue_display_with_filter(player);
                         update_gui_state(player);
                         start_playback(player);
                     }
@@ -406,7 +406,7 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
                             start_playback(player);
                         }
                     }
-                    update_queue_display(player);
+                    update_queue_display_with_filter(player);
                     update_gui_state(player);
                 }
             }
@@ -511,7 +511,7 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
                     stop_playback(player);
                     player->queue.current_index = queue_pos;
                     if (load_file_from_queue(player)) {
-                        update_queue_display(player);
+                        update_queue_display_with_filter(player);
                         update_gui_state(player);
                         start_playback(player);
                     }

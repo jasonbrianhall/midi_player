@@ -662,7 +662,7 @@ void on_recent_playlist_activated(GtkRecentChooser *chooser, gpointer user_data)
             printf("Loading recent playlist: %s\n", filename);
             
             if (load_m3u_playlist(player, filename)) {
-                update_queue_display(player);
+                update_queue_display_with_filter(player);
                 update_gui_state(player);
                 
                 // Start playing if queue has files

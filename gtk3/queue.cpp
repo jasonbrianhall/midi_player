@@ -213,7 +213,7 @@ void on_queue_drag_data_received(GtkWidget *widget, GdkDragContext *context,
                 
                 // Perform the reorder
                 if (reorder_queue_item(&player->queue, source_index, dest_index)) {
-                    update_queue_display(player);
+                    update_queue_display_with_filter(player);
                     update_gui_state(player);
                     printf("Queue reordered successfully\n");
                 }
@@ -272,7 +272,7 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
     player->queue.current_index = queue_index;
     
     if (load_file_from_queue(player)) {
-        update_queue_display(player);
+        update_queue_display_with_filter(player);  // Changed from update_queue_display
         update_gui_state(player);
         start_playback(player);
         printf("Started playing: %s\n", get_current_queue_file(&player->queue));
@@ -410,7 +410,7 @@ void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
                 }
             }
             
-            update_queue_display(player);
+            update_queue_display_with_filter(player);
             update_gui_state(player);
         }
     }
@@ -452,7 +452,7 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
                     }
                 }
                 
-                update_queue_display(player);
+                update_queue_display_with_filter(player);
                 update_gui_state(player);
             }
             
@@ -516,7 +516,7 @@ void move_queue_item_up(AudioPlayer *player, int index) {
         player->queue.current_index = index;
     }
     
-    update_queue_display(player);
+    update_queue_display_with_filter(player);
     
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index - 1, -1);
@@ -542,7 +542,7 @@ void move_queue_item_down(AudioPlayer *player, int index) {
         player->queue.current_index = index;
     }
     
-    update_queue_display(player);
+    update_queue_display_with_filter(player);
     
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index + 1, -1);
@@ -670,7 +670,7 @@ static void on_queue_search_icon_press(GtkEntry *entry, GtkEntryIconPosition ico
         }
         
         // Immediately update display to show all items
-        update_queue_display(player);
+        update_queue_display_with_filter(player);
     }
 }
 
