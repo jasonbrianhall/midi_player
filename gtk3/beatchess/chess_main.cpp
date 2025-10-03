@@ -40,6 +40,7 @@ typedef struct {
     bool zero_players;  // AI vs AI mode
     
     int move_count;
+    double ai_think_time;  // Time AI has been thinking
 } ChessGUI;
 
 // Forward declarations
@@ -190,6 +191,7 @@ void make_ai_move(ChessGUI *gui) {
             
             if (gui->status == CHESS_PLAYING && gui->move_count < MAX_MOVES_BEFORE_DRAW) {
                 chess_start_thinking(&gui->thinking_state, &gui->game);
+                gui->ai_think_time = 0;  // Reset think timer
             }
         }
     }
@@ -208,20 +210,45 @@ gboolean ai_move_timeout(gpointer data) {
         gui->move_count = 0;
         gui->last_from_row = -1;
         chess_start_thinking(&gui->thinking_state, &gui->game);
+        gui->ai_think_time = 0;
         update_status_text(gui);
         gtk_widget_queue_draw(gui->drawing_area);
         return G_SOURCE_CONTINUE;
     }
     
     if (gui->zero_players) {
-        // AI vs AI
-        make_ai_move(gui);
+        // AI vs AI - check if AI has completed a reasonable depth
+        pthread_mutex_lock(&gui->thinking_state.lock);
+        bool has_move = gui->thinking_state.has_move;
+        int depth = gui->thinking_state.current_depth;
+        bool is_thinking = gui->thinking_state.thinking;
+        pthread_mutex_unlock(&gui->thinking_state.lock);
+        
+        gui->ai_think_time += 1.0;
+        
+        // Move when: depth 2+ completed, finished thinking, or 10 second timeout
+        if ((has_move && depth >= 2) || !is_thinking || gui->ai_think_time >= 10.0) {
+            make_ai_move(gui);
+        }
         return G_SOURCE_CONTINUE;
     } else {
         // Check if it's AI's turn
         if ((gui->player_is_white && gui->game.turn == BLACK) ||
             (!gui->player_is_white && gui->game.turn == WHITE)) {
-            make_ai_move(gui);
+            
+            // Check if AI has completed a reasonable depth
+            pthread_mutex_lock(&gui->thinking_state.lock);
+            bool has_move = gui->thinking_state.has_move;
+            int depth = gui->thinking_state.current_depth;
+            bool is_thinking = gui->thinking_state.thinking;
+            pthread_mutex_unlock(&gui->thinking_state.lock);
+            
+            gui->ai_think_time += 1.0;
+            
+            // Move when: depth 2+ completed, finished thinking, or 10 second timeout
+            if ((has_move && depth >= 2) || !is_thinking || gui->ai_think_time >= 10.0) {
+                make_ai_move(gui);
+            }
         }
     }
     
@@ -311,16 +338,19 @@ void on_new_game(GtkWidget *widget, gpointer data) {
     gui->move_count = 0;
     gui->has_selection = false;
     gui->last_from_row = -1;
+    gui->ai_think_time = 0;
     
     chess_start_thinking(&gui->thinking_state, &gui->game);
     update_status_text(gui);
     gtk_widget_queue_draw(gui->drawing_area);
 }
 
-void on_flip_board(GtkWidget *widget, gpointer data) {
+void on_toggle_zero_players(GtkWidget *widget, gpointer data) {
     ChessGUI *gui = (ChessGUI*)data;
-    gui->player_is_white = !gui->player_is_white;
-    gtk_widget_queue_draw(gui->drawing_area);
+    gui->zero_players = !gui->zero_players;
+    
+    // Restart the game when toggling mode
+    on_new_game(widget, data);
 }
 
 int main(int argc, char *argv[]) {
@@ -334,6 +364,7 @@ int main(int argc, char *argv[]) {
     gui.player_is_white = true;
     gui.zero_players = false;
     gui.last_from_row = -1;
+    gui.ai_think_time = 0;
     
     // Parse command line args
     for (int i = 1; i < argc; i++) {
@@ -357,7 +388,7 @@ int main(int argc, char *argv[]) {
     // Create window
     gui.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(gui.window), "Chess");
-    gtk_window_set_default_size(GTK_WINDOW(gui.window), 600, 680);
+    gtk_window_set_default_size(GTK_WINDOW(gui.window), 600, 650);
     g_signal_connect(gui.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
     
     // Create main vbox
@@ -374,6 +405,11 @@ int main(int argc, char *argv[]) {
     GtkWidget *restart_item = gtk_menu_item_new_with_label("Restart");
     g_signal_connect(restart_item, "activate", G_CALLBACK(on_new_game), &gui);
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), restart_item);
+    
+    GtkWidget *zero_players_item = gtk_check_menu_item_new_with_label("AI vs AI (Zero Players)");
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(zero_players_item), gui.zero_players);
+    g_signal_connect(zero_players_item, "activate", G_CALLBACK(on_toggle_zero_players), &gui);
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), zero_players_item);
     
     GtkWidget *separator = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), separator);
@@ -403,20 +439,6 @@ int main(int argc, char *argv[]) {
     g_signal_connect(gui.drawing_area, "draw", G_CALLBACK(on_draw), &gui);
     g_signal_connect(gui.drawing_area, "button-press-event", G_CALLBACK(on_button_press), &gui);
     gtk_box_pack_start(GTK_BOX(vbox), gui.drawing_area, TRUE, TRUE, 0);
-    
-    // Button box
-    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 5);
-    
-    GtkWidget *new_game_button = gtk_button_new_with_label("New Game");
-    g_signal_connect(new_game_button, "clicked", G_CALLBACK(on_new_game), &gui);
-    gtk_box_pack_start(GTK_BOX(button_box), new_game_button, TRUE, TRUE, 0);
-    
-    if (!gui.zero_players) {
-        GtkWidget *flip_button = gtk_button_new_with_label("Flip Board");
-        g_signal_connect(flip_button, "clicked", G_CALLBACK(on_flip_board), &gui);
-        gtk_box_pack_start(GTK_BOX(button_box), flip_button, TRUE, TRUE, 0);
-    }
     
     gtk_widget_show_all(gui.window);
     
