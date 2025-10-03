@@ -21,7 +21,6 @@ void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer
 }
 
 void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer user_data) {
-    (void)model;
     (void)iter;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
@@ -34,19 +33,22 @@ void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTree
         // Perform the actual queue reorder
         if (reorder_queue_item(&player->queue, pending_delete_index, insert_index)) {
             printf("Queue reordered: %d -> %d\n", pending_delete_index, insert_index);
+            
+            // Update only the play indicators, don't rebuild entire display
+            GtkTreeIter temp_iter;
+            gboolean valid = gtk_tree_model_get_iter_first(model, &temp_iter);
+            int i = 0;
+            
+            while (valid) {
+                const char *indicator = (i == player->queue.current_index) ? "▶" : "";
+                gtk_list_store_set(player->queue_store, &temp_iter, COL_PLAYING, indicator, -1);
+                valid = gtk_tree_model_iter_next(model, &temp_iter);
+                i++;
+            }
         }
         
         pending_delete_index = -1;
         pending_move_file = NULL;
-        
-        // Update display to reflect the move
-        // Note: Don't call update_queue_display here or you'll trigger infinite loop
-        // Just update the play indicator
-        GtkTreeIter display_iter;
-        if (gtk_tree_model_get_iter(GTK_TREE_MODEL(player->queue_store), &display_iter, path)) {
-            const char *indicator = (insert_index == player->queue.current_index) ? "▶" : "";
-            gtk_list_store_set(player->queue_store, &display_iter, COL_PLAYING, indicator, -1);
-        }
     }
 }
 
