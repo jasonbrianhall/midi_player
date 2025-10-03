@@ -157,11 +157,13 @@ typedef struct {
     GtkWidget *prev_button;
     GtkListStore *queue_store;
     GtkWidget *queue_tree_view;
-    void on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
-    void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data);
     
     PlayQueue queue;
     ConversionCache conversion_cache;
+
+    GtkWidget *queue_search_entry;
+    guint queue_filter_timeout_id;
+    char queue_filter_text[256];
     
     bool is_loaded;
     bool is_playing;
@@ -264,7 +266,9 @@ void on_queue_drag_end(GtkWidget *widget, GdkDragContext *context, gpointer user
 bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index);
 void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer user_data);
 void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer user_data);
-
+void cleanup_queue_filter(AudioPlayer *player);
+GtkWidget* create_queue_search_bar(AudioPlayer *player);
+void update_queue_display_with_filter(AudioPlayer *player);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);

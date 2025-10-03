@@ -1734,6 +1734,8 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
         equalizer_free(player->equalizer);
     }
     
+    cleanup_queue_filter(player);
+    
     // This will be called after delete-event, so just quit
     gtk_main_quit();
 }

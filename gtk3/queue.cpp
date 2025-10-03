@@ -606,3 +606,209 @@ gboolean on_queue_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user
     
     return FALSE;
 }
+
+static gboolean apply_queue_filter_delayed(gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Clear the timeout ID
+    player->queue_filter_timeout_id = 0;
+    
+    const char *filter_text = gtk_entry_get_text(GTK_ENTRY(player->queue_search_entry));
+    strncpy(player->queue_filter_text, filter_text, sizeof(player->queue_filter_text) - 1);
+    player->queue_filter_text[sizeof(player->queue_filter_text) - 1] = '\0';
+    
+    printf("Applying queue filter: '%s'\n", player->queue_filter_text);
+    
+    // Refilter the tree view
+    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
+    if (model) {
+        // If we have a filter, we need to rebuild with filtering
+        // For now, let's just update the display
+        update_queue_display_with_filter(player);
+    }
+    
+    return G_SOURCE_REMOVE;
+}
+
+static void on_queue_search_changed(GtkEntry *entry, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Remove existing timeout if any
+    if (player->queue_filter_timeout_id != 0) {
+        g_source_remove(player->queue_filter_timeout_id);
+    }
+    
+    // Set new timeout for 500ms
+    player->queue_filter_timeout_id = g_timeout_add(500, apply_queue_filter_delayed, player);
+}
+
+static void on_queue_search_icon_press(GtkEntry *entry, GtkEntryIconPosition icon_pos, 
+                                       GdkEvent *event, gpointer user_data) {
+    (void)event;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (icon_pos == GTK_ENTRY_ICON_SECONDARY) {
+        // Clear button clicked
+        gtk_entry_set_text(entry, "");
+        player->queue_filter_text[0] = '\0';
+        
+        // Remove any pending timeout
+        if (player->queue_filter_timeout_id != 0) {
+            g_source_remove(player->queue_filter_timeout_id);
+            player->queue_filter_timeout_id = 0;
+        }
+        
+        // Immediately update display to show all items
+        update_queue_display(player);
+    }
+}
+
+GtkWidget* create_queue_search_bar(AudioPlayer *player) {
+    GtkWidget *search_entry = gtk_search_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(search_entry), "Filter queue...");
+    
+    // Add clear icon
+    gtk_entry_set_icon_from_icon_name(GTK_ENTRY(search_entry), 
+                                     GTK_ENTRY_ICON_SECONDARY, 
+                                     "edit-clear-symbolic");
+    gtk_entry_set_icon_tooltip_text(GTK_ENTRY(search_entry),
+                                   GTK_ENTRY_ICON_SECONDARY,
+                                   "Clear filter");
+    
+    player->queue_search_entry = search_entry;
+    player->queue_filter_timeout_id = 0;
+    player->queue_filter_text[0] = '\0';
+    
+    // Connect signals
+    g_signal_connect(search_entry, "changed", 
+                     G_CALLBACK(on_queue_search_changed), player);
+    g_signal_connect(search_entry, "icon-press",
+                     G_CALLBACK(on_queue_search_icon_press), player);
+    
+    return search_entry;
+}
+
+static bool matches_filter(const char *text, const char *filter) {
+    if (!filter || filter[0] == '\0') {
+        return true;  // Empty filter matches everything
+    }
+    
+    // Case-insensitive search
+    char *text_lower = g_utf8_strdown(text, -1);
+    char *filter_lower = g_utf8_strdown(filter, -1);
+    
+    bool matches = (strstr(text_lower, filter_lower) != NULL);
+    
+    g_free(text_lower);
+    g_free(filter_lower);
+    
+    return matches;
+}
+
+void update_queue_display_with_filter(AudioPlayer *player) {
+    // Clear existing model
+    if (player->queue_store) {
+        gtk_list_store_clear(player->queue_store);
+    }
+    
+    const char *filter = player->queue_filter_text;
+    bool has_filter = (filter && filter[0] != '\0');
+    
+    int visible_count = 0;
+    
+    // Add each queue item that matches the filter
+    for (int i = 0; i < player->queue.count; i++) {
+        // Extract metadata for this file
+        char *metadata = extract_metadata(player->queue.files[i]);
+        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+        
+        parse_metadata(metadata, title, artist, album, genre);
+        g_free(metadata);
+        
+        // Get basename for filename column
+        char *basename = g_path_get_basename(player->queue.files[i]);
+        
+        // Check if this item matches the filter
+        bool matches = true;
+        if (has_filter) {
+            matches = matches_filter(basename, filter) ||
+                     matches_filter(title, filter) ||
+                     matches_filter(artist, filter) ||
+                     matches_filter(album, filter) ||
+                     matches_filter(genre, filter);
+        }
+        
+        if (matches) {
+            GtkTreeIter iter;
+            gtk_list_store_append(player->queue_store, &iter);
+            
+            // Get duration
+            int duration_seconds = get_file_duration(player->queue.files[i]);
+            char duration_str[16];
+            if (duration_seconds > 0) {
+                snprintf(duration_str, sizeof(duration_str), "%d:%02d", 
+                        duration_seconds / 60, duration_seconds % 60);
+            } else {
+                strcpy(duration_str, "");
+            }
+            
+            const char *indicator = (i == player->queue.current_index) ? "▶" : "";
+            
+            gtk_list_store_set(player->queue_store, &iter,
+                COL_FILEPATH, player->queue.files[i],
+                COL_PLAYING, indicator,
+                COL_FILENAME, basename,
+                COL_TITLE, title,
+                COL_ARTIST, artist,
+                COL_ALBUM, album,
+                COL_GENRE, genre,
+                COL_DURATION, duration_str,
+                -1);
+            
+            visible_count++;
+        }
+        
+        g_free(basename);
+    }
+    
+    printf("Queue filter: showing %d of %d items\n", visible_count, player->queue.count);
+    
+    // Scroll to and select current item if it's visible
+    if (player->queue.current_index >= 0 && player->queue_tree_view) {
+        // We need to find which row the current item is at after filtering
+        GtkTreeIter iter;
+        gboolean valid = gtk_tree_model_get_iter_first(
+            GTK_TREE_MODEL(player->queue_store), &iter);
+        
+        int row = 0;
+        while (valid) {
+            gchar *filepath = NULL;
+            gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &iter,
+                             COL_FILEPATH, &filepath, -1);
+            
+            if (filepath && strcmp(filepath, player->queue.files[player->queue.current_index]) == 0) {
+                GtkTreePath *path = gtk_tree_path_new_from_indices(row, -1);
+                gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view),
+                                           path, NULL, TRUE, 0.5, 0.0);
+                GtkTreeSelection *selection = gtk_tree_view_get_selection(
+                    GTK_TREE_VIEW(player->queue_tree_view));
+                gtk_tree_selection_select_path(selection, path);
+                gtk_tree_path_free(path);
+                g_free(filepath);
+                break;
+            }
+            
+            g_free(filepath);
+            valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &iter);
+            row++;
+        }
+    }
+}
+
+// Cleanup function to call on exit
+void cleanup_queue_filter(AudioPlayer *player) {
+    if (player->queue_filter_timeout_id != 0) {
+        g_source_remove(player->queue_filter_timeout_id);
+        player->queue_filter_timeout_id = 0;
+    }
+}

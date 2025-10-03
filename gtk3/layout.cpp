@@ -414,6 +414,10 @@ static void create_queue_display(AudioPlayer *player) {
     gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), queue_label, FALSE, FALSE, 0);
 
+    // ADD THE SEARCH BAR HERE
+    GtkWidget *search_bar = create_queue_search_bar(player);
+    gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), search_bar, FALSE, FALSE, 0);
+
     player->queue_scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(player->queue_scrolled_window), 
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
@@ -423,7 +427,7 @@ static void create_queue_display(AudioPlayer *player) {
                                player->layout.config.queue_width, 
                                adjusted_queue_height);
 
-    // Create the tree view with columns instead of listbox
+    // Create the tree view with columns
     create_queue_treeview(player);
 
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), player->queue_scrolled_window, TRUE, TRUE, 0);
