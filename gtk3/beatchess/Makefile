@@ -5,7 +5,7 @@ CXXFLAGS = -Wall -O2 `pkg-config --cflags gtk+-3.0`
 LDFLAGS = `pkg-config --libs gtk+-3.0` -lpthread -lm
 
 # Targets
-all: beatchess
+all: chess_main
 
 chess_main: chess_main.o beatchess.o
 	$(CXX) -o chess_main chess_main.o beatchess.o $(LDFLAGS)

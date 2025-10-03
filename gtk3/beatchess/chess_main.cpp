@@ -7,6 +7,11 @@
 #include "beatchess.h"
 #include "visualization.h"
 
+// Include the chess engine header
+extern "C" {
+    #include "beatchess.h"
+}
+
 #ifndef MAX_MOVES_BEFORE_DRAW
 #define MAX_MOVES_BEFORE_DRAW 150
 #endif
@@ -44,7 +49,6 @@ gboolean on_button_press(GtkWidget *widget, GdkEventButton *event, gpointer data
 void update_status_text(ChessGUI *gui);
 void make_ai_move(ChessGUI *gui);
 gboolean ai_move_timeout(gpointer data);
-
 
 gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
     ChessGUI *gui = (ChessGUI*)data;
@@ -353,12 +357,39 @@ int main(int argc, char *argv[]) {
     // Create window
     gui.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(gui.window), "Chess");
-    gtk_window_set_default_size(GTK_WINDOW(gui.window), 600, 650);
+    gtk_window_set_default_size(GTK_WINDOW(gui.window), 600, 680);
     g_signal_connect(gui.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
     
-    // Create vbox
+    // Create main vbox
+    GtkWidget *main_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_container_add(GTK_CONTAINER(gui.window), main_vbox);
+    
+    // Create menu bar
+    GtkWidget *menu_bar = gtk_menu_bar_new();
+    
+    // File menu
+    GtkWidget *file_menu = gtk_menu_new();
+    GtkWidget *file_item = gtk_menu_item_new_with_label("File");
+    
+    GtkWidget *restart_item = gtk_menu_item_new_with_label("Restart");
+    g_signal_connect(restart_item, "activate", G_CALLBACK(on_new_game), &gui);
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), restart_item);
+    
+    GtkWidget *separator = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), separator);
+    
+    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
+    g_signal_connect(quit_item, "activate", G_CALLBACK(gtk_main_quit), NULL);
+    gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
+    
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(file_item), file_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), file_item);
+    
+    gtk_box_pack_start(GTK_BOX(main_vbox), menu_bar, FALSE, FALSE, 0);
+    
+    // Create vbox for game content
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_add(GTK_CONTAINER(gui.window), vbox);
+    gtk_box_pack_start(GTK_BOX(main_vbox), vbox, TRUE, TRUE, 0);
     
     // Status label
     gui.status_label = gtk_label_new("");
