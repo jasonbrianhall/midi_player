@@ -184,6 +184,20 @@ typedef struct {
     LayoutManager layout;
 } AudioPlayer;
 
+typedef struct {
+    double volume;
+    double speed;
+    // Equalizer settings
+    bool eq_enabled;
+    float bass_gain;
+    float mid_gain;
+    float treble_gain;
+    // Visualization settings
+    int vis_type;
+    float vis_sensitivity;
+} PlayerSettings;
+
+
 // External variables from midiplayer
 extern double playTime;
 extern bool isPlaying;
@@ -205,6 +219,11 @@ const char* get_current_queue_file(PlayQueue *queue);
 bool advance_queue(PlayQueue *queue);
 bool previous_queue(PlayQueue *queue);
 void update_queue_display(AudioPlayer *player);
+
+// Settings
+bool save_player_settings(AudioPlayer *player);
+bool load_player_settings(AudioPlayer *player);
+bool get_settings_path(char *path, size_t path_size);
 
 // Audio functions
 void audio_callback(void* userdata, Uint8* stream, int len);

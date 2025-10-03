@@ -2070,6 +2070,8 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     
     // Save current queue before exit
     save_current_queue_on_exit(player);
+
+    save_player_settings(player);
     
     stop_playback(player);
     clear_queue(&player->queue);
@@ -2418,10 +2420,179 @@ bool load_playlist_state(int *current_index, double *position) {
     return true;
 }
 
+#ifdef _WIN32
+bool get_settings_path(char *path, size_t path_size) {
+    char app_data[MAX_PATH];
+    if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) != S_OK) {
+        return false;
+    }
+    snprintf(path, path_size, "%s\\Zenamp\\settings.txt", app_data);
+    
+    // Create directory if it doesn't exist
+    char dir_path[MAX_PATH];
+    snprintf(dir_path, sizeof(dir_path), "%s\\Zenamp", app_data);
+    CreateDirectoryA(dir_path, NULL);
+    
+    return true;
+}
+#else
+bool get_settings_path(char *path, size_t path_size) {
+    const char *home = getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    snprintf(path, path_size, "%s/.zenamp/settings.txt", home);
+    
+    // Create directory if it doesn't exist
+    char dir_path[512];
+    snprintf(dir_path, sizeof(dir_path), "%s/.zenamp", home);
+    mkdir(dir_path, 0755);
+    
+    return true;
+}
+#endif
+
+bool save_player_settings(AudioPlayer *player) {
+    char settings_path[1024];
+    if (!get_settings_path(settings_path, sizeof(settings_path))) {
+        printf("Failed to get settings path\n");
+        return false;
+    }
+    
+    FILE *f = fopen(settings_path, "w");
+    if (!f) {
+        printf("Failed to save settings\n");
+        return false;
+    }
+    
+    // Get current volume from the scale widget
+    double volume = gtk_range_get_value(GTK_RANGE(player->volume_scale));
+    
+    // Write settings
+    fprintf(f, "# Zenamp Settings\n");
+    fprintf(f, "volume=%.2f\n", volume);
+    fprintf(f, "speed=%.2f\n", player->playback_speed);
+    
+    // Equalizer settings
+    if (player->equalizer) {
+        fprintf(f, "eq_enabled=%d\n", player->equalizer->enabled ? 1 : 0);
+        fprintf(f, "bass_gain=%.2f\n", player->equalizer->bass_gain_db);
+        fprintf(f, "mid_gain=%.2f\n", player->equalizer->mid_gain_db);
+        fprintf(f, "treble_gain=%.2f\n", player->equalizer->treble_gain_db);
+    }
+    
+    // Visualization settings
+    if (player->visualizer) {
+        fprintf(f, "vis_type=%d\n", player->visualizer->type);
+        fprintf(f, "vis_sensitivity=%.2f\n", player->visualizer->sensitivity);
+    }
+    
+    fclose(f);
+    printf("Settings saved to: %s\n", settings_path);
+    return true;
+}
+
+bool load_player_settings(AudioPlayer *player) {
+    char settings_path[1024];
+    if (!get_settings_path(settings_path, sizeof(settings_path))) {
+        printf("Failed to get settings path\n");
+        return false;
+    }
+    
+    FILE *f = fopen(settings_path, "r");
+    if (!f) {
+        printf("No settings file found, using defaults\n");
+        return false;
+    }
+    
+    char line[256];
+    double volume = 1.0;
+    double speed = 1.0;
+    bool eq_enabled = false;
+    float bass_gain = 0.0f;
+    float mid_gain = 0.0f;
+    float treble_gain = 0.0f;
+    int vis_type = 0;
+    float vis_sensitivity = 1.0f;
+    
+    while (fgets(line, sizeof(line), f)) {
+        // Skip comments and empty lines
+        if (line[0] == '#' || line[0] == '\n') continue;
+        
+        // Parse key=value pairs
+        if (sscanf(line, "volume=%lf", &volume) == 1) {
+            printf("Loaded volume: %.2f\n", volume);
+        }
+        else if (sscanf(line, "speed=%lf", &speed) == 1) {
+            printf("Loaded speed: %.2f\n", speed);
+        }
+        else if (sscanf(line, "eq_enabled=%d", (int*)&eq_enabled) == 1) {
+            printf("Loaded eq_enabled: %d\n", eq_enabled);
+        }
+        else if (sscanf(line, "bass_gain=%f", &bass_gain) == 1) {
+            printf("Loaded bass_gain: %.2f\n", bass_gain);
+        }
+        else if (sscanf(line, "mid_gain=%f", &mid_gain) == 1) {
+            printf("Loaded mid_gain: %.2f\n", mid_gain);
+        }
+        else if (sscanf(line, "treble_gain=%f", &treble_gain) == 1) {
+            printf("Loaded treble_gain: %.2f\n", treble_gain);
+        }
+        else if (sscanf(line, "vis_type=%d", &vis_type) == 1) {
+            printf("Loaded vis_type: %d\n", vis_type);
+        }
+        else if (sscanf(line, "vis_sensitivity=%f", &vis_sensitivity) == 1) {
+            printf("Loaded vis_sensitivity: %.2f\n", vis_sensitivity);
+        }
+    }
+    
+    fclose(f);
+    
+    // Apply loaded settings
+    
+    // Volume
+    gtk_range_set_value(GTK_RANGE(player->volume_scale), volume);
+    globalVolume = (int)(volume * 100);
+    
+    // Speed
+    player->playback_speed = speed;
+    gtk_range_set_value(GTK_RANGE(player->speed_scale), speed);
+    
+    // Equalizer
+    if (player->equalizer) {
+        player->equalizer->enabled = eq_enabled;
+        player->equalizer->bass_gain_db = bass_gain;
+        player->equalizer->mid_gain_db = mid_gain;
+        player->equalizer->treble_gain_db = treble_gain;
+        
+        // Update GUI controls
+        if (player->eq_enable_check) {
+            gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->eq_enable_check), eq_enabled);
+        }
+        if (player->bass_scale) {
+            gtk_range_set_value(GTK_RANGE(player->bass_scale), bass_gain);
+        }
+        if (player->mid_scale) {
+            gtk_range_set_value(GTK_RANGE(player->mid_scale), mid_gain);
+        }
+        if (player->treble_scale) {
+            gtk_range_set_value(GTK_RANGE(player->treble_scale), treble_gain);
+        }
+    }
+    
+    // Visualization
+    if (player->visualizer) {
+        player->visualizer->sensitivity = vis_sensitivity;
+        visualizer_set_type(player->visualizer, (VisualizationType)vis_type);
+    }
+    
+    printf("Settings loaded successfully\n");
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     
-    // Initialize virtual filesystem
     init_virtual_filesystem();
     
     player = (AudioPlayer*)g_malloc0(sizeof(AudioPlayer));
@@ -2429,7 +2600,6 @@ int main(int argc, char *argv[]) {
     player->playback_speed = 1.0; 
     player->speed_accumulator = 0.0;    
     
-    // Initialize queue and conversion cache
     init_queue(&player->queue);
     init_conversion_cache(&player->conversion_cache);
     
@@ -2445,7 +2615,6 @@ int main(int argc, char *argv[]) {
         printf("Failed to initialize equalizer\n");
     }
     
-    // Initialize OPL for MIDI conversion
     OPL_Init(SAMPLE_RATE);
     OPL_LoadInstruments();
     
@@ -2456,15 +2625,17 @@ int main(int argc, char *argv[]) {
     update_gui_state(player);
     gtk_widget_show_all(player->window);
     
+    // *** ADD THIS LINE: Load saved settings ***
+    load_player_settings(player);
+    
     if (argc > 1) {
-        // Command line arguments take priority over last playlist
         const char *first_arg = argv[1];
         const char *ext = strrchr(first_arg, '.');
         
         if (ext && (strcasecmp(ext, ".m3u") == 0 || strcasecmp(ext, ".m3u8") == 0)) {
             printf("Loading M3U playlist: %s\n", first_arg);
             load_m3u_playlist(player, first_arg);
-            save_last_playlist_path(first_arg);  // Save as last playlist
+            save_last_playlist_path(first_arg);
             
             for (int i = 2; i < argc; i++) {
                 add_to_queue(&player->queue, argv[i]);
@@ -2481,25 +2652,20 @@ int main(int argc, char *argv[]) {
             update_gui_state(player);
         }
     } else {
-        // No command line arguments - try to load last playlist
         char last_playlist[1024];
         if (load_last_playlist_path(last_playlist, sizeof(last_playlist))) {
             printf("Auto-loading last playlist: %s\n", last_playlist);
             if (load_m3u_playlist(player, last_playlist)) {
                 printf("Successfully loaded last playlist\n");
                 
-                // Try to restore playback state
                 int saved_index = 0;
                 double saved_position = 0.0;
                 if (load_playlist_state(&saved_index, &saved_position)) {
-                    // Set queue to saved index
                     if (saved_index >= 0 && saved_index < player->queue.count) {
                         player->queue.current_index = saved_index;
                         printf("Restored queue index to %d\n", saved_index);
                         
-                        // Load the file
                         if (load_file_from_queue(player)) {
-                            // Seek to saved position if valid
                             if (saved_position > 0 && saved_position < player->song_duration) {
                                 seek_to_position(player, saved_position);
                                 gtk_range_set_value(GTK_RANGE(player->progress_scale), saved_position);
@@ -2517,12 +2683,10 @@ int main(int argc, char *argv[]) {
     
     gtk_main();
     
-    // Clean up visualizer
     if (player->visualizer) {
         visualizer_free(player->visualizer);
     }
 
-    // Clean up CD+G
     if (player->cdg_display) {
         cdg_display_free(player->cdg_display);
     }
@@ -2535,3 +2699,5 @@ int main(int argc, char *argv[]) {
     g_free(player);
     return 0;
 }
+
+
