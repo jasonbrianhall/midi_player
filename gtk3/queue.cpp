@@ -2,57 +2,107 @@
 
 // Global variable to track drag source row
 static GtkTreeRowReference *drag_source_ref = NULL;
+static int pending_delete_index = -1;
+static char *pending_move_file = NULL;
 
-static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data) {
-    (void)event;
+void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer user_data) {
+    (void)model;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    // When queue gains focus, select the currently playing item if nothing is selected
-    GtkListBoxRow *selected = gtk_list_box_get_selected_row(GTK_LIST_BOX(widget));
-    if (!selected && player->queue.count > 0) {
-        // Select the currently playing song
-        GtkListBoxRow *current_row = gtk_list_box_get_row_at_index(
-            GTK_LIST_BOX(widget), 
-            player->queue.current_index
-        );
-        if (current_row) {
-            gtk_list_box_select_row(GTK_LIST_BOX(widget), current_row);
-            printf("Auto-selected current playing song (index %d) when queue gained focus\n", 
-                   player->queue.current_index);
+    gint *indices = gtk_tree_path_get_indices(path);
+    pending_delete_index = indices[0];
+    
+    printf("Model row deleted at index: %d\n", pending_delete_index);
+    
+    // Store the file path before it gets removed
+    if (pending_delete_index >= 0 && pending_delete_index < player->queue.count) {
+        pending_move_file = player->queue.files[pending_delete_index];
+    }
+}
+
+void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer user_data) {
+    (void)model;
+    (void)iter;
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    gint *indices = gtk_tree_path_get_indices(path);
+    int insert_index = indices[0];
+    
+    printf("Model row inserted at index: %d (was at %d)\n", insert_index, pending_delete_index);
+    
+    if (pending_delete_index >= 0 && pending_move_file) {
+        // Perform the actual queue reorder
+        if (reorder_queue_item(&player->queue, pending_delete_index, insert_index)) {
+            printf("Queue reordered: %d -> %d\n", pending_delete_index, insert_index);
+        }
+        
+        pending_delete_index = -1;
+        pending_move_file = NULL;
+        
+        // Update display to reflect the move
+        // Note: Don't call update_queue_display here or you'll trigger infinite loop
+        // Just update the play indicator
+        GtkTreeIter display_iter;
+        if (gtk_tree_model_get_iter(GTK_TREE_MODEL(player->queue_store), &display_iter, path)) {
+            const char *indicator = (insert_index == player->queue.current_index) ? "▶" : "";
+            gtk_list_store_set(player->queue_store, &display_iter, COL_PLAYING, indicator, -1);
+        }
+    }
+}
+
+
+// Forward declaration of reorder function
+bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index) {
+    if (from_index < 0 || from_index >= queue->count || 
+        to_index < 0 || to_index >= queue->count || 
+        from_index == to_index) {
+        return false;
+    }
+    
+    // Store the item being moved
+    char *moving_item = queue->files[from_index];
+    
+    // Adjust current_index based on the move
+    int new_current_index = queue->current_index;
+    
+    if (from_index == queue->current_index) {
+        // Moving the currently playing item
+        new_current_index = to_index;
+    } else if (from_index < queue->current_index && to_index >= queue->current_index) {
+        // Moving item from before current to after current
+        new_current_index--;
+    } else if (from_index > queue->current_index && to_index <= queue->current_index) {
+        // Moving item from after current to before current
+        new_current_index++;
+    }
+    
+    // Perform the move
+    if (from_index < to_index) {
+        // Moving down: shift items up
+        for (int i = from_index; i < to_index; i++) {
+            queue->files[i] = queue->files[i + 1];
+        }
+    } else {
+        // Moving up: shift items down
+        for (int i = from_index; i > to_index; i--) {
+            queue->files[i] = queue->files[i - 1];
         }
     }
     
-    return FALSE;
+    // Place the moved item in its new position
+    queue->files[to_index] = moving_item;
+    queue->current_index = new_current_index;
+    
+    return true;
 }
 
 void setup_queue_drag_and_drop(AudioPlayer *player) {
     GtkWidget *tree_view = player->queue_tree_view;
     
-    // Enable the tree view as both drag source and drag destination
-    gtk_tree_view_enable_model_drag_source(
-        GTK_TREE_VIEW(tree_view),
-        GDK_BUTTON1_MASK,
-        target_list,
-        n_targets,
-        GDK_ACTION_MOVE
-    );
+    // Enable reordering - this is the simple way for TreeView!
+    gtk_tree_view_set_reorderable(GTK_TREE_VIEW(tree_view), TRUE);
     
-    gtk_tree_view_enable_model_drag_dest(
-        GTK_TREE_VIEW(tree_view),
-        target_list,
-        n_targets,
-        GDK_ACTION_MOVE
-    );
-    
-    // Connect drag-and-drop signals
-    g_signal_connect(tree_view, "drag-begin",
-                     G_CALLBACK(on_queue_drag_begin), player);
-    g_signal_connect(tree_view, "drag-data-get",
-                     G_CALLBACK(on_queue_drag_data_get), player);
-    g_signal_connect(tree_view, "drag-data-received",
-                     G_CALLBACK(on_queue_drag_data_received), player);
-    g_signal_connect(tree_view, "drag-end",
-                     G_CALLBACK(on_queue_drag_end), player);
+    printf("Queue tree view set to reorderable\n");
 }
 
 void on_queue_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer user_data) {
@@ -184,6 +234,8 @@ void on_queue_drag_end(GtkWidget *widget, GdkDragContext *context, gpointer user
         gtk_tree_row_reference_free(drag_source_ref);
         drag_source_ref = NULL;
     }
+    
+    printf("Drag end\n");
 }
 
 void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
@@ -234,7 +286,6 @@ void update_queue_display(AudioPlayer *player) {
         parse_metadata(metadata, title, artist, album, genre);
         
         // Try to get duration from metadata string
-        // Look for patterns like "Duration: 3:45" or "Length: 3:45"
         const char *duration_patterns[] = {
             "<b>Duration:</b>",
             "<b>Length:</b>",
@@ -245,14 +296,11 @@ void update_queue_display(AudioPlayer *player) {
         for (int j = 0; j < 4; j++) {
             const char *duration_start = strstr(metadata, duration_patterns[j]);
             if (duration_start) {
-                // Move past the label
                 duration_start = strchr(duration_start, ':');
                 if (duration_start) {
-                    duration_start++; // Skip the colon
-                    // Try to find another colon for the time format
+                    duration_start++;
                     const char *time_start = strchr(duration_start, ':');
                     if (time_start) {
-                        // Back up to get the minutes
                         const char *scan = time_start - 1;
                         while (scan > duration_start && isdigit(*scan)) {
                             scan--;
@@ -262,18 +310,11 @@ void update_queue_display(AudioPlayer *player) {
                         int minutes = 0, seconds = 0;
                         if (sscanf(scan, "%d:%d", &minutes, &seconds) == 2) {
                             duration_seconds = minutes * 60 + seconds;
-                            printf("Found duration for %s: %d seconds (%d:%02d)\n", 
-                                   player->queue.files[i], duration_seconds, minutes, seconds);
                             break;
                         }
                     }
                 }
             }
-        }
-        
-        if (duration_seconds == 0) {
-            printf("No duration found in metadata for: %s\n", player->queue.files[i]);
-            printf("Metadata string: %s\n", metadata);
         }
         
         g_free(metadata);
@@ -320,9 +361,9 @@ void update_queue_display(AudioPlayer *player) {
 }
 
 void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
+    (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    // Get the selected row
     GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -333,7 +374,7 @@ void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
         int index = indices[0];
         gtk_tree_path_free(path);
         
-        printf("Removing item %d from queue via context menu\n", index);
+        printf("Removing item %d from queue\n", index);
         
         bool was_current_playing = (index == player->queue.current_index && player->is_playing);
         bool queue_will_be_empty = (player->queue.count <= 1);
@@ -375,7 +416,7 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
             int index = indices[0];
             gtk_tree_path_free(path);
             
-            printf("Removing item %d from queue via middle-click\n", index);
+            printf("Removing item %d via middle-click\n", index);
             
             bool was_current_playing = (index == player->queue.current_index && player->is_playing);
             bool queue_will_be_empty = (player->queue.count <= 1);
@@ -412,7 +453,6 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
         if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(widget), 
                                          (gint)event->x, (gint)event->y, 
                                          &path, NULL, NULL, NULL)) {
-            // Select the row
             GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(widget));
             gtk_tree_selection_select_path(selection, path);
             
@@ -420,25 +460,20 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
             int index = indices[0];
             gtk_tree_path_free(path);
             
-            // Create context menu
             GtkWidget *menu = gtk_menu_new();
             
-            // Move Up
             GtkWidget *move_up_item = gtk_menu_item_new_with_label("Move Up (Ctrl+↑)");
             g_signal_connect(move_up_item, "activate", G_CALLBACK(on_queue_move_up), player);
             gtk_widget_set_sensitive(move_up_item, index > 0);
             gtk_menu_shell_append(GTK_MENU_SHELL(menu), move_up_item);
             
-            // Move Down
             GtkWidget *move_down_item = gtk_menu_item_new_with_label("Move Down (Ctrl+↓)");
             g_signal_connect(move_down_item, "activate", G_CALLBACK(on_queue_move_down), player);
             gtk_widget_set_sensitive(move_down_item, index < player->queue.count - 1);
             gtk_menu_shell_append(GTK_MENU_SHELL(menu), move_down_item);
             
-            // Separator
             gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
             
-            // Delete
             GtkWidget *delete_item = gtk_menu_item_new_with_label("Remove from Queue");
             g_signal_connect(delete_item, "activate", G_CALLBACK(on_queue_delete_item), player);
             gtk_menu_shell_append(GTK_MENU_SHELL(menu), delete_item);
@@ -453,210 +488,15 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
     return FALSE;
 }
 
-gboolean on_queue_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    // Only handle single left clicks (let drag system handle drags)
-    if (event->type != GDK_BUTTON_PRESS || event->button != 1) {
-        return FALSE;
-    }
-    
-    // Get the row from the event box
-    GtkWidget *row = gtk_widget_get_parent(widget);
-    if (!GTK_IS_LIST_BOX_ROW(row)) {
-        return FALSE;
-    }
-    
-    // Get the index of the clicked row
-    int clicked_index = gtk_list_box_row_get_index(GTK_LIST_BOX_ROW(row));
-    
-    printf("Queue item clicked: index %d\n", clicked_index);
-    
-    // If this is already the current song and it's playing, do nothing
-    if (clicked_index == player->queue.current_index && player->is_playing) {
-        printf("Already playing this song\n");
-        return TRUE;
-    }
-    
-    // Stop current playback
-    stop_playback(player);
-    
-    // Set the queue to the clicked index
-    player->queue.current_index = clicked_index;
-    
-    // Load and start playing the selected file
-    if (load_file_from_queue(player)) {
-        update_queue_display(player);
-        update_gui_state(player);
-        start_playback(player);
-        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
-    }
-    
-    return TRUE; // Event handled
-}
-
-bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index) {
-    if (from_index < 0 || from_index >= queue->count || 
-        to_index < 0 || to_index >= queue->count || 
-        from_index == to_index) {
-        return false;
-    }
-    
-    // Store the item being moved
-    char *moving_item = queue->files[from_index];
-    
-    // Adjust current_index based on the move
-    int new_current_index = queue->current_index;
-    
-    if (from_index == queue->current_index) {
-        // Moving the currently playing item
-        new_current_index = to_index;
-    } else if (from_index < queue->current_index && to_index >= queue->current_index) {
-        // Moving item from before current to after current
-        new_current_index--;
-    } else if (from_index > queue->current_index && to_index <= queue->current_index) {
-        // Moving item from after current to before current
-        new_current_index++;
-    }
-    
-    // Perform the move
-    if (from_index < to_index) {
-        // Moving down: shift items up
-        for (int i = from_index; i < to_index; i++) {
-            queue->files[i] = queue->files[i + 1];
-        }
-    } else {
-        // Moving up: shift items down
-        for (int i = from_index; i > to_index; i--) {
-            queue->files[i] = queue->files[i - 1];
-        }
-    }
-    
-    // Place the moved item in its new position
-    queue->files[to_index] = moving_item;
-    queue->current_index = new_current_index;
-    
-    return true;
-}
-
-gboolean on_queue_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    // Only handle single left clicks (not drags, not right clicks)
-    if (event->type != GDK_BUTTON_PRESS || event->button != 1) {
-        return FALSE; // Let other handlers process this
-    }
-    
-    // Get the row that was clicked
-    GtkListBoxRow *row = gtk_list_box_get_row_at_y(GTK_LIST_BOX(widget), (gint)event->y);
-    if (!row) {
-        return FALSE;
-    }
-    
-    // Get the index of the clicked row
-    int clicked_index = gtk_list_box_row_get_index(row);
-    
-    printf("Queue item clicked: index %d\n", clicked_index);
-    
-    // If this is already the current song and it's playing, do nothing
-    if (clicked_index == player->queue.current_index && player->is_playing) {
-        printf("Already playing this song\n");
-        return TRUE;
-    }
-    
-    // Stop current playback
-    stop_playback(player);
-    
-    // Set the queue to the clicked index
-    player->queue.current_index = clicked_index;
-    
-    // Load and start playing the selected file
-    if (load_file_from_queue(player)) {
-        update_queue_display(player);
-        update_gui_state(player);
-        start_playback(player);
-        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
-    }
-    
-    return TRUE; // Event handled
-}
-
-void on_queue_item_clicked(GtkListBox *listbox, GtkListBoxRow *row, gpointer user_data) {
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    if (!row) return;
-    
-    // Get the index of the clicked row
-    int clicked_index = gtk_list_box_row_get_index(row);
-    
-    printf("Queue item clicked: index %d\n", clicked_index);
-    
-    // If this is already the current song and it's playing, do nothing
-    if (clicked_index == player->queue.current_index && player->is_playing) {
-        printf("Already playing this song\n");
+void move_queue_item_up(AudioPlayer *player, int index) {
+    if (index <= 0 || index >= player->queue.count) {
         return;
     }
     
-    // Stop current playback
-    stop_playback(player);
-    
-    // Set the queue to the clicked index
-    player->queue.current_index = clicked_index;
-    
-    // Load and start playing the selected file
-    if (load_file_from_queue(player)) {
-        update_queue_display(player);
-        update_gui_state(player);
-        start_playback(player);
-        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
-    }
-}
-
-// Drag motion callback (for visual feedback)
-gboolean on_drag_motion(GtkWidget *widget, GdkDragContext *context,
-                              gint x, gint y, guint time, gpointer user_data) {
-    (void)widget;
-    (void)x;
-    (void)y;
-    (void)time;
-    (void)user_data;
-    
-    // Accept the drag
-    gdk_drag_status(context, GDK_ACTION_MOVE, time);
-    return TRUE;
-}
-
-gboolean on_drag_drop(GtkWidget *widget, GdkDragContext *context,
-                            gint x, gint y, guint time, gpointer user_data) {
-    (void)widget;
-    (void)x;
-    (void)y;
-    (void)user_data;
-    
-    // Request the drag data
-    GtkTargetList *list = gtk_drag_dest_get_target_list(widget);
-    guint info; // Add this variable for the third parameter
-    GdkAtom target = gtk_target_list_find(list, GDK_SELECTION_TYPE_STRING, &info);
-    
-    if (target != GDK_NONE) {
-        gtk_drag_get_data(widget, context, target, time);
-        return TRUE;
-    }
-    
-    return FALSE;
-}
-
-void move_queue_item_up(AudioPlayer *player, int index) {
-    if (index <= 0 || index >= player->queue.count) {
-        return; // Can't move first item up or invalid index
-    }
-    
-    // Swap with previous item
     char *temp = player->queue.files[index];
     player->queue.files[index] = player->queue.files[index - 1];
     player->queue.files[index - 1] = temp;
     
-    // Update current_index if needed
     if (player->queue.current_index == index) {
         player->queue.current_index = index - 1;
     } else if (player->queue.current_index == index - 1) {
@@ -665,7 +505,6 @@ void move_queue_item_up(AudioPlayer *player, int index) {
     
     update_queue_display(player);
     
-    // Re-select the moved item
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index - 1, -1);
         GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
@@ -677,15 +516,13 @@ void move_queue_item_up(AudioPlayer *player, int index) {
 
 void move_queue_item_down(AudioPlayer *player, int index) {
     if (index < 0 || index >= player->queue.count - 1) {
-        return; // Can't move last item down or invalid index
+        return;
     }
     
-    // Swap with next item
     char *temp = player->queue.files[index];
     player->queue.files[index] = player->queue.files[index + 1];
     player->queue.files[index + 1] = temp;
     
-    // Update current_index if needed
     if (player->queue.current_index == index) {
         player->queue.current_index = index + 1;
     } else if (player->queue.current_index == index + 1) {
@@ -694,7 +531,6 @@ void move_queue_item_down(AudioPlayer *player, int index) {
     
     update_queue_display(player);
     
-    // Re-select the moved item
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index + 1, -1);
         GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
@@ -756,7 +592,6 @@ gboolean on_queue_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user
     int index = indices[0];
     gtk_tree_path_free(path);
     
-    // Check for Ctrl+Up or Ctrl+Down
     if (event->state & GDK_CONTROL_MASK) {
         if (event->keyval == GDK_KEY_Up) {
             move_queue_item_up(player, index);

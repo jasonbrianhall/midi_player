@@ -443,6 +443,12 @@ void create_queue_treeview(AudioPlayer *player) {
         G_TYPE_STRING,  // genre
         G_TYPE_STRING); // duration
     
+    // Add signals to detect when rows are reordered
+    g_signal_connect(player->queue_store, "row-deleted",
+                     G_CALLBACK(on_queue_model_row_deleted), player);
+    g_signal_connect(player->queue_store, "row-inserted",
+                     G_CALLBACK(on_queue_model_row_inserted), player);
+    
     // Create tree view
     GtkWidget *tree_view = gtk_tree_view_new_with_model(
         GTK_TREE_MODEL(player->queue_store));
@@ -475,9 +481,8 @@ void create_queue_treeview(AudioPlayer *player) {
     // Add to scrolled window
     gtk_container_add(GTK_CONTAINER(player->queue_scrolled_window), tree_view);
     
-    // Setup drag-and-drop after tree view is created
+    // Setup drag-and-drop (must be after tree view is created)
     setup_queue_drag_and_drop(player);
-
 }
 
 static void connect_widget_signals(AudioPlayer *player) {

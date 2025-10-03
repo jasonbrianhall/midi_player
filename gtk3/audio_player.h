@@ -262,6 +262,9 @@ void on_queue_drag_data_get(GtkWidget *widget, GdkDragContext *context, GtkSelec
 void on_queue_drag_data_received(GtkWidget *widget, GdkDragContext *context, gint x, gint y, GtkSelectionData *selection_data, guint target_type, guint time, gpointer user_data);
 void on_queue_drag_end(GtkWidget *widget, GdkDragContext *context, gpointer user_data);
 bool reorder_queue_item(PlayQueue *queue, int from_index, int to_index);
+void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer user_data);
+void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer user_data);
+
 
 // Settings
 bool save_player_settings(AudioPlayer *player);
