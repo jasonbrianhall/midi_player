@@ -90,6 +90,9 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "• FLAC (.flac) - Lossless compression\n"
         "• OPUS (.opus) - Modern codec\n"
         "• AIFF (.aiff) - Apple audio format\n\n"
+        "• CDG (.zip) - Karaoke Files\n\n"      
+        "Other formats"      
+
         "Features:\n"
         "• Playlist queue with repeat mode\n"
         "• Audio visualizer\n"
@@ -109,6 +112,8 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "• FLAC (.flac) - Lossless perfection for the audiophiles\n"
         "• OPUS (.opus) - Modern codec that's small but mighty\n"
         "• AIFF (.aiff) - Apple's answer to WAV, crisp and clean\n\n"
+        "• CDG (.zip) - Karaoke Files\n\n"      
+        "Other formats supported by either FFMPEG (Linux) or Windows Native"      
         "Features:\n"
         "• Playlist queue with repeat mode\n"
         "• Audio visualizer for eye candy while you listen\n"
@@ -128,7 +133,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     GtkWidget *author_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(author_label), 
         "<b>Author:</b> Jason Hall\n"
-        "<b>Website:</b> <a href=\"https://github.com/jasonbrianhall/midi_msdos\">"
+        "<b>Website:</b> <a href=\"https://github.com/jasonbrianhall/midi_player\">"
         "GitHub Repository</a>");
     gtk_label_set_justify(GTK_LABEL(author_label), GTK_JUSTIFY_CENTER);
     gtk_box_pack_start(GTK_BOX(about_vbox), author_label, FALSE, FALSE, 0);

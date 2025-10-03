@@ -227,6 +227,9 @@ static void create_visualization_section(AudioPlayer *player) {
     GtkWidget *vis_event_box = gtk_event_box_new();
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(vis_event_box), FALSE);
     
+    // Add tooltip for keyboard shortcuts
+    gtk_widget_set_tooltip_text(vis_event_box, "Q: Next visualization | A: Previous visualization | F/F9: Fullscreen | Double-click: Fullscreen");
+    
     // Add visualization drawing area to event box
     gtk_container_add(GTK_CONTAINER(vis_event_box), player->visualizer->drawing_area);
     
@@ -253,6 +256,7 @@ static void create_player_controls(AudioPlayer *player) {
     gtk_scale_set_draw_value(GTK_SCALE(player->progress_scale), FALSE);
     gtk_widget_set_sensitive(player->progress_scale, FALSE);
     gtk_widget_set_can_focus(player->progress_scale, TRUE);
+    gtk_widget_set_tooltip_text(player->progress_scale, "Use ←/→ arrow keys or </> to seek");
     g_signal_connect(player->progress_scale, "value-changed", G_CALLBACK(on_progress_scale_value_changed), player);
     gtk_box_pack_start(GTK_BOX(player->layout.content_vbox), player->progress_scale, FALSE, FALSE, 0);
     

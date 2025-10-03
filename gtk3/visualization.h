@@ -316,6 +316,8 @@ void init_frequency_bands(Visualizer *vis);
 bool save_last_visualization(VisualizationType vis_type);
 bool load_last_visualization(VisualizationType *vis_type);
 static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data);
+void visualizer_next_mode(Visualizer *vis);
+void visualizer_prev_mode(Visualizer *vis);
 
 // Bubble system function declarations
 void init_bubble_system(Visualizer *vis);

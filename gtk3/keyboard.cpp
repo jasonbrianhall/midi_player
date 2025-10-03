@@ -86,6 +86,32 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             toggle_vis_fullscreen(player);
             return TRUE;
             
+        case GDK_KEY_q:
+        case GDK_KEY_Q:
+            if (ctrl_pressed) {
+                gtk_main_quit();
+                return TRUE;
+            }
+            // Q: Next visualization
+            if (player->visualizer) {
+                visualizer_next_mode(player->visualizer);
+                printf("Switched to next visualization\n");
+            }
+            return TRUE;
+            
+        case GDK_KEY_a:
+        case GDK_KEY_A:
+            if (ctrl_pressed) {
+                on_add_to_queue_clicked(NULL, player);
+                return TRUE;
+            }
+            // A: Previous visualization
+            if (player->visualizer) {
+                visualizer_prev_mode(player->visualizer);
+                printf("Switched to previous visualization\n");
+            }
+            return TRUE;
+            
         case GDK_KEY_space:
             if (queue_focused) {
                 return FALSE;
@@ -246,23 +272,9 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             break;
             
-        case GDK_KEY_a:
-            if (ctrl_pressed) {
-                on_add_to_queue_clicked(NULL, player);
-                return TRUE;
-            }
-            break;
-            
         case GDK_KEY_c:
             if (ctrl_pressed) {
                 on_clear_queue_clicked(NULL, player);
-                return TRUE;
-            }
-            break;
-            
-        case GDK_KEY_q:
-            if (ctrl_pressed) {
-                gtk_main_quit();
                 return TRUE;
             }
             break;
@@ -302,7 +314,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     
     return FALSE;
 }
-
 void toggle_fullscreen(AudioPlayer *player) {
     GdkWindow *gdk_window = gtk_widget_get_window(player->window);
     if (!gdk_window) {
@@ -349,6 +360,7 @@ void show_keyboard_help(AudioPlayer *player) {
             "Shortcuts:\n\n"
             "Space - Play/Pause    S - Stop\n"
             "N - Next    P - Previous\n"
+            "Q - Next Vis    A - Previous Vis\n"
             "< - Rewind 5s    > - Forward 5s\n"
             "↑ - Volume up    ↓ - Volume down\n"
             "Home - Beginning    End - Next song\n\n"
@@ -374,6 +386,8 @@ void show_keyboard_help(AudioPlayer *player) {
             "  S\t\t- Stop\n"
             "  N\t\t- Next song\n"
             "  P\t\t- Previous song\n"
+            "  Q\t\t- Next Visualization\n"
+            "  A\t\t- Previous Visualization\n"
             "  , / < ←\t- Rewind 5 seconds\n"
             "  . / > →\t- Fast forward 5 seconds\n"
             "  Home\t- Go to beginning\n"

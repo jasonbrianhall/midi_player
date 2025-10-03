@@ -602,6 +602,34 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     return controls_box;
 }
 
+void visualizer_next_mode(Visualizer *vis) {
+    if (!vis) return;
+    
+    int current = (int)vis->type;
+    int next = (current + 1) % VIS_KARAOKE_EXCITING;  // Wrap around to first mode
+    
+    // Skip to first mode if we go past the last
+    if (next > VIS_KARAOKE_EXCITING) {
+        next = VIS_WAVEFORM;
+    }
+    
+    visualizer_set_type(vis, (VisualizationType)next);
+}
+
+void visualizer_prev_mode(Visualizer *vis) {
+    if (!vis) return;
+    
+    int current = (int)vis->type;
+    int prev = current - 1;
+    
+    // Wrap to last mode if we go below first
+    if (prev < VIS_WAVEFORM) {
+        prev = VIS_KARAOKE_EXCITING;
+    }
+    
+    visualizer_set_type(vis, (VisualizationType)prev);
+}
+
 bool save_last_visualization(VisualizationType vis_type) {
     char config_path[1024];
     
