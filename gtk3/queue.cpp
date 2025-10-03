@@ -246,20 +246,30 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
     (void)column;
     AudioPlayer *player = (AudioPlayer*)user_data;
     
-    gint *indices = gtk_tree_path_get_indices(path);
-    if (!indices) return;
+    GtkTreeModel *model = gtk_tree_view_get_model(tree_view);
+    GtkTreeIter iter;
     
-    int clicked_index = indices[0];
+    if (!gtk_tree_model_get_iter(model, &iter, path)) {
+        return;
+    }
     
-    printf("Queue row activated: index %d\n", clicked_index);
+    // Get the original queue index from the model
+    int queue_index = -1;
+    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &queue_index, -1);
     
-    if (clicked_index == player->queue.current_index && player->is_playing) {
+    if (queue_index < 0 || queue_index >= player->queue.count) {
+        return;
+    }
+    
+    printf("Queue row activated: original queue index %d\n", queue_index);
+    
+    if (queue_index == player->queue.current_index && player->is_playing) {
         printf("Already playing this song\n");
         return;
     }
     
     stop_playback(player);
-    player->queue.current_index = clicked_index;
+    player->queue.current_index = queue_index;
     
     if (load_file_from_queue(player)) {
         update_queue_display(player);
@@ -344,6 +354,7 @@ void update_queue_display(AudioPlayer *player) {
             COL_ALBUM, album,
             COL_GENRE, genre,
             COL_DURATION, duration_str,
+            COL_QUEUE_INDEX, i,
             -1);
         
         g_free(basename);
@@ -763,6 +774,7 @@ void update_queue_display_with_filter(AudioPlayer *player) {
                 COL_ALBUM, album,
                 COL_GENRE, genre,
                 COL_DURATION, duration_str,
+                COL_QUEUE_INDEX, i,
                 -1);
             
             visible_count++;
@@ -775,32 +787,28 @@ void update_queue_display_with_filter(AudioPlayer *player) {
     
     // Scroll to and select current item if it's visible
     if (player->queue.current_index >= 0 && player->queue_tree_view) {
-        // We need to find which row the current item is at after filtering
         GtkTreeIter iter;
         gboolean valid = gtk_tree_model_get_iter_first(
             GTK_TREE_MODEL(player->queue_store), &iter);
         
-        int row = 0;
         while (valid) {
-            gchar *filepath = NULL;
+            int queue_index = -1;
             gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &iter,
-                             COL_FILEPATH, &filepath, -1);
+                             COL_QUEUE_INDEX, &queue_index, -1);
             
-            if (filepath && strcmp(filepath, player->queue.files[player->queue.current_index]) == 0) {
-                GtkTreePath *path = gtk_tree_path_new_from_indices(row, -1);
+            if (queue_index == player->queue.current_index) {
+                GtkTreePath *path = gtk_tree_model_get_path(
+                    GTK_TREE_MODEL(player->queue_store), &iter);
                 gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view),
                                            path, NULL, TRUE, 0.5, 0.0);
                 GtkTreeSelection *selection = gtk_tree_view_get_selection(
                     GTK_TREE_VIEW(player->queue_tree_view));
                 gtk_tree_selection_select_path(selection, path);
                 gtk_tree_path_free(path);
-                g_free(filepath);
                 break;
             }
             
-            g_free(filepath);
             valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &iter);
-            row++;
         }
     }
 }

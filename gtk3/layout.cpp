@@ -436,16 +436,17 @@ static void create_queue_display(AudioPlayer *player) {
 }
 
 void create_queue_treeview(AudioPlayer *player) {
-    // Create list store
+    // Create list store with 9 columns now (added COL_QUEUE_INDEX)
     player->queue_store = gtk_list_store_new(NUM_COLS,
-        G_TYPE_STRING,  // filepath
-        G_TYPE_STRING,  // playing indicator
-        G_TYPE_STRING,  // filename
-        G_TYPE_STRING,  // title
-        G_TYPE_STRING,  // artist
-        G_TYPE_STRING,  // album
-        G_TYPE_STRING,  // genre
-        G_TYPE_STRING); // duration
+        G_TYPE_STRING,  // COL_FILEPATH
+        G_TYPE_STRING,  // COL_PLAYING
+        G_TYPE_STRING,  // COL_FILENAME
+        G_TYPE_STRING,  // COL_TITLE
+        G_TYPE_STRING,  // COL_ARTIST
+        G_TYPE_STRING,  // COL_ALBUM
+        G_TYPE_STRING,  // COL_GENRE
+        G_TYPE_STRING,  // COL_DURATION
+        G_TYPE_INT);    // COL_QUEUE_INDEX - NEW!
     
     // Add signals to detect when rows are reordered
     g_signal_connect(player->queue_store, "row-deleted",
@@ -467,6 +468,7 @@ void create_queue_treeview(AudioPlayer *player) {
     add_column(tree_view, "Album", COL_ALBUM, 150, TRUE);
     add_column(tree_view, "Genre", COL_GENRE, 100, TRUE);
     add_column(tree_view, "Time", COL_DURATION, 60, TRUE);
+    // Note: COL_QUEUE_INDEX is not displayed as a column, it's just stored in the model
     
     // Enable sorting
     gtk_tree_view_set_enable_search(GTK_TREE_VIEW(tree_view), TRUE);

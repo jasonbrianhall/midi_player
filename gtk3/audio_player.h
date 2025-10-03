@@ -42,6 +42,7 @@ enum {
     COL_ALBUM,
     COL_GENRE,
     COL_DURATION,
+    COL_QUEUE_INDEX,
     NUM_COLS
 };
 
