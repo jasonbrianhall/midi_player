@@ -228,7 +228,7 @@ static void create_visualization_section(AudioPlayer *player) {
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(vis_event_box), FALSE);
     
     // Add tooltip for keyboard shortcuts
-    gtk_widget_set_tooltip_text(vis_event_box, "Q: Next visualization | A: Previous visualization | F/F9: Fullscreen | Double-click: Fullscreen");
+    gtk_widget_set_tooltip_text(vis_event_box, "Q: Next visualization | A: Previous visualization | F/F9: Fullscreen");
     
     // Add visualization drawing area to event box
     gtk_container_add(GTK_CONTAINER(vis_event_box), player->visualizer->drawing_area);
