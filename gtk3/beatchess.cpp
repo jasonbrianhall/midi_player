@@ -1079,7 +1079,8 @@ void draw_piece(cairo_t *cr, PieceType type, ChessColor color, double x, double 
     if (color == WHITE) {
         cairo_set_source_rgb(cr, 0.95, 0.95, 0.95);
     } else {
-        cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
+        // Gold color for black pieces
+        cairo_set_source_rgb(cr, 0.85, 0.65, 0.13);
     }
     
     switch (type) {
@@ -1164,9 +1165,14 @@ void draw_piece(cairo_t *cr, PieceType type, ChessColor color, double x, double 
             break;
     }
     
-    // Outline for white pieces
-    if (color == WHITE && type != EMPTY) {
-        cairo_set_source_rgb(cr, 0.2, 0.2, 0.2);
+    // Outline for all pieces
+    if (type != EMPTY) {
+        if (color == WHITE) {
+            cairo_set_source_rgb(cr, 0.2, 0.2, 0.2);
+        } else {
+            // Darker gold outline for gold pieces
+            cairo_set_source_rgb(cr, 0.5, 0.35, 0.05);
+        }
         cairo_set_line_width(cr, 1.5);
         
         switch (type) {
@@ -1233,7 +1239,6 @@ void draw_piece(cairo_t *cr, PieceType type, ChessColor color, double x, double 
         }
     }
 }
-
 void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr) {
     double cell = chess->cell_size;
     double ox = chess->board_offset_x;
@@ -1333,10 +1338,10 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
                 // Scale dance by volume - pieces bounce more with louder music
                 double dance_amount = time_wave * volume * cell * 0.2;
                 
-                // Draw shadow
+                // Draw shadow - dark for all pieces
                 cairo_save(cr);
                 cairo_translate(cr, 3, 3);
-                cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+                cairo_set_source_rgba(cr, 0, 0, 0, 0.4);
                 draw_piece(cr, piece.type, piece.color, x, y, cell, dance_amount);
                 cairo_restore(cr);
                 
@@ -1365,10 +1370,10 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
         // Animating piece dances even more to the music
         double dance_amount = sin(chess->time_since_last_move * 15.0) * volume * cell * 0.3;
         
-        // Draw shadow
+        // Draw shadow - dark for all pieces
         cairo_save(cr);
         cairo_translate(cr, 3, 3);
-        cairo_set_source_rgba(cr, 0, 0, 0, 0.3);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.4);
         draw_piece(cr, piece.type, piece.color, x, y, cell, dance_amount);
         cairo_restore(cr);
         
@@ -1377,7 +1382,8 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
         if (piece.color == WHITE) {
             cairo_set_source_rgb(cr, 1.0, 1.0, 0.9);
         } else {
-            cairo_set_source_rgb(cr, 0.3, 0.3, 0.1);
+            // Brighter gold glow for animating gold pieces
+            cairo_set_source_rgb(cr, 0.95, 0.75, 0.2);
         }
         draw_piece(cr, piece.type, piece.color, x, y, cell, dance_amount);
         cairo_restore(cr);
