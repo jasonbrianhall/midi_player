@@ -72,3 +72,21 @@ char* extract_metadata(const char *filepath) {
     
     return g_strdup(metadata);
 }
+
+int get_file_duration(const char *filepath) {
+    TagLib_File *file = taglib_file_new(filepath);
+    if (!file || !taglib_file_is_valid(file)) {
+        if (file) taglib_file_free(file);
+        return 0;
+    }
+    
+    const TagLib_AudioProperties *props = taglib_file_audioproperties(file);
+    int duration = 0;
+    
+    if (props) {
+        duration = taglib_audioproperties_length(props);
+    }
+    
+    taglib_file_free(file);
+    return duration;
+}

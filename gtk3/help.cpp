@@ -89,7 +89,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
         "• OGG (.ogg) - Open-source alternative\n"
         "• FLAC (.flac) - Lossless compression\n"
         "• OPUS (.opus) - Modern codec\n"
-        "• AIFF (.aiff) - Apple audio format\n\n"
+        "• AIFF (.aiff) - Apple audio format\n"
         "• CDG (.zip) - Karaoke Files\n\n"      
         "Other formats"      
 

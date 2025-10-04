@@ -2445,12 +2445,6 @@ void parse_metadata(const char *metadata_str, char *title, char *artist,
     }
 }
 
-int get_file_duration(const char *filepath) {
-    // Return 0 for now - will be populated when file is actually loaded
-    (void)filepath;
-    return 0;
-}
-
 void add_column(GtkWidget *tree_view, const char *title, int col_id,  int width, gboolean sortable) {
     GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(
