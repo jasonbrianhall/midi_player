@@ -448,12 +448,6 @@ void create_queue_treeview(AudioPlayer *player) {
         G_TYPE_STRING,  // COL_DURATION
         G_TYPE_INT);    // COL_QUEUE_INDEX - NEW!
     
-    // Add signals to detect when rows are reordered
-    g_signal_connect(player->queue_store, "row-deleted",
-                     G_CALLBACK(on_queue_model_row_deleted), player);
-    g_signal_connect(player->queue_store, "row-inserted",
-                     G_CALLBACK(on_queue_model_row_inserted), player);
-    
     // Create tree view
     GtkWidget *tree_view = gtk_tree_view_new_with_model(
         GTK_TREE_MODEL(player->queue_store));
