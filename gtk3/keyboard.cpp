@@ -198,14 +198,14 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_n:
             if (!ctrl_pressed) {
-                next_song(player);
+                next_song_filtered(player);
                 return TRUE;
             }
             break;
             
         case GDK_KEY_p:
             if (!ctrl_pressed) {
-                previous_song(player);
+                previous_song_filtered(player);
                 return TRUE;
             }
             break;
@@ -249,7 +249,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_End:
             if (player->is_loaded && player->queue.count > 1) {
-                next_song(player);
+                next_song_filtered(player);
             }
             return TRUE;
             
@@ -414,14 +414,14 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             
         case GDK_KEY_n:
             if (!ctrl_pressed) {
-                next_song(player);
+                next_song_filtered(player);
                 return TRUE;
             }
             break;
             
         case GDK_KEY_p:
             if (!ctrl_pressed) {
-                previous_song(player);
+                previous_song_filtered(player);
                 return TRUE;
             }
             break;
@@ -465,7 +465,7 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             
         case GDK_KEY_End:
             if (player->is_loaded && player->queue.count > 1) {
-                next_song(player);
+                next_song_filtered(player);
             }
             return TRUE;
             

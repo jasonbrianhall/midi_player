@@ -813,7 +813,7 @@ void start_playback(AudioPlayer *player) {
                 // Call next_song() after a short delay
                 g_timeout_add(50, [](gpointer data) -> gboolean {
                     AudioPlayer *player = (AudioPlayer*)data;
-                    next_song(player);
+                    next_song_filtered(player);
                     return FALSE;
                 }, p);
                 
@@ -1082,6 +1082,133 @@ void previous_song(AudioPlayer *player) {
             start_playback(player);
         }
     }
+}
+
+void next_song_filtered(AudioPlayer *player) {
+    if (player->queue.count == 0) {
+        return;
+    }
+    
+    const char *filter = player->queue_filter_text;
+    bool has_filter = (filter && filter[0] != '\0');
+    
+    if (!has_filter) {
+        // No filter active, use normal next_song
+        next_song(player);
+        return;
+    }
+    
+    // Find the next visible (non-filtered) song
+    int start_index = player->queue.current_index + 1;
+    int search_count = 0;
+    
+    while (search_count < player->queue.count) {
+        int check_index = (start_index + search_count) % player->queue.count;
+        
+        // Extract metadata for this file
+        char *metadata = extract_metadata(player->queue.files[check_index]);
+        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+        parse_metadata(metadata, title, artist, album, genre);
+        g_free(metadata);
+        
+        char *basename = g_path_get_basename(player->queue.files[check_index]);
+        
+        // Check if this item matches the filter
+        bool matches = matches_filter(basename, filter) ||
+                      matches_filter(title, filter) ||
+                      matches_filter(artist, filter) ||
+                      matches_filter(album, filter) ||
+                      matches_filter(genre, filter);
+        
+        g_free(basename);
+        
+        if (matches) {
+            // Found the next visible song
+            stop_playback(player);
+            player->queue.current_index = check_index;
+            
+            if (load_file_from_queue(player)) {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+                start_playback(player);
+                printf("Next filtered song: %s (index %d)\n", 
+                       get_current_queue_file(&player->queue), check_index);
+            }
+            return;
+        }
+        
+        search_count++;
+    }
+    
+    // No matching song found in filter
+    printf("No next song matches current filter\n");
+}
+
+void previous_song_filtered(AudioPlayer *player) {
+    if (player->queue.count == 0) {
+        return;
+    }
+    
+    const char *filter = player->queue_filter_text;
+    bool has_filter = (filter && filter[0] != '\0');
+    
+    if (!has_filter) {
+        // No filter active, use normal previous_song
+        previous_song(player);
+        return;
+    }
+    
+    // Find the previous visible (non-filtered) song
+    int start_index = player->queue.current_index - 1;
+    if (start_index < 0) {
+        start_index = player->queue.count - 1;
+    }
+    
+    int search_count = 0;
+    
+    while (search_count < player->queue.count) {
+        int check_index = start_index - search_count;
+        if (check_index < 0) {
+            check_index += player->queue.count;
+        }
+        
+        // Extract metadata for this file
+        char *metadata = extract_metadata(player->queue.files[check_index]);
+        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+        parse_metadata(metadata, title, artist, album, genre);
+        g_free(metadata);
+        
+        char *basename = g_path_get_basename(player->queue.files[check_index]);
+        
+        // Check if this item matches the filter
+        bool matches = matches_filter(basename, filter) ||
+                      matches_filter(title, filter) ||
+                      matches_filter(artist, filter) ||
+                      matches_filter(album, filter) ||
+                      matches_filter(genre, filter);
+        
+        g_free(basename);
+        
+        if (matches) {
+            // Found the previous visible song
+            stop_playback(player);
+            player->queue.current_index = check_index;
+            
+            if (load_file_from_queue(player)) {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+                start_playback(player);
+                printf("Previous filtered song: %s (index %d)\n", 
+                       get_current_queue_file(&player->queue), check_index);
+            }
+            return;
+        }
+        
+        search_count++;
+    }
+    
+    // No matching song found in filter
+    printf("No previous song matches current filter\n");
 }
 
 void update_gui_state(AudioPlayer *player) {
@@ -1712,12 +1839,12 @@ void on_fast_forward_clicked(GtkButton *button, gpointer user_data) {
 
 void on_next_clicked(GtkButton *button, gpointer user_data) {
     (void)button;
-    next_song((AudioPlayer*)user_data);
+    next_song_filtered((AudioPlayer*)user_data);
 }
 
 void on_previous_clicked(GtkButton *button, gpointer user_data) {
     (void)button;
-    previous_song((AudioPlayer*)user_data);
+    previous_song_filtered((AudioPlayer*)user_data);
 }
 
 void on_volume_changed(GtkRange *range, gpointer user_data) {

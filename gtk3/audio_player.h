@@ -270,6 +270,7 @@ void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTree
 void cleanup_queue_filter(AudioPlayer *player);
 GtkWidget* create_queue_search_bar(AudioPlayer *player);
 void update_queue_display_with_filter(AudioPlayer *player);
+bool matches_filter(const char *text, const char *filter);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);
@@ -308,6 +309,8 @@ void fast_forward_5_seconds(AudioPlayer *player);
 void next_song(AudioPlayer *player);
 void previous_song(AudioPlayer *player);
 void update_gui_state(AudioPlayer *player);
+void next_song_filtered(AudioPlayer *player);
+void previous_song_filtered(AudioPlayer *player);
 
 // GUI callback functions
 void on_progress_scale_value_changed(GtkRange *range, gpointer user_data);

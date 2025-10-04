@@ -699,7 +699,7 @@ GtkWidget* create_queue_search_bar(AudioPlayer *player) {
     return search_entry;
 }
 
-static bool matches_filter(const char *text, const char *filter) {
+bool matches_filter(const char *text, const char *filter) {
     if (!filter || filter[0] == '\0') {
         return true;  // Empty filter matches everything
     }
