@@ -66,7 +66,8 @@ jobs:
           opus-devel opusfile-devel \
           ImageMagick \
           ffmpeg-devel \
-          taglib-devel
+          taglib-devel \
+          rpm-build rpmdevtools
           
     - name: Convert Icon
       working-directory: gtk3
@@ -137,7 +138,7 @@ jobs:
       working-directory: gtk3
       run: |
         make linux
-        
+        make rpm
         # Verify the build
         if [ -f "build/linux/zenamp" ]; then
           echo "Linux build successful"
@@ -962,6 +963,18 @@ jobs:
         name: Zenamp-Portable.zip
         path: release
 
+    - name: Download Build Artifacts for RPM
+      uses: actions/download-artifact@v4
+      with:
+        name: zenamp-builds
+        path: artifacts
+
+    - name: Copy RPM to Release
+      run: |
+        # Find and copy the RPM file
+        find artifacts/build/rpm -name "*.rpm" -exec cp {} release/ \;
+        ls -la release/
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -969,6 +982,7 @@ jobs:
           release/Zenamp.msi
           release/Zenamp.msix
           release/Zenamp-Portable.zip
+          release/*.rpm
         tag_name: ${{ github.ref == 'refs/heads/master' && format('v{0}', github.run_number) || github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
         name: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && format('Release v{0}', github.run_number) || format('Dev Build v{0}', github.run_number) }}
         draft: false
@@ -1053,7 +1067,7 @@ jobs:
           - **M4A** - MPEG-4 Audio files
           - **WMA** - Windows Media Audio files
           - **M3U** - Audio playlist files
-          
+
           Right-click any supported audio file or playlist and select "Open with Zenamp" or "Play with Zenamp"!
           
           ---
