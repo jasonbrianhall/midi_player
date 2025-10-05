@@ -4,7 +4,7 @@
 # Package information for RPM
 PACKAGE_NAME = zenamp
 GIT_COUNT := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.$(GIT_COUNT)")
+VERSION := 1.0.$(GIT_COUNT)
 RELEASE = 1
 ARCH = x86_64
 
