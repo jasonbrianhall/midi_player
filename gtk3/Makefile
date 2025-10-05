@@ -4,7 +4,14 @@
 # Package information for RPM
 PACKAGE_NAME = zenamp
 GIT_COUNT := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
+
+# Allow VERSION to be overridden from command line
+# Usage: make rpm VERSION=1.2.3
+ifndef VERSION
 VERSION := 1.0.$(GIT_COUNT)
+endif
+
+BUILDNUM := $(GIT_COUNT)
 RELEASE = 1
 ARCH = x86_64
 
@@ -55,7 +62,7 @@ OPUS_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs opusfile 2>/dev/null || ec
 AVCODEC_CFLAGS_LINUX := $(shell $(PKG_CONFIG_LINUX) --cflags libavcodec libavformat libavutil libswresample 2>/dev/null || echo "")
 AVCODEC_LIBS_LINUX := $(shell $(PKG_CONFIG_LINUX) --libs libavcodec libavformat libavutil libswresample 2>/dev/null || echo "-lavcodec -lavformat -lavutil -lswresample")
 
-CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
+CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX -DVERSION=\"$(BUILDNUM)\"
 CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
 LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) $(AVCODEC_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
 
@@ -79,7 +86,7 @@ TAGLIB_LIBS_WIN := $(shell $(PKG_CONFIG_WIN) --libs taglib_c 2>/dev/null || echo
 # Media Foundation libraries for M4A support on Windows
 MEDIA_FOUNDATION_LIBS = -lmf -lmfplat -lmfreadwrite -lmfuuid -lole32
 
-CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
+CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32 -DVERSION=\"$(BUILDNUM)\"
 CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
 LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 
@@ -404,6 +411,11 @@ help:
 	@echo "  Name:    $(PACKAGE_NAME)"
 	@echo "  Version: $(VERSION)"
 	@echo "  Release: $(RELEASE)"
+	@echo ""
+	@echo "Version Override:"
+	@echo "  Use 'make rpm VERSION=x.y.z' to override the version number"
+	@echo "  Example: make rpm VERSION=2.0.5"
+	@echo "  Default: $(VERSION) (1.0.<git-commit-count>)"
 	@echo ""
 	@echo "Icon embedding:"
 	@echo "  Windows builds will automatically include icon.rc if present"
