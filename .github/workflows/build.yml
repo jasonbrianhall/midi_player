@@ -260,6 +260,7 @@ jobs:
         path: |
           gtk3/build/linux/**/*
           gtk3/build/windows/**/*
+          gtk3/build/rpm/**/*
           gtk3/Zenamp-Portable.zip
         retention-days: 7
 
