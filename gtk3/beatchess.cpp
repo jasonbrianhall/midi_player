@@ -628,8 +628,8 @@ void* chess_think_continuously(void* arg) {
             continue;
         }
         
-        // Iterative deepening
-        for (int depth = 1; depth <= MAX_CHESS_DEPTH; depth++) {
+        // Iterative deepening - LIMITED TO DEPTH 4
+        for (int depth = 1; depth <= 4; depth++) {  // Changed from MAX_CHESS_DEPTH
             ChessMove best_moves[256];
             int best_move_count = 0;
             int best_score = (game_copy.turn == WHITE) ? INT_MIN : INT_MAX;
@@ -670,17 +670,19 @@ void* chess_think_continuously(void* arg) {
                 }
             }
             
-            // Only update if we completed this depth
+            // Update if we completed this depth
             pthread_mutex_lock(&ts->lock);
             if (depth_completed && ts->thinking && best_move_count > 0) {
                 ts->best_move = best_moves[rand() % best_move_count];
                 ts->best_score = best_score;
                 ts->current_depth = depth;
                 ts->has_move = true;
+                
+                // Signal that we found a good move at depth >= 3
+                // The update loop will check this
             }
             pthread_mutex_unlock(&ts->lock);
             
-            // If we were interrupted, stop iterative deepening
             if (!depth_completed) {
                 break;
             }
@@ -693,6 +695,7 @@ void* chess_think_continuously(void* arg) {
     
     return NULL;
 }
+
 
 void chess_init_thinking_state(ChessThinkingState *ts) {
     ts->thinking = false;
@@ -815,6 +818,11 @@ void init_beat_chess_system(void *vis_ptr) {
     // Game over handling
     chess->beats_since_game_over = 0;
     chess->waiting_for_restart = false;
+
+    chess->time_thinking = 0;
+    chess->min_think_time = 0.5;        // Wait at least 0.5s before auto-playing
+    chess->good_move_threshold = 150;   // Auto-play if advantage > 150 centipawns
+    chess->auto_play_enabled = true;    // Enable auto-play
     
     printf("Beat chess system initialized\n");
 }
@@ -863,7 +871,7 @@ void update_beat_chess(void *vis_ptr, double dt) {
     
     // Animate piece movement
     if (chess->is_animating) {
-        chess->animation_progress += dt * 3.0; // 3 seconds for full animation
+        chess->animation_progress += dt * 3.0;
         if (chess->animation_progress >= 1.0) {
             chess->animation_progress = 1.0;
             chess->is_animating = false;
@@ -874,19 +882,15 @@ void update_beat_chess(void *vis_ptr, double dt) {
     double diff = chess->eval_bar_target - chess->eval_bar_position;
     chess->eval_bar_position += diff * dt * 3.0;
     
-    // Check for game over and handle restart
+    // Handle game over
     if (chess->status != CHESS_PLAYING) {
         if (chess->waiting_for_restart) {
-            // Waiting for beats to restart
             if (beat_chess_detect_beat(vis)) {
                 chess->beats_since_game_over++;
-                chess->time_since_last_move = 0;  // Reset timer so next beat can be detected
-                
-                printf("Beat detected! Count: %d/2\n", chess->beats_since_game_over);
+                chess->time_since_last_move = 0;
                 
                 if (chess->beats_since_game_over >= 2) {
-                    // Restart the game
-                    printf("Restarting game!\n");
+                    // Restart game
                     chess_init_board(&chess->game);
                     chess->status = CHESS_PLAYING;
                     chess->beats_since_game_over = 0;
@@ -894,13 +898,13 @@ void update_beat_chess(void *vis_ptr, double dt) {
                     chess->move_count = 0;
                     chess->eval_bar_position = 0;
                     chess->eval_bar_target = 0;
+                    chess->time_thinking = 0;
                     strcpy(chess->status_text, "New game! White to move");
                     chess->status_flash_color[0] = 0.0;
                     chess->status_flash_color[1] = 1.0;
                     chess->status_flash_color[2] = 1.0;
                     chess->status_flash_timer = 1.0;
                     
-                    // Start thinking for new game
                     chess_start_thinking(&chess->thinking_state, &chess->game);
                 }
             }
@@ -908,47 +912,94 @@ void update_beat_chess(void *vis_ptr, double dt) {
         return;
     }
     
-    // Detect beat and force move
-    if (beat_chess_detect_beat(vis)) {
-        // Get current evaluation before move
+    // Track thinking time
+    pthread_mutex_lock(&chess->thinking_state.lock);
+    bool is_thinking = chess->thinking_state.thinking;
+    bool has_move = chess->thinking_state.has_move;
+    int current_depth = chess->thinking_state.current_depth;
+    int best_score = chess->thinking_state.best_score;
+    pthread_mutex_unlock(&chess->thinking_state.lock);
+    
+    // Keep incrementing time as long as we haven't made a move yet
+    if (is_thinking || has_move) {
+        chess->time_thinking += dt;
+    }
+    
+    // Debug output
+    printf("DEBUG: is_thinking=%d, has_move=%d, time_thinking=%.2f, auto_enabled=%d, depth=%d\n",
+           is_thinking, has_move, chess->time_thinking, chess->auto_play_enabled, current_depth);
+    
+    // AUTO-PLAY: Check if we should play immediately
+    bool should_auto_play = false;
+    if (chess->auto_play_enabled && has_move && 
+        chess->time_thinking >= chess->min_think_time) {
+        
+        // Force move after 4 seconds regardless of depth/evaluation
+        if (chess->time_thinking >= 4.0) {
+            should_auto_play = true;
+        }
+        // Play if we've reached depth 3 or 4
+        else if (current_depth >= 3) {
+            should_auto_play = true;
+        }
+        // Or if we found a really good move (even at depth 2)
+        else {
+            int eval_before = chess_evaluate_position(&chess->game);
+            int advantage = (chess->game.turn == WHITE) ? 
+                           (best_score - eval_before) : (eval_before - best_score);
+            
+            if (advantage > chess->good_move_threshold && current_depth >= 2) {
+                should_auto_play = true;
+            }
+        }
+    }
+    
+    printf("DEBUG2: should_auto_play=%d\n", should_auto_play);
+    
+    // Detect beat OR auto-play trigger
+    bool beat_detected = beat_chess_detect_beat(vis);
+    
+    if (beat_detected || should_auto_play) {
+        // Get current evaluation
         int eval_before = chess_evaluate_position(&chess->game);
         
         // Force move
         ChessMove forced_move = chess_get_best_move_now(&chess->thinking_state);
         
-        // CRITICAL: Validate move before making it
+        // Validate move
         if (!chess_is_valid_move(&chess->game, 
                                  forced_move.from_row, forced_move.from_col,
                                  forced_move.to_row, forced_move.to_col)) {
-            // Invalid move - restart thinking and skip this beat
             chess_start_thinking(&chess->thinking_state, &chess->game);
+            chess->time_thinking = 0;
             return;
         }
         
-        // Check if move would leave king in check
+        // Check if move leaves king in check
         ChessGameState temp_game = chess->game;
         chess_make_move(&temp_game, forced_move);
         if (chess_is_in_check(&temp_game, chess->game.turn)) {
-            // Move would leave king in check - restart thinking and skip
             chess_start_thinking(&chess->thinking_state, &chess->game);
+            chess->time_thinking = 0;
             return;
         }
         
-        // Get thinking depth reached
+        // Get depth reached
         pthread_mutex_lock(&chess->thinking_state.lock);
         int depth_reached = chess->thinking_state.current_depth;
         pthread_mutex_unlock(&chess->thinking_state.lock);
         
-        // Make the move (now validated)
+        // Make the move
         ChessColor moving_color = chess->game.turn;
         chess_make_move(&chess->game, forced_move);
         
-        // Evaluate the move
+        // Evaluate
         int eval_after = chess_evaluate_position(&chess->game);
-        int eval_change = (moving_color == WHITE) ? (eval_after - eval_before) : (eval_before - eval_after);
+        int eval_change = (moving_color == WHITE) ? 
+                         (eval_after - eval_before) : (eval_before - eval_after);
         chess->last_eval_change = eval_change;
         
-        // Update eval bar (-1 to 1, clamped)
+        // Update eval bar
         chess->eval_bar_target = fmax(-1.0, fmin(1.0, eval_after / 1000.0));
         
         // Update display
@@ -958,7 +1009,7 @@ void update_beat_chess(void *vis_ptr, double dt) {
         chess->last_to_col = forced_move.to_col;
         chess->last_move_glow = 1.0;
         
-        // Start animation
+        // Animation
         chess->animating_from_row = forced_move.from_row;
         chess->animating_from_col = forced_move.from_col;
         chess->animating_to_row = forced_move.to_row;
@@ -966,14 +1017,16 @@ void update_beat_chess(void *vis_ptr, double dt) {
         chess->animation_progress = 0;
         chess->is_animating = true;
         
-        // Update status text
+        // Status text
         const char *piece_names[] = {"", "Pawn", "Knight", "Bishop", "Rook", "Queen", "King"};
         ChessPiece moved_piece = chess->game.board[forced_move.to_row][forced_move.to_col];
         
+        const char *trigger = should_auto_play ? "AUTO" : "BEAT";
+        
         if (eval_change < -500) {
             snprintf(chess->status_text, sizeof(chess->status_text),
-                    "BLUNDER! %s %c%d->%c%d (depth %d, -%d)",
-                    piece_names[moved_piece.type],
+                    "[%s] BLUNDER! %s %c%d->%c%d (depth %d, -%d)",
+                    trigger, piece_names[moved_piece.type],
                     'a' + forced_move.from_col, 8 - forced_move.from_row,
                     'a' + forced_move.to_col, 8 - forced_move.to_row,
                     depth_reached, -eval_change);
@@ -981,21 +1034,10 @@ void update_beat_chess(void *vis_ptr, double dt) {
             chess->status_flash_color[1] = 0.0;
             chess->status_flash_color[2] = 0.0;
             chess->status_flash_timer = 1.0;
-        } else if (eval_change < -200) {
-            snprintf(chess->status_text, sizeof(chess->status_text),
-                    "Mistake: %s %c%d->%c%d (depth %d)",
-                    piece_names[moved_piece.type],
-                    'a' + forced_move.from_col, 8 - forced_move.from_row,
-                    'a' + forced_move.to_col, 8 - forced_move.to_row,
-                    depth_reached);
-            chess->status_flash_color[0] = 1.0;
-            chess->status_flash_color[1] = 0.5;
-            chess->status_flash_color[2] = 0.0;
-            chess->status_flash_timer = 0.5;
         } else if (eval_change > 200) {
             snprintf(chess->status_text, sizeof(chess->status_text),
-                    "Brilliant! %s %c%d->%c%d (depth %d, +%d)",
-                    piece_names[moved_piece.type],
+                    "[%s] Brilliant! %s %c%d->%c%d (depth %d, +%d)",
+                    trigger, piece_names[moved_piece.type],
                     'a' + forced_move.from_col, 8 - forced_move.from_row,
                     'a' + forced_move.to_col, 8 - forced_move.to_row,
                     depth_reached, eval_change);
@@ -1005,8 +1047,8 @@ void update_beat_chess(void *vis_ptr, double dt) {
             chess->status_flash_timer = 1.0;
         } else {
             snprintf(chess->status_text, sizeof(chess->status_text),
-                    "%s: %s %c%d->%c%d (depth %d)",
-                    moving_color == WHITE ? "White" : "Black",
+                    "[%s] %s: %s %c%d->%c%d (depth %d)",
+                    trigger, moving_color == WHITE ? "White" : "Black",
                     piece_names[moved_piece.type],
                     'a' + forced_move.from_col, 8 - forced_move.from_row,
                     'a' + forced_move.to_col, 8 - forced_move.to_row,
@@ -1015,15 +1057,12 @@ void update_beat_chess(void *vis_ptr, double dt) {
         
         chess->move_count++;
         chess->time_since_last_move = 0;
+        chess->time_thinking = 0;
         
-        // Check for move limit draw
+        // Check move limit
         if (chess->move_count >= MAX_MOVES_BEFORE_DRAW) {
             strcpy(chess->status_text, "Draw by move limit! New game in 2 beats...");
             chess->status = CHESS_STALEMATE;
-            chess->status_flash_color[0] = 0.7;
-            chess->status_flash_color[1] = 0.7;
-            chess->status_flash_color[2] = 0.3;
-            chess->status_flash_timer = 5.0;
             chess->waiting_for_restart = true;
             chess->beats_since_game_over = 0;
             return;
@@ -1032,37 +1071,35 @@ void update_beat_chess(void *vis_ptr, double dt) {
         // Check game status
         chess->status = chess_check_game_status(&chess->game);
         
-        if (chess->status == CHESS_CHECKMATE_WHITE) {
-            strcpy(chess->status_text, "CHECKMATE! White wins! New game in 2 beats...");
-            chess->status_flash_color[0] = 1.0;
-            chess->status_flash_color[1] = 1.0;
-            chess->status_flash_color[2] = 0.0;
-            chess->status_flash_timer = 5.0;
+        if (chess->status != CHESS_PLAYING) {
             chess->waiting_for_restart = true;
             chess->beats_since_game_over = 0;
-        } else if (chess->status == CHESS_CHECKMATE_BLACK) {
-            strcpy(chess->status_text, "CHECKMATE! Black wins! New game in 2 beats...");
-            chess->status_flash_color[0] = 1.0;
-            chess->status_flash_color[1] = 1.0;
-            chess->status_flash_color[2] = 0.0;
-            chess->status_flash_timer = 5.0;
-            chess->waiting_for_restart = true;
-            chess->beats_since_game_over = 0;
-        } else if (chess->status == CHESS_STALEMATE) {
-            strcpy(chess->status_text, "STALEMATE! Draw! New game in 2 beats...");
-            chess->status_flash_color[0] = 0.5;
-            chess->status_flash_color[1] = 0.5;
-            chess->status_flash_color[2] = 0.5;
-            chess->status_flash_timer = 5.0;
-            chess->waiting_for_restart = true;
-            chess->beats_since_game_over = 0;
+            
+            if (chess->status == CHESS_CHECKMATE_WHITE) {
+                strcpy(chess->status_text, "Checkmate! White wins! New game in 2 beats...");
+                chess->status_flash_color[0] = 1.0;
+                chess->status_flash_color[1] = 1.0;
+                chess->status_flash_color[2] = 1.0;
+                chess->status_flash_timer = 2.0;
+            } else if (chess->status == CHESS_CHECKMATE_BLACK) {
+                strcpy(chess->status_text, "Checkmate! Black wins! New game in 2 beats...");
+                chess->status_flash_color[0] = 0.85;
+                chess->status_flash_color[1] = 0.65;
+                chess->status_flash_color[2] = 0.13;
+                chess->status_flash_timer = 2.0;
+            } else {
+                strcpy(chess->status_text, "Stalemate! New game in 2 beats...");
+                chess->status_flash_color[0] = 0.7;
+                chess->status_flash_color[1] = 0.7;
+                chess->status_flash_color[2] = 0.7;
+                chess->status_flash_timer = 2.0;
+            }
         } else {
             // Start thinking for next move
             chess_start_thinking(&chess->thinking_state, &chess->game);
         }
     }
 }
-
 // ============================================================================
 // DRAWING FUNCTIONS
 // ============================================================================

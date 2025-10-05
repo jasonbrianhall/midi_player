@@ -99,6 +99,11 @@ typedef struct {
 
     int beats_since_game_over;
     bool waiting_for_restart;
+
+    double time_thinking;          // How long AI has been thinking
+    double min_think_time;         // Minimum time before auto-play (e.g., 0.5s)
+    int good_move_threshold;       // Score threshold to auto-play (e.g., 200)
+    bool auto_play_enabled;        // Whether to auto-play good moves
     
 } BeatChessVisualization;
 
