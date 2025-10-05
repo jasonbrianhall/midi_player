@@ -1,6 +1,25 @@
 # Enhanced Makefile with Windows and Linux Support
 # Based on zenamp project structure
 
+# Package information for RPM
+PACKAGE_NAME = zenamp
+VERSION = 1.0.0
+RELEASE = 1
+ARCH = x86_64
+
+# Installation directories
+PREFIX = /usr
+BINDIR = $(PREFIX)/bin
+DATADIR = $(PREFIX)/share
+DOCDIR = $(DATADIR)/doc/$(PACKAGE_NAME)
+MANDIR = $(DATADIR)/man/man1
+ICONDIR = $(DATADIR)/icons/hicolor
+APPDIR = $(DATADIR)/applications
+
+# RPM Build directories
+RPM_TOPDIR = $(HOME)/rpmbuild
+RPM_BUILDROOT = $(RPM_TOPDIR)/BUILDROOT/$(PACKAGE_NAME)-$(VERSION)-$(RELEASE).$(ARCH)
+
 # Compiler settings
 CXX_LINUX = g++
 CC_LINUX = gcc
@@ -62,8 +81,6 @@ MEDIA_FOUNDATION_LIBS = -lmf -lmfplat -lmfreadwrite -lmfuuid -lole32
 CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
 CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
 LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
-# Add -mconsole for windows for debugging
-#LDFLAGS_WIN = -mconsole $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
 
 # Debug-specific flags
 CXXFLAGS_LINUX_DEBUG = $(CXXFLAGS_LINUX) $(DEBUG_FLAGS)
@@ -72,50 +89,17 @@ CXXFLAGS_WIN_DEBUG = $(CXXFLAGS_WIN) $(DEBUG_FLAGS)
 CFLAGS_WIN_DEBUG = $(CFLAGS_WIN) $(DEBUG_FLAGS)
 
 # Common source files
-SOURCES_CPP_COMMON = dbopl.cpp \
-	dbopl_wrapper.cpp \
-	main.cpp \
-	midiplayer.cpp \
-	instruments.cpp \
-	virtual_mixer.cpp \
-	wav_converter.cpp \
-	audioconverter.cpp \
-	convertmidi.cpp convertoggtowav.cpp convertopustowav.cpp convertmp3towav.cpp convertflactowav.cpp \
-	vfs.cpp \
-	cache.cpp \
-	icon.cpp \
-	aiff.cpp \
-	keyboard.cpp \
-	bubbles.cpp matrix.cpp fireworks.cpp dna.cpp dna2.cpp \
-	visualization.cpp \
-	equalizer.cpp \
-	m3u.cpp \
-	help.cpp \
-	layout.cpp \
-	sudoku.cpp \
-	generatepuzzle.cpp \
-	fourier.cpp \
-	ripples.cpp \
-	kaleidoscope.cpp \
-	bouncyball.cpp \
-	clock.cpp \
-	robotchaser.cpp \
-	radialwave.cpp \
-	volume_meter.cpp \
-	drawbars.cpp \
-	drawoscilloscope.cpp \
-	drawwaveform.cpp \
-	drawcircle.cpp \
-	blockstack.cpp \
-	cdg.cpp \
-	karaoke.cpp \
-	zip_support.cpp \
-	metadata.cpp \
-	parrot.cpp \
-	sauron.cpp \
-	hanoi.cpp \
-	beatchess.cpp \
-	queue.cpp
+SOURCES_CPP_COMMON = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp \
+	instruments.cpp virtual_mixer.cpp wav_converter.cpp audioconverter.cpp \
+	convertmidi.cpp convertoggtowav.cpp convertopustowav.cpp convertmp3towav.cpp \
+	convertflactowav.cpp vfs.cpp cache.cpp icon.cpp aiff.cpp keyboard.cpp \
+	bubbles.cpp matrix.cpp fireworks.cpp dna.cpp dna2.cpp visualization.cpp \
+	equalizer.cpp m3u.cpp help.cpp layout.cpp sudoku.cpp generatepuzzle.cpp \
+	fourier.cpp ripples.cpp kaleidoscope.cpp bouncyball.cpp clock.cpp \
+	robotchaser.cpp radialwave.cpp volume_meter.cpp drawbars.cpp \
+	drawoscilloscope.cpp drawwaveform.cpp drawcircle.cpp blockstack.cpp \
+	cdg.cpp karaoke.cpp zip_support.cpp metadata.cpp parrot.cpp sauron.cpp \
+	hanoi.cpp beatchess.cpp queue.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
@@ -294,7 +278,77 @@ zenamp-collect-debug-dlls: $(BUILD_DIR_WIN_DEBUG)/$(EXECUTABLE_WIN_DEBUG)
 # Install target (Linux only)
 .PHONY: install
 install: $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX)
-	install -D $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX) $(DESTDIR)/usr/local/bin/$(EXECUTABLE_LINUX)
+	install -D -m 755 $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX) $(DESTDIR)$(BINDIR)/$(EXECUTABLE_LINUX)
+	@if [ -f README.md ]; then \
+		install -D -m 644 README.md $(DESTDIR)$(DOCDIR)/README.md; \
+	fi
+	@if [ -f LICENSE ]; then \
+		install -D -m 644 LICENSE $(DESTDIR)$(DOCDIR)/LICENSE; \
+	elif [ -f ../LICENSE.md ]; then \
+		install -D -m 644 ../LICENSE.md $(DESTDIR)$(DOCDIR)/LICENSE; \
+	fi
+	@if [ -f $(PACKAGE_NAME).desktop ]; then \
+		install -D -m 644 $(PACKAGE_NAME).desktop $(DESTDIR)$(APPDIR)/$(PACKAGE_NAME).desktop; \
+	fi
+	@if [ -f icon.png ]; then \
+		install -D -m 644 icon.png $(DESTDIR)$(ICONDIR)/48x48/apps/$(PACKAGE_NAME).png; \
+	elif [ -f $(PACKAGE_NAME).png ]; then \
+		install -D -m 644 $(PACKAGE_NAME).png $(DESTDIR)$(ICONDIR)/48x48/apps/$(PACKAGE_NAME).png; \
+	fi
+
+# Uninstall target
+.PHONY: uninstall
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/$(EXECUTABLE_LINUX)
+	rm -rf $(DESTDIR)$(DOCDIR)
+	rm -f $(DESTDIR)$(APPDIR)/$(PACKAGE_NAME).desktop
+	rm -f $(DESTDIR)$(ICONDIR)/48x48/apps/$(PACKAGE_NAME).png
+
+#
+# RPM Packaging targets
+#
+.PHONY: rpm
+rpm: rpm-prep
+	@echo "Building RPM package..."
+	@if [ ! -f zenamp.spec ]; then \
+		echo "Error: zenamp.spec file not found!"; \
+		echo "Please create a zenamp.spec file in the current directory."; \
+		exit 1; \
+	fi
+	@cp zenamp.spec $(RPM_TOPDIR)/SPECS/
+	rpmbuild -ba $(RPM_TOPDIR)/SPECS/zenamp.spec
+
+# Prepare RPM build environment
+.PHONY: rpm-prep
+rpm-prep:
+	@echo "Setting up RPM build environment..."
+	@mkdir -p $(RPM_TOPDIR)/{BUILD,RPMS,SOURCES,SPECS,SRPMS,BUILDROOT}
+	@echo "Creating source tarball..."
+	@mkdir -p /tmp/$(PACKAGE_NAME)-$(VERSION)
+	@cp -r * /tmp/$(PACKAGE_NAME)-$(VERSION)/ 2>/dev/null || true
+	@if [ -f ../LICENSE.md ]; then \
+		cp ../LICENSE.md /tmp/$(PACKAGE_NAME)-$(VERSION)/LICENSE; \
+	fi
+	@tar czf $(RPM_TOPDIR)/SOURCES/$(PACKAGE_NAME)-$(VERSION).tar.gz -C /tmp $(PACKAGE_NAME)-$(VERSION)
+	@rm -rf /tmp/$(PACKAGE_NAME)-$(VERSION)
+	@echo "Source tarball created: $(RPM_TOPDIR)/SOURCES/$(PACKAGE_NAME)-$(VERSION).tar.gz"
+
+# Build source RPM only
+.PHONY: srpm
+srpm: rpm-prep
+	@echo "Building source RPM..."
+	@if [ ! -f zenamp.spec ]; then \
+		echo "Error: zenamp.spec file not found!"; \
+		exit 1; \
+	fi
+	@cp zenamp.spec $(RPM_TOPDIR)/SPECS/
+	rpmbuild -bs $(RPM_TOPDIR)/SPECS/zenamp.spec
+
+# Clean RPM build artifacts
+.PHONY: rpm-clean
+rpm-clean:
+	@echo "Cleaning RPM build artifacts..."
+	rm -rf $(RPM_TOPDIR)
 
 # Clean target
 .PHONY: clean
@@ -310,7 +364,7 @@ clean:
 
 # Clean build directories
 .PHONY: clean-all
-clean-all: clean
+clean-all: clean rpm-clean
 	rm -rf $(BUILD_DIR)
 
 # Help target
@@ -325,16 +379,28 @@ help:
 	@echo "  make zenamp-linux-debug   - Build zenamp for Linux with debug symbols"
 	@echo "  make zenamp-windows-debug - Build zenamp for Windows with debug symbols"
 	@echo ""
-	@echo "  make install       - Install zenamp to /usr/local/bin (Linux only)"
+	@echo "  make install       - Install zenamp to $(PREFIX) (Linux only)"
+	@echo "  make uninstall     - Remove installed files"
+	@echo ""
+	@echo "  make rpm           - Create RPM package (requires zenamp.spec file)"
+	@echo "  make rpm-prep      - Prepare RPM build environment and source tarball"
+	@echo "  make srpm          - Build source RPM only"
+	@echo "  make rpm-clean     - Clean RPM build artifacts"
 	@echo ""
 	@echo "  make clean         - Remove all build files"
-	@echo "  make clean-all     - Remove all build files and directories"
+	@echo "  make clean-all     - Remove all build files and directories (including RPM)"
 	@echo "  make help          - Show this help message"
 	@echo ""
 	@echo "Build outputs:"
 	@echo "  Linux:   $(BUILD_DIR_LINUX)/$(EXECUTABLE_LINUX)"
 	@echo "  Windows: $(BUILD_DIR_WIN)/$(EXECUTABLE_WIN)"
+	@echo "  RPM:     $(RPM_TOPDIR)/RPMS/$(ARCH)/$(PACKAGE_NAME)-$(VERSION)-$(RELEASE).$(ARCH).rpm"
 	@echo "  Debug versions available in respective debug directories"
+	@echo ""
+	@echo "Package Information:"
+	@echo "  Name:    $(PACKAGE_NAME)"
+	@echo "  Version: $(VERSION)"
+	@echo "  Release: $(RELEASE)"
 	@echo ""
 	@echo "Icon embedding:"
 	@echo "  Windows builds will automatically include icon.rc if present"
@@ -345,4 +411,4 @@ help:
 	@echo "  - Windows: Uses Media Foundation (convertm4atowavwin.cpp)"
 	@echo "  - Linux: Uses libavcodec/FFmpeg (convertm4atowavlin.cpp)"
 
-.PHONY: all clean install help linux windows debug
+.PHONY: all clean install uninstall help linux windows debug rpm rpm-prep srpm rpm-clean
