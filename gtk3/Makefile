@@ -7,11 +7,16 @@ GIT_COUNT := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
 
 # Allow VERSION to be overridden from command line
 # Usage: make rpm VERSION=1.2.3
+# VERSION is used for RPM packaging (format: 1.0.X)
+# BUILDNUM is used by the application (format: X - just the number part)
 ifndef VERSION
 VERSION := 1.0.$(GIT_COUNT)
+BUILDNUM := $(GIT_COUNT)
+else
+# Extract BUILDNUM from VERSION by removing "1.0." prefix
+BUILDNUM := $(patsubst 1.0.%,%,$(VERSION))
 endif
 
-BUILDNUM := $(GIT_COUNT)
 RELEASE = 1
 ARCH = x86_64
 
