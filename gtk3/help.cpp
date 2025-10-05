@@ -4,6 +4,11 @@
 #include "audio_player.h"
 #include "icon.h"
 
+// Define fallback version if not provided by Makefile
+#ifndef VERSION
+#define VERSION "Development"
+#endif
+
 void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
@@ -67,15 +72,19 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     
     // Program name and version - smaller text for compact layout
     GtkWidget *title_label = gtk_label_new(NULL);
+    char version_text[256];
+    
     if (use_compact_dialog) {
-        gtk_label_set_markup(GTK_LABEL(title_label), 
+        snprintf(version_text, sizeof(version_text),
             "<span size='x-large' weight='bold'>Zenamp</span>\n"
-            "<span size='medium'>Version 1.0</span>");
+            "<span size='medium'>Build #%s</span>", VERSION);
     } else {
-        gtk_label_set_markup(GTK_LABEL(title_label), 
+        snprintf(version_text, sizeof(version_text),
             "<span size='xx-large' weight='bold'>Zenamp</span>\n"
-            "<span size='large'>Version 1.0</span>");
+            "<span size='large'>Build #%s</span>", VERSION);
     }
+    
+    gtk_label_set_markup(GTK_LABEL(title_label), version_text);
     gtk_label_set_justify(GTK_LABEL(title_label), GTK_JUSTIFY_CENTER);
     gtk_box_pack_start(GTK_BOX(about_vbox), title_label, FALSE, FALSE, 0);
     
