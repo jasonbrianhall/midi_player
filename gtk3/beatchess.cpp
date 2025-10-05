@@ -288,10 +288,6 @@ int chess_evaluate_position(ChessGameState *game) {
     int piece_values[] = {0, 100, 320, 330, 500, 900, 20000};
     int score = 0;
     
-    // Count pieces for material difference
-    int white_material = 0;
-    int black_material = 0;
-    
     // Piece-square tables for positional bonuses
     int pawn_table[8][8] = {
         {0,  0,  0,  0,  0,  0,  0,  0},
@@ -337,24 +333,12 @@ int chess_evaluate_position(ChessGameState *game) {
         { 20, 30, 10,  0,  0, 10, 30, 20}
     };
     
-    int white_pieces = 0;
-    int black_pieces = 0;
-    
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
             ChessPiece p = game->board[r][c];
             if (p.type != EMPTY) {
                 int value = piece_values[p.type];
                 int positional_bonus = 0;
-                
-                if (p.color == WHITE) white_pieces++;
-                else black_pieces++;
-                
-                // Track material
-                if (p.type != KING) {
-                    if (p.color == WHITE) white_material += piece_values[p.type];
-                    else black_material += piece_values[p.type];
-                }
                 
                 // Add positional bonuses
                 if (p.type == PAWN) {
@@ -390,11 +374,23 @@ int chess_evaluate_position(ChessGameState *game) {
                         if (passed && r > 3) positional_bonus += 20;
                     }
                 } else if (p.type == KNIGHT) {
-                    positional_bonus = knight_table[r][c];
+                    if (p.color == WHITE) {
+                        positional_bonus = knight_table[r][c];
+                    } else {
+                        positional_bonus = knight_table[7-r][c];
+                    }
                 } else if (p.type == BISHOP) {
-                    positional_bonus = bishop_table[r][c];
+                    if (p.color == WHITE) {
+                        positional_bonus = bishop_table[r][c];
+                    } else {
+                        positional_bonus = bishop_table[7-r][c];
+                    }
                 } else if (p.type == KING) {
-                    positional_bonus = king_middle_game[r][c];
+                    if (p.color == WHITE) {
+                        positional_bonus = king_middle_game[r][c];
+                    } else {
+                        positional_bonus = king_middle_game[7-r][c];
+                    }
                 }
                 
                 // Bonus for center control (e4, d4, e5, d5)
@@ -409,12 +405,6 @@ int chess_evaluate_position(ChessGameState *game) {
             }
         }
     }
-    
-    // Mobility bonus - more legal moves is better
-    ChessMove moves[256];
-    int white_mobility = chess_get_all_moves(game, WHITE, moves);
-    int black_mobility = chess_get_all_moves(game, BLACK, moves);
-    score += (white_mobility - black_mobility) * 10;
     
     // King safety - penalize if king is exposed
     for (int r = 0; r < BOARD_SIZE; r++) {
@@ -459,73 +449,6 @@ int chess_evaluate_position(ChessGameState *game) {
     }
     if (white_bishops >= 2) score += 30;
     if (black_bishops >= 2) score -= 30;
-    
-    // Tactical bonuses - check for forks, pins, and piece threats
-    for (int r = 0; r < BOARD_SIZE; r++) {
-        for (int c = 0; c < BOARD_SIZE; c++) {
-            ChessPiece piece = game->board[r][c];
-            if (piece.type == EMPTY) continue;
-            
-            ChessColor saved_turn = game->turn;
-            game->turn = piece.color;
-            
-            // Count attacks on enemy pieces
-            int targets_count = 0;
-            int target_values[8] = {0};
-            PieceType target_types[8];
-            
-            for (int tr = 0; tr < BOARD_SIZE; tr++) {
-                for (int tc = 0; tc < BOARD_SIZE; tc++) {
-                    ChessPiece target = game->board[tr][tc];
-                    if (target.type != EMPTY && target.color != piece.color) {
-                        if (chess_is_valid_move(game, r, c, tr, tc)) {
-                            if (targets_count < 8) {
-                                target_values[targets_count] = piece_values[target.type];
-                                target_types[targets_count] = target.type;
-                                targets_count++;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            game->turn = saved_turn;
-            
-            // Fork bonus - attacking 2+ pieces
-            if (targets_count >= 2) {
-                int fork_bonus = 0;
-                
-                // Knight forks are especially valuable
-                if (piece.type == KNIGHT) {
-                    fork_bonus = 40;
-                    // Extra bonus for forking valuable pieces
-                    if (targets_count >= 2 && target_values[0] >= 500 && target_values[1] >= 500) {
-                        fork_bonus += 30;
-                    }
-                } else {
-                    fork_bonus = 25;
-                }
-                
-                // Bonus scales with number of targets
-                fork_bonus *= targets_count;
-                
-                score += (piece.color == WHITE) ? fork_bonus : -fork_bonus;
-            }
-            
-            // Reward attacking higher-value pieces with lower-value pieces
-            if (targets_count > 0 && piece.type != KING) {
-                int my_value = piece_values[piece.type];
-                for (int i = 0; i < targets_count; i++) {
-                    int target_value = target_values[i];
-                    // Only reward if target is worth more (favorable trade)
-                    if (target_value > my_value + 50) {
-                        int trade_bonus = (target_value - my_value) / 10;
-                        score += (piece.color == WHITE) ? trade_bonus : -trade_bonus;
-                    }
-                }
-            }
-        }
-    }
     
     // Small random factor for variety
     score += (rand() % 10) - 5;
@@ -625,11 +548,14 @@ void* chess_think_continuously(void* arg) {
             ts->has_move = false;
             ts->thinking = false;
             pthread_mutex_unlock(&ts->lock);
+            //printf("THINK: No legal moves found!\n");
             continue;
         }
         
+        //printf("THINK: Starting search for %s, %d legal moves\n",  game_copy.turn == WHITE ? "WHITE" : "BLACK", move_count);
+        
         // Iterative deepening - LIMITED TO DEPTH 4
-        for (int depth = 1; depth <= 4; depth++) {  // Changed from MAX_CHESS_DEPTH
+        for (int depth = 1; depth <= 4; depth++) {
             ChessMove best_moves[256];
             int best_move_count = 0;
             int best_score = (game_copy.turn == WHITE) ? INT_MIN : INT_MAX;
@@ -678,24 +604,26 @@ void* chess_think_continuously(void* arg) {
                 ts->current_depth = depth;
                 ts->has_move = true;
                 
-                // Signal that we found a good move at depth >= 3
-                // The update loop will check this
+                // Debug output - print all best moves
+                //printf("THINK: Depth %d complete (score=%d, %s), found %d best move(s):\n", depth, best_score, game_copy.turn == WHITE ? "WHITE" : "BLACK", best_move_count);
+                for (int i = 0; i < best_move_count; i++) {
+                    //printf("       %c%d->%c%d", 'a' + best_moves[i].from_col, 8 - best_moves[i].from_row, 'a' + best_moves[i].to_col, 8 - best_moves[i].to_row);
+                          }
+                //printf("       Selected: %c%d->%c%d\n", 'a' + ts->best_move.from_col, 8 - ts->best_move.from_row, 'a' + ts->best_move.to_col, 8 - ts->best_move.to_row);
             }
             pthread_mutex_unlock(&ts->lock);
             
-            if (!depth_completed) {
-                break;
-            }
+
         }
         
         pthread_mutex_lock(&ts->lock);
         ts->thinking = false;
+        //printf("THINK: Finished thinking, final depth=%d, has_move=%d\n",  ts->current_depth, ts->has_move);
         pthread_mutex_unlock(&ts->lock);
     }
     
     return NULL;
 }
-
 
 void chess_init_thinking_state(ChessThinkingState *ts) {
     ts->thinking = false;
@@ -925,10 +853,6 @@ void update_beat_chess(void *vis_ptr, double dt) {
         chess->time_thinking += dt;
     }
     
-    // Debug output
-    printf("DEBUG: is_thinking=%d, has_move=%d, time_thinking=%.2f, auto_enabled=%d, depth=%d\n",
-           is_thinking, has_move, chess->time_thinking, chess->auto_play_enabled, current_depth);
-    
     // AUTO-PLAY: Check if we should play immediately
     bool should_auto_play = false;
     if (chess->auto_play_enabled && has_move && 
@@ -953,8 +877,6 @@ void update_beat_chess(void *vis_ptr, double dt) {
             }
         }
     }
-    
-    printf("DEBUG2: should_auto_play=%d\n", should_auto_play);
     
     // Detect beat OR auto-play trigger
     bool beat_detected = beat_chess_detect_beat(vis);
