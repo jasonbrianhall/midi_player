@@ -138,7 +138,7 @@ jobs:
       working-directory: gtk3
       run: |
         make linux
-        make rpm
+        make rpm VERSION=${{ env.PRODUCT_VERSION }}
         
         # Copy RPM from rpmbuild directory to expected location
         mkdir -p build/rpm
