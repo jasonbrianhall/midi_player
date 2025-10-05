@@ -3,7 +3,8 @@
 
 # Package information for RPM
 PACKAGE_NAME = zenamp
-VERSION = 1.0.0
+GIT_COUNT := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.$(GIT_COUNT)")
 RELEASE = 1
 ARCH = x86_64
 
@@ -315,7 +316,8 @@ rpm: rpm-prep
 		echo "Please create a zenamp.spec file in the current directory."; \
 		exit 1; \
 	fi
-	@cp zenamp.spec $(RPM_TOPDIR)/SPECS/
+	@echo "Using version: $(VERSION)"
+	@sed "s/@VERSION@/$(VERSION)/g" zenamp.spec > $(RPM_TOPDIR)/SPECS/zenamp.spec
 	rpmbuild -ba $(RPM_TOPDIR)/SPECS/zenamp.spec
 
 # Prepare RPM build environment
@@ -341,7 +343,8 @@ srpm: rpm-prep
 		echo "Error: zenamp.spec file not found!"; \
 		exit 1; \
 	fi
-	@cp zenamp.spec $(RPM_TOPDIR)/SPECS/
+	@echo "Using version: $(VERSION)"
+	@sed "s/@VERSION@/$(VERSION)/g" zenamp.spec > $(RPM_TOPDIR)/SPECS/zenamp.spec
 	rpmbuild -bs $(RPM_TOPDIR)/SPECS/zenamp.spec
 
 # Clean RPM build artifacts

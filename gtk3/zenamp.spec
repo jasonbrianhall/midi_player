@@ -1,5 +1,5 @@
 Name:           zenamp
-Version:        1.0.0
+Version:        @VERSION@
 Release:        1%{?dist}
 Summary:        ZenAmp Audio Player
 
@@ -32,7 +32,7 @@ Requires:       ffmpeg-libs
 
 %description
 ZenAmp is a feature-rich audio player supporting multiple formats including
-MP3, OGG, Opus, FLAC, M4A, MIDI, and more. It includes visualizations,
+MP3, OGG, Opus, FLAC, M4A, MIDI, CD+G, and more. It includes visualizations,
 equalizer, and various playback features.
 
 %prep
@@ -52,5 +52,5 @@ make install DESTDIR=%{buildroot}
 %{_datadir}/icons/hicolor/48x48/apps/%{name}.png
 
 %changelog
-* Sun Oct 06 2024 Your Name <your.email@example.com> - 1.0.0-1
+* Sun Oct 05 2025 Jason Hall <jasonbrianhall@yahoo.com>
 - Initial RPM release
