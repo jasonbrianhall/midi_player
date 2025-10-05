@@ -139,6 +139,11 @@ jobs:
       run: |
         make linux
         make rpm
+        
+        # Copy RPM from rpmbuild directory to expected location
+        mkdir -p build/rpm
+        cp ~/rpmbuild/RPMS/x86_64/*.rpm build/rpm/
+        
         # Verify the build
         if [ -f "build/linux/zenamp" ]; then
           echo "Linux build successful"
