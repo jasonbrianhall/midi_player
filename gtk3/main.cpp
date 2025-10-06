@@ -1972,25 +1972,42 @@ bool save_current_queue_on_exit(AudioPlayer *player) {
     mkdir(config_dir, 0755);
 #endif
     
-    // Save the current queue to a temporary M3U file
-    if (save_m3u_playlist(player, temp_playlist_path)) {
-        printf("Saved current queue to: %s\n", temp_playlist_path);
-        
-        // Save current index and playback position
-        FILE *f = fopen(position_path, "w");
-        if (f) {
-            fprintf(f, "%d\n", player->queue.current_index);
-            fprintf(f, "%.2f\n", playTime);
-            fclose(f);
-            printf("Saved playback state: index=%d, time=%.2f\n", 
-                   player->queue.current_index, playTime);
-        }
-        
-        // Now save this path as the last playlist
-        if (save_last_playlist_path(temp_playlist_path)) {
-            printf("Set temp queue as last playlist\n");
-            return true;
-        }
+    FILE *f = fopen(temp_playlist_path, "w");
+    if (!f) {
+        printf("Failed to create temp queue file\n");
+        return false;
+    }
+    
+    fprintf(f, "#EXTM3U\n");
+    
+    // Save in the visual display order (which might be sorted)
+    GtkTreeModel *model = GTK_TREE_MODEL(player->queue_store);
+    GtkTreeIter iter;
+    gboolean valid = gtk_tree_model_get_iter_first(model, &iter);
+    
+    while (valid) {
+        int queue_index;
+        gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &queue_index, -1);
+        fprintf(f, "%s\n", player->queue.files[queue_index]);
+        valid = gtk_tree_model_iter_next(model, &iter);
+    }
+    
+    fclose(f);
+    printf("Saved current queue to: %s\n", temp_playlist_path);
+    
+    // Save current index and playback position
+    f = fopen(position_path, "w");
+    if (f) {
+        fprintf(f, "%d\n", player->queue.current_index);
+        fprintf(f, "%.2f\n", playTime);
+        fclose(f);
+        printf("Saved playback state: index=%d, time=%.2f\n", 
+               player->queue.current_index, playTime);
+    }
+    
+    if (save_last_playlist_path(temp_playlist_path)) {
+        printf("Set temp queue as last playlist\n");
+        return true;
     }
     
     return false;
