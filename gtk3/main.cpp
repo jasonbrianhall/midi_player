@@ -2524,13 +2524,33 @@ int main(int argc, char *argv[]) {
         const char *ext = strrchr(first_arg, '.');
         
         if (ext && (strcasecmp(ext, ".m3u") == 0 || strcasecmp(ext, ".m3u8") == 0)) {
-            printf("Loading new M3U playlist: %s\n", first_arg);
+            char abs_playlist_path[4096];
+#ifdef _WIN32
+            if (!_fullpath(abs_playlist_path, first_arg, sizeof(abs_playlist_path))) {
+                strncpy(abs_playlist_path, first_arg, sizeof(abs_playlist_path) - 1);
+            }
+#else
+            if (!realpath(first_arg, abs_playlist_path)) {
+                strncpy(abs_playlist_path, first_arg, sizeof(abs_playlist_path) - 1);
+            }
+#endif
+            printf("Loading new M3U playlist: %s\n", abs_playlist_path);
             clear_queue(&player->queue);
-            load_m3u_playlist(player, first_arg);
-            save_last_playlist_path(first_arg);
+            load_m3u_playlist(player, abs_playlist_path);
+            save_last_playlist_path(abs_playlist_path);
             
             for (int i = 2; i < argc; i++) {
-                add_to_queue(&player->queue, argv[i]);
+                char abs_file_path[4096];
+#ifdef _WIN32
+                if (!_fullpath(abs_file_path, argv[i], sizeof(abs_file_path))) {
+                    strncpy(abs_file_path, argv[i], sizeof(abs_file_path) - 1);
+                }
+#else
+                if (!realpath(argv[i], abs_file_path)) {
+                    strncpy(abs_file_path, argv[i], sizeof(abs_file_path) - 1);
+                }
+#endif
+                add_to_queue(&player->queue, abs_file_path);
             }
             
             if (player->queue.count > 0 && load_file_from_queue(player)) {
@@ -2540,11 +2560,21 @@ int main(int argc, char *argv[]) {
             }
         } else {
             for (int i = 1; i < argc; i++) {
-                const char *filename = argv[i];
+                char abs_file_path[4096];
+#ifdef _WIN32
+                if (!_fullpath(abs_file_path, argv[i], sizeof(abs_file_path))) {
+                    strncpy(abs_file_path, argv[i], sizeof(abs_file_path) - 1);
+                }
+#else
+                if (!realpath(argv[i], abs_file_path)) {
+                    strncpy(abs_file_path, argv[i], sizeof(abs_file_path) - 1);
+                }
+#endif
+                
                 int found_index = -1;
                 
                 for (int j = 0; j < player->queue.count; j++) {
-                    if (strcmp(player->queue.files[j], filename) == 0) {
+                    if (strcmp(player->queue.files[j], abs_file_path) == 0) {
                         found_index = j;
                         break;
                     }
@@ -2560,7 +2590,7 @@ int main(int argc, char *argv[]) {
                     }
                 } else {
                     printf("File not in queue, adding and playing it\n");
-                    add_to_queue(&player->queue, filename);
+                    add_to_queue(&player->queue, abs_file_path);
                     player->queue.current_index = player->queue.count - 1;
                     if (load_file_from_queue(player)) {
                         printf("Loaded and auto-starting new file\n");
