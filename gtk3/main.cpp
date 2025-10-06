@@ -1893,11 +1893,6 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     printf("Closing  SDL 1\n");
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
 
-    printf("Cleaning visualizer\n");
-    if (player->visualizer) {
-        visualizer_free(player->visualizer);
-    }
-
     printf("Cleaning Equalizer\n");
     if (player->equalizer) {
         equalizer_free(player->equalizer);

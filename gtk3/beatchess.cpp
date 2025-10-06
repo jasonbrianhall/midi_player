@@ -1459,3 +1459,17 @@ void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     draw_chess_eval_bar(chess, cr, width, height);
     draw_chess_status(chess, cr, width, height);
 }
+
+void chess_cleanup_thinking_state(ChessThinkingState *ts) {
+    // Stop thinking
+    pthread_mutex_lock(&ts->lock);
+    ts->thinking = false;
+    pthread_mutex_unlock(&ts->lock);
+    
+    // Cancel and wait for thread to finish
+    pthread_cancel(ts->thread);
+    pthread_join(ts->thread, NULL);
+    
+    // Destroy mutex
+    pthread_mutex_destroy(&ts->lock);
+}

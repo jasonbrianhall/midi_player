@@ -514,6 +514,7 @@ void init_beat_chess_system(void *vis);
 void update_beat_chess(void *vis, double dt);
 void draw_beat_chess(void *vis, cairo_t *cr);
 bool beat_chess_detect_beat(void *vis);
+void chess_cleanup_thinking_state(ChessThinkingState *ts);
 
 // Helper drawing functions
 void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr);
@@ -537,6 +538,7 @@ void checkers_make_move(CheckersGameState *game, CheckersMove *move);
 int checkers_evaluate_position(CheckersGameState *game);
 int checkers_get_all_moves(CheckersGameState *game, CheckersColor color, CheckersMove *moves);
 CheckersGameStatus checkers_check_game_status(CheckersGameState *game);
+void checkers_cleanup_thinking_state(CheckersThinkingState *ts);
 
 // Thinking state management
 void checkers_init_thinking_state(CheckersThinkingState *ts);

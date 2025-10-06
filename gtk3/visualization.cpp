@@ -72,38 +72,24 @@ Visualizer* visualizer_new(void) {
     g_signal_connect(vis->drawing_area, "configure-event", G_CALLBACK(on_visualizer_configure), vis);
     
     // Start animation timer
-    vis->timer_id = g_timeout_add(33, visualizer_timer_callback, vis); // ~30 FPS
+    vis->timer_id = g_timeout_add(33, visualizer_timer_callback, vis);
     init_fireworks_system(vis);
     init_dna_system(vis);
     init_dna2_system(vis);
-
-    // Sudoku timer
-    init_sudoku_system(vis);  // Initialize Sudoku system
-
-    // Ripple
+    init_sudoku_system(vis);
     init_ripple_system(vis);
-
-    // Bouncy Balls
     init_bouncy_ball_system(vis);
-
-
-    // Clocks
     init_clock_system(vis);
     init_analog_clock_system(vis);
-
-    // pacman clone
     init_robot_chaser_system(vis);
-
-    // Radial Wave
     init_radial_wave_system(vis);
-
     init_blockstack_system(vis);
-
     init_hanoi_system(vis);
-    
     init_beat_chess_system(vis);
-
     init_beat_checkers_system(vis);
+    
+    // Auto-cleanup when widget is destroyed
+    g_object_set_data_full(G_OBJECT(vis->drawing_area), "visualizer", vis, (GDestroyNotify)visualizer_free);
     
     return vis;
 }
@@ -111,6 +97,8 @@ Visualizer* visualizer_new(void) {
 void visualizer_free(Visualizer *vis) {
     if (!vis) return;
     
+    printf("Freeing Visualizer\n");
+
     if (player->visualizer) {
         save_last_visualization(player->visualizer->type);
     }
@@ -163,6 +151,8 @@ void visualizer_free(Visualizer *vis) {
         cairo_surface_destroy(vis->cdg_surface);
     }
 
+    chess_cleanup_thinking_state(&vis->beat_chess.thinking_state);
+    checkers_cleanup_thinking_state(&vis->beat_checkers.thinking_state);
     g_free(vis);
 }
 
