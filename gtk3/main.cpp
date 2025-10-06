@@ -1804,8 +1804,14 @@ double get_scale_factor(GtkWidget *widget) {
 
 void on_menu_quit(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
-    (void)user_data;
-    gtk_main_quit();
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    printf("Menu quit selected - triggering cleanup\n");
+    fflush(stdout);
+    
+    // Trigger the same cleanup as clicking the X button
+    // This will call on_window_delete_event which does all the cleanup
+    gtk_window_close(GTK_WINDOW(player->window));
 }
 
 // Button callbacks
