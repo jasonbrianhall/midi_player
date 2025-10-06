@@ -280,24 +280,20 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
 }
 
 void update_queue_display(AudioPlayer *player) {
-    // Clear existing model
     if (player->queue_store) {
         gtk_list_store_clear(player->queue_store);
     }
     
-    // Add each queue item
     for (int i = 0; i < player->queue.count; i++) {
         GtkTreeIter iter;
         gtk_list_store_append(player->queue_store, &iter);
         
-        // Extract metadata for this file
         char *metadata = extract_metadata(player->queue.files[i]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         int duration_seconds = 0;
         
         parse_metadata(metadata, title, artist, album, genre);
         
-        // Try to get duration from metadata string
         const char *duration_patterns[] = {
             "<b>Duration:</b>",
             "<b>Length:</b>",
@@ -331,10 +327,14 @@ void update_queue_display(AudioPlayer *player) {
         
         g_free(metadata);
         
-        // Get basename for filename column
         char *basename = g_path_get_basename(player->queue.files[i]);
         
-        // Format duration
+        const char *ext = strrchr(player->queue.files[i], '.');
+        const char *cdgk_indicator = "";
+        if (ext && strcasecmp(ext, ".zip") == 0) {
+            cdgk_indicator = "✓";
+        }
+        
         char duration_str[16];
         if (duration_seconds > 0) {
             snprintf(duration_str, sizeof(duration_str), "%d:%02d", 
@@ -354,13 +354,13 @@ void update_queue_display(AudioPlayer *player) {
             COL_ALBUM, album,
             COL_GENRE, genre,
             COL_DURATION, duration_str,
+            COL_CDGK, cdgk_indicator,
             COL_QUEUE_INDEX, i,
             -1);
         
         g_free(basename);
     }
     
-    // Scroll to and select current item
     if (player->queue.current_index >= 0 && player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(
             player->queue.current_index, -1);
@@ -717,7 +717,6 @@ bool matches_filter(const char *text, const char *filter) {
 }
 
 void update_queue_display_with_filter(AudioPlayer *player) {
-    // Clear existing model
     if (player->queue_store) {
         gtk_list_store_clear(player->queue_store);
     }
@@ -727,19 +726,15 @@ void update_queue_display_with_filter(AudioPlayer *player) {
     
     int visible_count = 0;
     
-    // Add each queue item that matches the filter
     for (int i = 0; i < player->queue.count; i++) {
-        // Extract metadata for this file
         char *metadata = extract_metadata(player->queue.files[i]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         
         parse_metadata(metadata, title, artist, album, genre);
         g_free(metadata);
         
-        // Get basename for filename column
         char *basename = g_path_get_basename(player->queue.files[i]);
         
-        // Check if this item matches the filter
         bool matches = true;
         if (has_filter) {
             matches = matches_filter(basename, filter) ||
@@ -753,7 +748,6 @@ void update_queue_display_with_filter(AudioPlayer *player) {
             GtkTreeIter iter;
             gtk_list_store_append(player->queue_store, &iter);
             
-            // Get duration
             int duration_seconds = get_file_duration(player->queue.files[i]);
             char duration_str[16];
             if (duration_seconds > 0) {
@@ -761,6 +755,12 @@ void update_queue_display_with_filter(AudioPlayer *player) {
                         duration_seconds / 60, duration_seconds % 60);
             } else {
                 strcpy(duration_str, "");
+            }
+            
+            const char *ext = strrchr(player->queue.files[i], '.');
+            const char *cdgk_indicator = "";
+            if (ext && strcasecmp(ext, ".zip") == 0) {
+                cdgk_indicator = "✓";
             }
             
             const char *indicator = (i == player->queue.current_index) ? "▶" : "";
@@ -774,6 +774,7 @@ void update_queue_display_with_filter(AudioPlayer *player) {
                 COL_ALBUM, album,
                 COL_GENRE, genre,
                 COL_DURATION, duration_str,
+                COL_CDGK, cdgk_indicator,
                 COL_QUEUE_INDEX, i,
                 -1);
             
@@ -785,7 +786,6 @@ void update_queue_display_with_filter(AudioPlayer *player) {
     
     printf("Queue filter: showing %d of %d items\n", visible_count, player->queue.count);
     
-    // Scroll to and select current item if it's visible
     if (player->queue.current_index >= 0 && player->queue_tree_view) {
         GtkTreeIter iter;
         gboolean valid = gtk_tree_model_get_iter_first(
@@ -812,7 +812,6 @@ void update_queue_display_with_filter(AudioPlayer *player) {
         }
     }
 }
-
 // Cleanup function to call on exit
 void cleanup_queue_filter(AudioPlayer *player) {
     if (player->queue_filter_timeout_id != 0) {
