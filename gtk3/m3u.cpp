@@ -52,7 +52,7 @@ bool load_m3u_playlist(AudioPlayer *player, const char *m3u_path) {
         printf("Cannot open M3U file: %s\n", m3u_path);
         return false;
     }
-    
+    clear_queue(&player->queue);
     char line[1024];
     char m3u_dir[512];
     bool was_empty_queue = (player->queue.count == 0);
