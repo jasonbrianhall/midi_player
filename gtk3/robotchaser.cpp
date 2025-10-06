@@ -991,7 +991,7 @@ gboolean robot_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, 
 
 void robot_chaser_update_player(Visualizer *vis, double dt) {
     if (vis->robot_chaser_game_state != GAME_PLAYING) {
-        return; // Don't update if game is paused/over
+        return;
     }
     
     ChaserPlayer *player = &vis->robot_chaser_player;
@@ -1010,61 +1010,113 @@ void robot_chaser_update_player(Visualizer *vis, double dt) {
     if (player->mouth_angle > 2.0 * M_PI) player->mouth_angle -= 2.0 * M_PI;
     
     if (player->moving) {
-        // Try to change direction if queued
-        if (player->next_direction != player->direction) {
-            double test_x = player->x;
-            double test_y = player->y;
-            int test_grid_x = player->grid_x;
-            int test_grid_y = player->grid_y;
+        // Check if we're aligned with grid
+        double dx_to_grid = fabs(player->x - player->grid_x);
+        double dy_to_grid = fabs(player->y - player->grid_y);
+        gboolean near_grid_center = (dx_to_grid < 0.3 && dy_to_grid < 0.3);
+        
+        // At grid center - check if we SHOULD turn
+        if (near_grid_center) {
+            // Check what directions are available
+            gboolean can_continue = FALSE;
+            gboolean can_turn = FALSE;
             
-            // Test if we can move in the new direction
-            if (robot_chaser_move_entity_safely(vis, &test_x, &test_y, &test_grid_x, &test_grid_y, 
-                                              player->next_direction, player->speed * speed_multiplier, dt * 0.1)) {
-                player->direction = player->next_direction;
+            // Check if we can continue straight
+            int straight_x = player->grid_x;
+            int straight_y = player->grid_y;
+            switch (player->direction) {
+                case CHASER_UP: straight_y--; break;
+                case CHASER_DOWN: straight_y++; break;
+                case CHASER_LEFT: straight_x--; break;
+                case CHASER_RIGHT: straight_x++; break;
+            }
+            can_continue = robot_chaser_can_move(vis, straight_x, straight_y);
+            
+            // Check if we can turn perpendicular
+            if (player->direction == CHASER_UP || player->direction == CHASER_DOWN) {
+                if (robot_chaser_can_move(vis, player->grid_x - 1, player->grid_y) ||
+                    robot_chaser_can_move(vis, player->grid_x + 1, player->grid_y)) {
+                    can_turn = TRUE;
+                }
+            } else {
+                if (robot_chaser_can_move(vis, player->grid_x, player->grid_y - 1) ||
+                    robot_chaser_can_move(vis, player->grid_x, player->grid_y + 1)) {
+                    can_turn = TRUE;
+                }
+            }
+            
+            // If we can turn, evaluate if we SHOULD turn
+            if (can_turn) {
+                ChaserDirection best_direction = robot_chaser_choose_player_direction(vis);
+                
+                // Only turn if the AI suggests a different direction and it's valid
+                if (best_direction != player->direction) {
+                    int test_x = player->grid_x;
+                    int test_y = player->grid_y;
+                    
+                    switch (best_direction) {
+                        case CHASER_UP: test_y--; break;
+                        case CHASER_DOWN: test_y++; break;
+                        case CHASER_LEFT: test_x--; break;
+                        case CHASER_RIGHT: test_x++; break;
+                    }
+                    
+                    if (robot_chaser_can_move(vis, test_x, test_y)) {
+                        player->direction = best_direction;
+                        player->x = player->grid_x;
+                        player->y = player->grid_y;
+                    }
+                }
+            }
+            
+            // If we can't continue straight, MUST turn
+            if (!can_continue && can_turn) {
+                ChaserDirection new_direction = robot_chaser_choose_player_direction(vis);
+                player->direction = new_direction;
+                player->x = player->grid_x;
+                player->y = player->grid_y;
             }
         }
         
         // Move in current direction
-        double old_x = player->x, old_y = player->y;
-        int old_grid_x = player->grid_x, old_grid_y = player->grid_y;
+        int old_grid_x = player->grid_x;
+        int old_grid_y = player->grid_y;
         
-        if (robot_chaser_move_entity_safely(vis, &player->x, &player->y, &player->grid_x, &player->grid_y,
-                                          player->direction, player->speed * speed_multiplier, dt)) {
+        gboolean moved = robot_chaser_move_entity_safely(vis, &player->x, &player->y, 
+                                                         &player->grid_x, &player->grid_y,
+                                                         player->direction, 
+                                                         player->speed * speed_multiplier, dt);
+        
+        if (!moved) {
+            // Hit a wall - must choose new direction
+            ChaserDirection forced_direction = robot_chaser_choose_player_direction(vis);
+            player->direction = forced_direction;
+            player->x = player->grid_x;
+            player->y = player->grid_y;
+        } else {
             // Successfully moved - check for pellet consumption
             if (player->grid_x != old_grid_x || player->grid_y != old_grid_y) {
                 robot_chaser_consume_pellet(vis, player->grid_x, player->grid_y);
-                
-                // Smart direction choosing at intersections
-                if (rand() % 20 == 0) { // Occasionally choose new direction
-                    player->next_direction = robot_chaser_choose_player_direction(vis);
-                }
             }
-        } else {
-            // Hit a wall - choose new direction immediately
-            player->next_direction = robot_chaser_choose_player_direction(vis);
         }
     }
     
-    // Handle beat detection for direction changes
+    // Handle beat detection
     if (robot_chaser_detect_beat(vis)) {
         player->beat_pulse = 1.0;
-        
-        if (vis->volume_level > 0.4 && rand() % 100 < 30) {
-            player->next_direction = robot_chaser_choose_player_direction(vis);
-        }
     }
     
-    // Check collisions with robots
+    // Check collisions
     if (robot_chaser_check_collision_with_robots(vis)) {
         vis->robot_chaser_lives--;
         vis->robot_chaser_game_state = GAME_PLAYER_DIED;
-        vis->robot_chaser_death_timer = 2.0; // 2 second death animation
+        vis->robot_chaser_death_timer = 2.0;
     }
     
-    // Check if level complete
+    // Check level complete
     if (robot_chaser_is_level_complete(vis)) {
         vis->robot_chaser_game_state = GAME_LEVEL_COMPLETE;
-        vis->robot_chaser_death_timer = 3.0; // 3 second celebration
+        vis->robot_chaser_death_timer = 3.0;
     }
 }
 
@@ -1078,14 +1130,12 @@ void robot_chaser_update_robots(Visualizer *vis, double dt) {
         
         // Ensure robot is in a valid position
         if (!robot_chaser_can_move(vis, robot->grid_x, robot->grid_y)) {
-            // robot is in a wall - move to safe position
             robot->x = 12;
             robot->y = 3;
             robot->grid_x = 12;
             robot->grid_y = 3;
         }
         
-        // Add the unsticking logic
         robot_chaser_unstick_robot(vis, robot);
         
         robot->audio_intensity = vis->frequency_bands[robot->frequency_band];
@@ -1117,22 +1167,56 @@ void robot_chaser_update_robots(Visualizer *vis, double dt) {
         }
         robot->hue += (robot->target_hue - robot->hue) * dt * 5.0;
         
-        // Move robot safely
+        // Check if robot is aligned enough with grid to turn
+        double dx_to_grid = fabs(robot->x - robot->grid_x);
+        double dy_to_grid = fabs(robot->y - robot->grid_y);
+        gboolean near_grid_center = (dx_to_grid < 0.3 && dy_to_grid < 0.3);
+        
+        // At grid center or intersection - evaluate possible direction changes
+        if (near_grid_center) {
+            // Get AI's suggested direction
+            ChaserDirection suggested_direction = robot_chaser_choose_smart_direction_v2(vis, robot, i);
+            
+            // Only change direction if:
+            // 1. It's different from current direction
+            // 2. The path in that direction is clear (no wall)
+            // 3. It's considered safe by the AI
+            if (suggested_direction != robot->direction) {
+                int test_x = robot->grid_x;
+                int test_y = robot->grid_y;
+                
+                // Calculate where this direction leads
+                switch (suggested_direction) {
+                    case CHASER_UP: test_y--; break;
+                    case CHASER_DOWN: test_y++; break;
+                    case CHASER_LEFT: test_x--; break;
+                    case CHASER_RIGHT: test_x++; break;
+                }
+                
+                // Verify the direction is valid and safe
+                if (robot_chaser_can_move(vis, test_x, test_y)) {
+                    robot->direction = suggested_direction;
+                    // Snap to grid center for clean turning
+                    robot->x = robot->grid_x;
+                    robot->y = robot->grid_y;
+                }
+            }
+        }
+        
+        // Move in current direction
         double old_x = robot->x, old_y = robot->y;
         int old_grid_x = robot->grid_x, old_grid_y = robot->grid_y;
         
-        if (!robot_chaser_move_entity_safely(vis, &robot->x, &robot->y, &robot->grid_x, &robot->grid_y,
-                                           robot->direction, robot->speed * speed_multiplier, dt)) {
-            // Hit a wall - choose new direction immediately
+        gboolean moved = robot_chaser_move_entity_safely(vis, &robot->x, &robot->y, 
+                                                         &robot->grid_x, &robot->grid_y,
+                                                         robot->direction, 
+                                                         robot->speed * speed_multiplier, dt);
+        
+        if (!moved) {
+            // Hit a wall - forced to choose new direction
             robot->direction = robot_chaser_choose_smart_direction_v2(vis, robot, i);
-        } else {
-            // Successfully moved - check if we reached a new grid cell
-            if (robot->grid_x != old_grid_x || robot->grid_y != old_grid_y) {
-                // At intersection - possibly change direction
-                if (rand() % 30 == 0) { // Occasionally change direction at intersections
-                    robot->direction = robot_chaser_choose_smart_direction_v2(vis, robot, i);
-                }
-            }
+            robot->x = robot->grid_x;
+            robot->y = robot->grid_y;
         }
     }
     
@@ -1141,7 +1225,6 @@ void robot_chaser_update_robots(Visualizer *vis, double dt) {
         vis->robot_chaser_power_pellet_timer -= dt;
         if (vis->robot_chaser_power_pellet_timer <= 0) {
             vis->robot_chaser_power_mode = FALSE;
-            // Un-scare all robots
             for (int i = 0; i < vis->robot_chaser_robot_count; i++) {
                 vis->robot_chaser_robots[i].scared = FALSE;
                 vis->robot_chaser_robots[i].scared_timer = 0.0;
@@ -1356,7 +1439,6 @@ gboolean robot_chaser_direction_leads_to_danger(Visualizer *vis, int from_x, int
     return FALSE;
 }
 
-// Improved player direction choosing with robot avoidance
 ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis) {
     ChaserPlayer *player = &vis->robot_chaser_player;
     
@@ -1458,14 +1540,8 @@ ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis) {
         }
     }
     
-    // PHASE 3: Among safe directions, prefer continuing straight
-    for (int i = 0; i < safe_count; i++) {
-        if (safe_directions[i] == player->direction) {
-            return player->direction; // Continue straight if it's safe
-        }
-    }
-    
-    // PHASE 4: Among safe directions, prefer the one that leads to the nearest pellet
+    // PHASE 3: Among safe directions, choose the one closest to the nearest pellet
+    // (REMOVED the "prefer continuing straight" logic that was here)
     int target_x, target_y;
     robot_chaser_find_nearest_pellet(vis, player->grid_x, player->grid_y, &target_x, &target_y);
     
