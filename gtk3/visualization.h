@@ -25,6 +25,7 @@
 #include "sauron.h"
 #include "hanoi.h"
 #include "beatchess.h"
+#include "beatcheckers.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -55,6 +56,7 @@ typedef enum {
     VIS_EYE_OF_SAURON,
     VIS_TOWER_OF_HANOI,
     VIS_BEAT_CHESS,
+    VIS_BEAT_CHECKERS,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -290,6 +292,9 @@ typedef struct {
 
     // Beat Chess
     BeatChessVisualization beat_chess;
+    
+    // Checkers
+    BeatCheckersVisualization beat_checkers;
 
 } Visualizer;
 
@@ -523,6 +528,28 @@ bool chess_is_in_bounds(int r, int c);
 bool chess_is_path_clear(ChessGameState *game, int fr, int fc, int tr, int tc);
 ChessGameStatus chess_check_game_status(ChessGameState *game);
 void update_beat_chess(void *vis_ptr, double dt);
+
+// Beat Checkers (checkers engine)
+// Core checkers engine functions
+void checkers_init_board(CheckersGameState *game);
+bool checkers_is_valid_move(CheckersGameState *game, CheckersMove *move);
+void checkers_make_move(CheckersGameState *game, CheckersMove *move);
+int checkers_evaluate_position(CheckersGameState *game);
+int checkers_get_all_moves(CheckersGameState *game, CheckersColor color, CheckersMove *moves);
+CheckersGameStatus checkers_check_game_status(CheckersGameState *game);
+
+// Thinking state management
+void checkers_init_thinking_state(CheckersThinkingState *ts);
+void checkers_start_thinking(CheckersThinkingState *ts, CheckersGameState *game);
+CheckersMove checkers_get_best_move_now(CheckersThinkingState *ts);
+void checkers_stop_thinking(CheckersThinkingState *ts);
+void* checkers_think_continuously(void* arg);
+
+// Checkers Visualization functions
+void init_beat_checkers_system(void *vis);
+void update_beat_checkers(void *vis, double dt);
+void draw_beat_checkers(void *vis, cairo_t *cr);
+bool beat_checkers_detect_beat(void *vis);
 
 #endif
 
