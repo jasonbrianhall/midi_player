@@ -416,12 +416,15 @@ gboolean visualizer_timer_callback(gpointer user_data) {
     if (vis->enabled) {
         bool vis_type_changed = (last_vis_type != vis->type);
         
-        // Check if window is minimized (iconified)
+        // Check if window is visible on screen
         GdkWindow *gdk_window = gtk_widget_get_window(player->window);
-        bool is_minimized = gdk_window && (gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_ICONIFIED);
+        bool is_visible = gtk_widget_get_visible(player->window) && 
+                         gdk_window && 
+                         !(gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_ICONIFIED) &&
+                         gdk_window_is_visible(gdk_window);
         
         bool is_playing = player && player->is_playing && !player->is_paused;
-        bool should_update = vis_type_changed || (is_playing && !is_minimized);
+        bool should_update = vis_type_changed || (is_playing && is_visible);
         
         if (!should_update) {
             return TRUE; // Keep timer running but skip updates
