@@ -1888,11 +1888,15 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
     
+    printf("Cleaing up Audio\n");
     if (player->audio_buffer.data) free(player->audio_buffer.data);
+    printf("Closing  SDL 1\n");
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
     
+    printf("Closing  SDL 2\n");
     SDL_Quit();
     
+    printf("Closing main window\n");
     gtk_main_quit();
     return FALSE; // Allow the window to be destroyed
 }
@@ -2640,18 +2644,21 @@ int main(int argc, char *argv[]) {
     
     gtk_main();
     
+/*    printf("Cleaningg CDG\n");
+    if (player->cdg_display) {
+        cdg_display_free(player->cdg_display);
+    }
+
+    printf("Cleaning visualizer\n");
     if (player->visualizer) {
         visualizer_free(player->visualizer);
     }
 
-    if (player->cdg_display) {
-        cdg_display_free(player->cdg_display);
-    }
     
     clear_queue(&player->queue);
     cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
-    pthread_mutex_destroy(&player->audio_mutex);
+    pthread_mutex_destroy(&player->audio_mutex);*/
     
     g_free(player);
     return 0;
