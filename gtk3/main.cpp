@@ -2498,60 +2498,93 @@ int main(int argc, char *argv[]) {
     update_gui_state(player);
     gtk_widget_show_all(player->window);
     
-    // *** ADD THIS LINE: Load saved settings ***
     load_player_settings(player);
+    
+    char last_playlist[1024];
+    bool loaded_last_playlist = false;
+    if (load_last_playlist_path(last_playlist, sizeof(last_playlist))) {
+        printf("Auto-loading last playlist: %s\n", last_playlist);
+        if (load_m3u_playlist(player, last_playlist)) {
+            printf("Successfully loaded last playlist\n");
+            loaded_last_playlist = true;
+            
+            int saved_index = 0;
+            double saved_position = 0.0;
+            if (load_playlist_state(&saved_index, &saved_position)) {
+                if (saved_index >= 0 && saved_index < player->queue.count) {
+                    player->queue.current_index = saved_index;
+                    printf("Restored queue index to %d\n", saved_index);
+                }
+            }
+        }
+    }
     
     if (argc > 1) {
         const char *first_arg = argv[1];
         const char *ext = strrchr(first_arg, '.');
         
         if (ext && (strcasecmp(ext, ".m3u") == 0 || strcasecmp(ext, ".m3u8") == 0)) {
-            printf("Loading M3U playlist: %s\n", first_arg);
+            printf("Loading new M3U playlist: %s\n", first_arg);
+            clear_queue(&player->queue);
             load_m3u_playlist(player, first_arg);
             save_last_playlist_path(first_arg);
             
             for (int i = 2; i < argc; i++) {
                 add_to_queue(&player->queue, argv[i]);
             }
-        } else {
-            for (int i = 1; i < argc; i++) {
-                add_to_queue(&player->queue, argv[i]);
-            }
-        }
-        
-        if (player->queue.count > 0 && load_file_from_queue(player)) {
-            printf("Loaded and auto-starting first file in queue\n");
-            update_queue_display_with_filter(player);
-            update_gui_state(player);
-        }
-    } else {
-        char last_playlist[1024];
-        if (load_last_playlist_path(last_playlist, sizeof(last_playlist))) {
-            printf("Auto-loading last playlist: %s\n", last_playlist);
-            if (load_m3u_playlist(player, last_playlist)) {
-                printf("Successfully loaded last playlist\n");
-                
-                int saved_index = 0;
-                double saved_position = 0.0;
-                if (load_playlist_state(&saved_index, &saved_position)) {
-                    if (saved_index >= 0 && saved_index < player->queue.count) {
-                        player->queue.current_index = saved_index;
-                        printf("Restored queue index to %d\n", saved_index);
-                        
-                        if (load_file_from_queue(player)) {
-                            if (saved_position > 0 && saved_position < player->song_duration) {
-                                seek_to_position(player, saved_position);
-                                gtk_range_set_value(GTK_RANGE(player->progress_scale), saved_position);
-                                printf("Restored playback position to %.2f\n", saved_position);
-                            }
-                        }
-                    }
-                }
-                
+            
+            if (player->queue.count > 0 && load_file_from_queue(player)) {
+                printf("Loaded and auto-starting file from queue\n");
                 update_queue_display_with_filter(player);
                 update_gui_state(player);
             }
+        } else {
+            for (int i = 1; i < argc; i++) {
+                const char *filename = argv[i];
+                int found_index = -1;
+                
+                for (int j = 0; j < player->queue.count; j++) {
+                    if (strcmp(player->queue.files[j], filename) == 0) {
+                        found_index = j;
+                        break;
+                    }
+                }
+                
+                if (found_index >= 0) {
+                    printf("File already in queue at index %d, jumping to it\n", found_index);
+                    player->queue.current_index = found_index;
+                    if (load_file_from_queue(player)) {
+                        printf("Loaded and auto-starting existing file from queue\n");
+                        update_queue_display_with_filter(player);
+                        update_gui_state(player);
+                    }
+                } else {
+                    printf("File not in queue, adding and playing it\n");
+                    add_to_queue(&player->queue, filename);
+                    player->queue.current_index = player->queue.count - 1;
+                    if (load_file_from_queue(player)) {
+                        printf("Loaded and auto-starting new file\n");
+                        update_queue_display_with_filter(player);
+                        update_gui_state(player);
+                    }
+                }
+            }
         }
+    } else if (loaded_last_playlist && player->queue.count > 0) {
+        if (load_file_from_queue(player)) {
+            int saved_index = 0;
+            double saved_position = 0.0;
+            if (load_playlist_state(&saved_index, &saved_position)) {
+                if (saved_position > 0 && saved_position < player->song_duration) {
+                    seek_to_position(player, saved_position);
+                    gtk_range_set_value(GTK_RANGE(player->progress_scale), saved_position);
+                    printf("Restored playback position to %.2f\n", saved_position);
+                }
+            }
+        }
+        
+        update_queue_display_with_filter(player);
+        update_gui_state(player);
     }
     
     gtk_main();
