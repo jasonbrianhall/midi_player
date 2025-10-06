@@ -32,16 +32,20 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     gboolean shift_pressed = (event->state & GDK_SHIFT_MASK) != 0;
     
     // Check if queue has focus for special handling
-    gboolean queue_focused = gtk_widget_has_focus(player->queue_listbox);
+    gboolean queue_focused = gtk_widget_has_focus(player->queue_tree_view);
     
     switch (event->keyval) {
         case GDK_KEY_Return:
         case GDK_KEY_KP_Enter:
             // Enter: Play selected queue item if queue has focus
             if (queue_focused) {
-                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
-                if (selected_row) {
-                    int selected_index = gtk_list_box_row_get_index(selected_row);
+                GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+                GtkTreeModel *model;
+                GtkTreeIter iter;
+                
+                if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+                    int selected_index;
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &selected_index, -1);
                     
                     if (selected_index == player->queue.current_index && player->is_playing) {
                         printf("Already playing this song\n");
@@ -66,9 +70,13 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
         case GDK_KEY_X:
             // X: Remove selected item if queue has focus
             if (queue_focused) {
-                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
-                if (selected_row) {
-                    int selected_index = gtk_list_box_row_get_index(selected_row);
+                GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+                GtkTreeModel *model;
+                GtkTreeIter iter;
+                
+                if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+                    int selected_index;
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &selected_index, -1);
                     printf("Removing item %d from queue via keyboard\n", selected_index);
                     
                     bool was_current_playing = (selected_index == player->queue.current_index && player->is_playing);
@@ -141,44 +149,26 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_Delete:
         case GDK_KEY_d:
-            // If queue has focus, handle in the 'x' case above
-            if (queue_focused && event->keyval == GDK_KEY_Delete) {
-                GtkListBoxRow *selected_row = gtk_list_box_get_selected_row(GTK_LIST_BOX(player->queue_listbox));
-                if (selected_row) {
-                    int selected_index = gtk_list_box_row_get_index(selected_row);
-                    printf("Removing item %d from queue via Delete\n", selected_index);
-                    
-                    bool was_current_playing = (selected_index == player->queue.current_index && player->is_playing);
-                    bool queue_will_be_empty = (player->queue.count <= 1);
-                    
-                    if (remove_from_queue(&player->queue, selected_index)) {
-                        if (queue_will_be_empty) {
-                            stop_playback(player);
-                            player->is_loaded = false;
-                            gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
-                        } else if (was_current_playing) {
-                            stop_playback(player);
-                            if (load_file_from_queue(player)) {
-                                update_gui_state(player);
-                                start_playback(player);
-                            }
-                        }
-                        update_queue_display_with_filter(player);
-                        update_gui_state(player);
-                    }
-                }
-                return TRUE;
-            }
-            
-            // Otherwise, remove currently playing song
+            // Try to delete the selected queue item, or current if none selected
             if (player->queue.count > 0) {
-                int current_index = player->queue.current_index;
-                printf("Removing current song (index %d) via keyboard\n", current_index);
+                int index_to_delete = player->queue.current_index;
                 
-                bool was_current_playing = (player->is_playing);
+                // Try to get selected item from queue tree view
+                GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+                GtkTreeModel *model;
+                GtkTreeIter iter;
+                
+                if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &index_to_delete, -1);
+                    printf("Removing selected queue item (index %d) via keyboard\n", index_to_delete);
+                } else {
+                    printf("Removing current song (index %d) via keyboard\n", index_to_delete);
+                }
+                
+                bool was_current_playing = (index_to_delete == player->queue.current_index && player->is_playing);
                 bool queue_will_be_empty = (player->queue.count <= 1);
                 
-                if (remove_from_queue(&player->queue, current_index)) {
+                if (remove_from_queue(&player->queue, index_to_delete)) {
                     if (queue_will_be_empty) {
                         stop_playback(player);
                         player->is_loaded = false;
@@ -328,7 +318,6 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
     
     return FALSE;
 }
-
 void toggle_fullscreen(AudioPlayer *player) {
     GdkWindow *gdk_window = gtk_widget_get_window(player->window);
     if (!gdk_window) {
@@ -383,33 +372,6 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
                 start_playback(player);
             }
             update_gui_state(player);
-            return TRUE;
-            
-        case GDK_KEY_Delete:
-        case GDK_KEY_d:
-            if (player->queue.count > 0) {
-                int current_index = player->queue.current_index;
-                printf("Removing current song (index %d) via keyboard in fullscreen\n", current_index);
-                
-                bool was_current_playing = (player->is_playing);
-                bool queue_will_be_empty = (player->queue.count <= 1);
-                
-                if (remove_from_queue(&player->queue, current_index)) {
-                    if (queue_will_be_empty) {
-                        stop_playback(player);
-                        player->is_loaded = false;
-                        gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
-                    } else if (was_current_playing) {
-                        stop_playback(player);
-                        if (load_file_from_queue(player)) {
-                            update_gui_state(player);
-                            start_playback(player);
-                        }
-                    }
-                    update_queue_display_with_filter(player);
-                    update_gui_state(player);
-                }
-            }
             return TRUE;
             
         case GDK_KEY_n:
