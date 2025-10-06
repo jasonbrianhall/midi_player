@@ -1862,12 +1862,6 @@ void on_volume_changed(GtkRange *range, gpointer user_data) {
 void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     (void)user_data;
-
-    if (player->equalizer) {
-        equalizer_free(player->equalizer);
-    }
-    
-    cleanup_queue_filter(player);
     
 }
 
@@ -1885,19 +1879,43 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     
     stop_playback(player);
     clear_queue(&player->queue);
+    cleanup_queue_filter(player);
     cleanup_conversion_cache(&player->conversion_cache);
     cleanup_virtual_filesystem();
     
     printf("Cleaing up Audio\n");
     if (player->audio_buffer.data) free(player->audio_buffer.data);
+
+    if (player->cdg_display) {
+        cdg_display_free(player->cdg_display);
+    }    
+
     printf("Closing  SDL 1\n");
     if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
+
+    printf("Cleaning visualizer\n");
+    if (player->visualizer) {
+        visualizer_free(player->visualizer);
+    }
+
+    printf("Cleaning Equalizer\n");
+    if (player->equalizer) {
+        equalizer_free(player->equalizer);
+    }
     
-    printf("Closing  SDL 2\n");
+ 
+
+    printf("Freeing player\n");
+    if (player) {
+        //delete player;
+    }
+
+    printf("Closing  SDL\n");
     SDL_Quit();
     
     printf("Closing main window\n");
     gtk_main_quit();
+
     return FALSE; // Allow the window to be destroyed
 }
 
