@@ -143,6 +143,17 @@ void visualizer_free(Visualizer *vis) {
         vis->sudoku_solver = NULL;
     }
     
+    if (vis->background_solver) {
+        delete vis->background_solver;
+        vis->background_solver = NULL;
+    }
+
+    if (vis->background_generator) {
+        delete vis->background_generator;
+        vis->background_generator = NULL;
+    }
+
+
     if (vis->puzzle_generator) {
         delete vis->puzzle_generator;
         vis->puzzle_generator = NULL;
