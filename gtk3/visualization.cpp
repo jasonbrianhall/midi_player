@@ -432,8 +432,19 @@ gboolean visualizer_timer_callback(gpointer user_data) {
         
         last_vis_type = vis->type;
         
-        vis->rotation += 0.02;
-        vis->time_offset += 0.1;
+        // Scale animation speed by playback speed, but cap at 120 FPS equivalent
+        double speed_factor = player ? player->playback_speed : 1.0;
+        double dt = 0.033 * speed_factor;  // Scale the delta time
+        
+        // Cap at ~120 FPS (minimum dt of 0.00833 seconds)
+        const double min_dt = 1.0 / 120.0;
+        if (dt < min_dt) {
+            dt = min_dt;
+            speed_factor = dt / 0.033;  // Recalculate speed_factor for rotation/offset
+        }
+        
+        vis->rotation += 0.02 * speed_factor;
+        vis->time_offset += 0.1 * speed_factor;
         
         if (vis->rotation > 2.0 * M_PI) vis->rotation -= 2.0 * M_PI;
         
@@ -441,55 +452,55 @@ gboolean visualizer_timer_callback(gpointer user_data) {
         
         switch (vis->type) {
             case VIS_FIREWORKS:
-                update_fireworks(vis, 0.033); // 33ms = ~30 FPS
+                update_fireworks(vis, dt); // 33ms = ~30 FPS
                 break;
             case VIS_DNA_HELIX:
-                update_dna_helix(vis, 0.033); // 33ms = ~30 FPS
+                update_dna_helix(vis, dt); // 33ms = ~30 FPS
                 break;
             case VIS_DNA2_HELIX:
-                update_dna2_helix(vis, 0.033);
+                update_dna2_helix(vis, dt);
                 break;
-            case VIS_SUDOKU_SOLVER:  // ADD THIS CASE
-                update_sudoku_solver(vis, 0.033);
+            case VIS_SUDOKU_SOLVER:  
+                update_sudoku_solver(vis, dt);
                 break;                
             case VIS_FOURIER_TRANSFORM:
-                update_fourier_transform(vis, 0.033);
+                update_fourier_transform(vis, dt);
                 break;
             case VIS_RIPPLES:
-                update_ripples(vis, 0.033);
+                update_ripples(vis, dt);
                 break;
             case VIS_KALEIDOSCOPE:
-                update_kaleidoscope(vis, 0.033);
+                update_kaleidoscope(vis, dt);
                 break;  
             case VIS_BOUNCY_BALLS:
-                update_bouncy_balls(vis, 0.033);
+                update_bouncy_balls(vis, dt);
                 break;                                              
             case VIS_DIGITAL_CLOCK:
-                update_clock_swirls(vis, 0.033);
+                update_clock_swirls(vis, dt);
                 break;
             case VIS_ANALOG_CLOCK:
-                update_analog_clock(vis, 0.033);
+                update_analog_clock(vis, dt);
                 break;
             case VIS_ROBOT_CHASER:
-                update_robot_chaser_visualization(vis, 0.033);
+                update_robot_chaser_visualization(vis, dt);
                 break;
             case VIS_RADIAL_WAVE:
-                update_radial_wave(vis, 0.033);
+                update_radial_wave(vis, dt);
                 break;
             case VIS_BLOCK_STACK:
-                update_blockstack(vis, 0.033);
+                update_blockstack(vis, dt);
                 break;
             case VIS_PARROT:
-                update_parrot(vis, 0.033);
+                update_parrot(vis, dt);
                 break;
             case VIS_EYE_OF_SAURON:
-                update_eye_of_sauron(vis, 0.033);
+                update_eye_of_sauron(vis, dt);
                 break;
             case VIS_TOWER_OF_HANOI:
-                update_hanoi(vis, 0.033);
+                update_hanoi(vis, dt);
                 break;
             case VIS_BEAT_CHESS:
-                update_beat_chess(vis, 0.033);
+                update_beat_chess(vis, dt);
                 break;                                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
