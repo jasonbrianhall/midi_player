@@ -169,7 +169,7 @@ void update_hanoi(Visualizer *vis, double dt) {
             double disk_y = vis->height * 0.8 - hanoi->pegs[to].disk_count * vis->height * 0.04;
             double hue = (double)moving_disk.disk_size / hanoi->total_disks;
             double r, g, b;
-            hsv_to_rgb(hue * 0.7, 0.8, 0.9, &r, &g, &b);
+            hsv_to_rgb((hue * 0.7)*360, 0.8, 0.9, &r, &g, &b);
             
             for (int i = 0; i < 10; i++) {
                 spawn_particle(peg_x, disk_y, r, g, b);
@@ -295,7 +295,7 @@ void draw_hanoi(Visualizer *vis, cairo_t *cr) {
             
             double hue = (double)disk->disk_size / hanoi->total_disks;
             double r, g, b;
-            hsv_to_rgb(hue * 0.7 + vis->rotation * 0.05, 0.9, 0.95, &r, &g, &b);
+            hsv_to_rgb((hue * 0.7 + vis->rotation * 0.05)*360, 0.9, 0.95, &r, &g, &b);
             
             // Shadow
             cairo_set_source_rgba(cr, 0, 0, 0, 0.4);
@@ -364,7 +364,7 @@ void draw_hanoi(Visualizer *vis, cairo_t *cr) {
         
         double hue = (double)disk->disk_size / hanoi->total_disks;
         double r, g, b;
-        hsv_to_rgb(hue * 0.7, 0.9, 0.95, &r, &g, &b);
+        hsv_to_rgb((hue * 0.7)*360, 0.9, 0.95, &r, &g, &b);
         
         // Motion blur trail
         for (int i = 1; i <= 8; i++) {
