@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "audio_player.h"
 
 // Virtual file structure
@@ -30,6 +31,7 @@ void cleanup_virtual_filesystem();
 VirtualFile* create_virtual_file(const char* filename);
 VirtualFile* get_virtual_file(const char* filename);
 bool delete_virtual_file(const char* filename);
+void free_virtual_file(gpointer data);
 
 // Virtual file operations
 bool virtual_file_write(VirtualFile* vf, const void* data, size_t size);
@@ -44,8 +46,5 @@ bool virtual_wav_converter_write(VirtualWAVConverter* converter, int16_t* sample
 void virtual_wav_converter_finish(VirtualWAVConverter* converter);
 void virtual_wav_converter_free(VirtualWAVConverter* converter);
 bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename);
-
-// Helper function for OGG conversion (you'll need to implement this)
-bool convertOggToVirtualWav(const char* ogg_filename, const char* virtual_wav_filename);
 
 #endif // VIRTUAL_FILESYSTEM_H

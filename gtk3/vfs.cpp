@@ -2,74 +2,129 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include "vfs.h"
 #include "audio_player.h"
 
 // Global virtual filesystem
 static GHashTable* virtual_filesystem = NULL;
+static pthread_mutex_t vfs_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Initialize the virtual filesystem
-void init_virtual_filesystem() {
-    if (!virtual_filesystem) {
-        virtual_filesystem = g_hash_table_new_full(g_str_hash, g_str_equal, 
-                                                   g_free, NULL);
+void free_virtual_file(gpointer data) {
+    VirtualFile* vf = (VirtualFile*)data;
+    if (vf) {
+        printf("free_virtual_file: Freeing VirtualFile at %p\n", (void*)vf);
+        fflush(stdout);
+        if (vf->data) {
+            printf("free_virtual_file: Freeing data at %p (size: %zu)\n", (void*)vf->data, vf->size);
+            fflush(stdout);
+            free(vf->data);
+            vf->data = NULL;
+        }
+        free(vf);
+        printf("free_virtual_file: Done\n");
+        fflush(stdout);
     }
 }
 
-// Clean up the virtual filesystem
+// Initialize the virtual filesystem
+void init_virtual_filesystem() {
+    pthread_mutex_lock(&vfs_mutex);
+    if (!virtual_filesystem) {
+        printf("init_virtual_filesystem: Creating hash table\n");
+        fflush(stdout);
+        virtual_filesystem = g_hash_table_new_full(
+            g_str_hash, 
+            g_str_equal, 
+            g_free,
+            (GDestroyNotify)free_virtual_file
+        );
+        printf("init_virtual_filesystem: Hash table created at %p\n", (void*)virtual_filesystem);
+        fflush(stdout);
+    }
+    pthread_mutex_unlock(&vfs_mutex);
+}
+
+// Simplified cleanup
 void cleanup_virtual_filesystem() {
+    printf("cleanup_virtual_filesystem: START\n");
+    fflush(stdout);
+    
+    pthread_mutex_lock(&vfs_mutex);
+    
     if (virtual_filesystem) {
-        GHashTableIter iter;
-        gpointer key, value;
+        printf("cleanup_virtual_filesystem: Hash table at %p\n", (void*)virtual_filesystem);
+        fflush(stdout);
         
-        g_hash_table_iter_init(&iter, virtual_filesystem);
-        while (g_hash_table_iter_next(&iter, &key, &value)) {
-            VirtualFile* vf = (VirtualFile*)value;
-            if (vf) {
-                free(vf->data);
-                free(vf);
-            }
-        }
+        int size = g_hash_table_size(virtual_filesystem);
+        printf("cleanup_virtual_filesystem: Hash table contains %d entries\n", size);
+        fflush(stdout);
+        
+        printf("cleanup_virtual_filesystem: Calling g_hash_table_destroy...\n");
+        fflush(stdout);
         
         g_hash_table_destroy(virtual_filesystem);
+        
+        printf("cleanup_virtual_filesystem: g_hash_table_destroy completed\n");
+        fflush(stdout);
+        
         virtual_filesystem = NULL;
+        
+        printf("cleanup_virtual_filesystem: COMPLETE\n");
+        fflush(stdout);
+    } else {
+        printf("cleanup_virtual_filesystem: No filesystem to clean\n");
+        fflush(stdout);
     }
+    
+    pthread_mutex_unlock(&vfs_mutex);
 }
 
 // Create a new virtual file
 VirtualFile* create_virtual_file(const char* filename) {
+    pthread_mutex_lock(&vfs_mutex);
+    
     if (!virtual_filesystem) {
+        pthread_mutex_unlock(&vfs_mutex);
         init_virtual_filesystem();
+        pthread_mutex_lock(&vfs_mutex);
     }
     
     VirtualFile* vf = malloc(sizeof(VirtualFile));
-    if (!vf) return NULL;
+    if (!vf) {
+        pthread_mutex_unlock(&vfs_mutex);
+        return NULL;
+    }
     
-    vf->data = malloc(1024); // Initial capacity
+    vf->data = malloc(1024);
     vf->size = 0;
     vf->capacity = 1024;
     vf->position = 0;
     
     if (!vf->data) {
         free(vf);
+        pthread_mutex_unlock(&vfs_mutex);
         return NULL;
     }
     
-    // Remove existing file if it exists
-    VirtualFile* existing = g_hash_table_lookup(virtual_filesystem, filename);
-    if (existing) {
-        free(existing->data);
-        free(existing);
-    }
+    printf("create_virtual_file: Created VirtualFile at %p for '%s'\n", (void*)vf, filename);
+    fflush(stdout);
     
     g_hash_table_insert(virtual_filesystem, g_strdup(filename), vf);
+    
+    pthread_mutex_unlock(&vfs_mutex);
     return vf;
 }
 
 // Get an existing virtual file
 VirtualFile* get_virtual_file(const char* filename) {
-    if (!virtual_filesystem) return NULL;
-    return (VirtualFile*)g_hash_table_lookup(virtual_filesystem, filename);
+    pthread_mutex_lock(&vfs_mutex);
+    VirtualFile* vf = NULL;
+    if (virtual_filesystem) {
+        vf = (VirtualFile*)g_hash_table_lookup(virtual_filesystem, filename);
+    }
+    pthread_mutex_unlock(&vfs_mutex);
+    return vf;
 }
 
 // Write data to virtual file
@@ -157,16 +212,13 @@ size_t virtual_file_size(VirtualFile* vf) {
 
 // Delete a virtual file
 bool delete_virtual_file(const char* filename) {
-    if (!virtual_filesystem) return false;
-    
-    VirtualFile* vf = g_hash_table_lookup(virtual_filesystem, filename);
-    if (vf) {
-        free(vf->data);
-        free(vf);
-        return g_hash_table_remove(virtual_filesystem, filename);
+    pthread_mutex_lock(&vfs_mutex);
+    bool result = false;
+    if (virtual_filesystem) {
+        result = g_hash_table_remove(virtual_filesystem, filename);
     }
-    
-    return false;
+    pthread_mutex_unlock(&vfs_mutex);
+    return result;
 }
 
 VirtualWAVConverter* virtual_wav_converter_init(const char* filename, int sample_rate, int channels) {
@@ -377,13 +429,14 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
     player->song_duration = data_size / (double)(player->sample_rate * player->channels * (player->bits_per_sample / 8));
     printf("Virtual WAV duration: %.2f seconds\n", player->song_duration);
     
-    // Allocate and read audio data
+    // Allocate NEW buffer (separate from VirtualFile)
     int16_t* wav_data = (int16_t*)malloc(data_size);
     if (!wav_data) {
         printf("Memory allocation failed\n");
         return false;
     }
     
+    // COPY data from virtual file (don't share the pointer)
     if (virtual_file_read(vf, wav_data, data_size) != data_size) {
         printf("Virtual WAV data read failed\n");
         free(wav_data);
@@ -392,12 +445,20 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
     
     // Store in audio buffer
     pthread_mutex_lock(&player->audio_mutex);
-    if (player->audio_buffer.data) free(player->audio_buffer.data);
+    if (player->audio_buffer.data) {
+        free(player->audio_buffer.data);
+    }
     player->audio_buffer.data = wav_data;
     player->audio_buffer.length = data_size / sizeof(int16_t);
     player->audio_buffer.position = 0;
     pthread_mutex_unlock(&player->audio_mutex);
     
     printf("Loaded %zu samples from virtual file\n", player->audio_buffer.length);
+    
+    // NOW delete the virtual file since we've copied the data
+    printf("Deleting virtual file '%s' after copying data\n", virtual_filename);
+    fflush(stdout);
+    delete_virtual_file(virtual_filename);
+    
     return true;
 }
