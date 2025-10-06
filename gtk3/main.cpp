@@ -1869,8 +1869,6 @@ void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     
     cleanup_queue_filter(player);
     
-    // This will be called after delete-event, so just quit
-    gtk_main_quit();
 }
 
 gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
