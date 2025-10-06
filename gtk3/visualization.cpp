@@ -411,25 +411,27 @@ gboolean on_visualizer_configure(GtkWidget *widget, GdkEventConfigure *event, gp
 
 gboolean visualizer_timer_callback(gpointer user_data) {
     Visualizer *vis = (Visualizer*)user_data;
-
     static VisualizationType last_vis_type = VIS_WAVEFORM;
     
     if (vis->enabled) {
-
         bool vis_type_changed = (last_vis_type != vis->type);
-        bool window_focused = gtk_window_is_active(GTK_WINDOW(player->window));
-        bool should_update = vis_type_changed || 
-                            (window_focused && player && player->is_playing && !player->is_paused);
+        
+        // Check if window is minimized (iconified)
+        GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+        bool is_minimized = gdk_window && (gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_ICONIFIED);
+        
+        bool is_playing = player && player->is_playing && !player->is_paused;
+        bool should_update = vis_type_changed || (is_playing && !is_minimized);
         
         if (!should_update) {
             return TRUE; // Keep timer running but skip updates
         }
-
+        
+        last_vis_type = vis->type;
+        
         vis->rotation += 0.02;
         vis->time_offset += 0.1;
-
-        last_vis_type = vis->type;
-
+        
         if (vis->rotation > 2.0 * M_PI) vis->rotation -= 2.0 * M_PI;
         
         gtk_widget_queue_draw(vis->drawing_area);
