@@ -272,6 +272,7 @@ typedef struct {
     GameState robot_chaser_game_state;
     double robot_chaser_death_timer;
     int robot_chaser_lives;
+    int robot_chaser_current_level;
 
     // Radial Wave
     RadialWaveSystem radial_wave;
@@ -453,6 +454,7 @@ gboolean robot_chaser_is_level_complete(Visualizer *vis);
 gboolean robot_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y, ChaserDirection direction, double speed, double dt);
 void robot_chaser_unstick_robot(Visualizer *vis, ChaserRobot *robot);
 ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis);
+void robot_chaser_init_game_state(Visualizer *vis);
 
 // Radial Wave
 void init_radial_wave_system(void *vis);

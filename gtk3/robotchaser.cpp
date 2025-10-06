@@ -1,17 +1,13 @@
 #include "visualization.h"
 
 void init_robot_chaser_system(Visualizer *vis) {
-    // Initialize robot colors (different from classic to avoid IP issues)
-    // Red robot
+    // Initialize robot colors
     vis->robot_chaser_robot_colors[0][0] = 1.0; vis->robot_chaser_robot_colors[0][1] = 0.0; vis->robot_chaser_robot_colors[0][2] = 0.0;
-    // Green robot 
     vis->robot_chaser_robot_colors[1][0] = 0.0; vis->robot_chaser_robot_colors[1][1] = 1.0; vis->robot_chaser_robot_colors[1][2] = 0.0;
-    // Blue robot
     vis->robot_chaser_robot_colors[2][0] = 0.0; vis->robot_chaser_robot_colors[2][1] = 0.0; vis->robot_chaser_robot_colors[2][2] = 1.0;
-    // Purple robot
     vis->robot_chaser_robot_colors[3][0] = 0.8; vis->robot_chaser_robot_colors[3][1] = 0.0; vis->robot_chaser_robot_colors[3][2] = 0.8;
     
-    // Initialize player (now called "chaser")
+    // Initialize player
     vis->robot_chaser_player.grid_x = 12;
     vis->robot_chaser_player.grid_y = 11;
     vis->robot_chaser_player.x = vis->robot_chaser_player.grid_x;
@@ -24,7 +20,7 @@ void init_robot_chaser_system(Visualizer *vis) {
     vis->robot_chaser_player.speed = 3.0;
     vis->robot_chaser_player.beat_pulse = 0.0;
     
-    // Initialize robots - moved to safer positions
+    // Initialize robots
     vis->robot_chaser_robot_count = 4;
     int robot_positions[4][2] = {{11, 3}, {12, 3}, {13, 3}, {12, 5}};
     
@@ -53,8 +49,12 @@ void init_robot_chaser_system(Visualizer *vis) {
     vis->robot_chaser_power_mode = FALSE;
     vis->robot_chaser_move_timer = 0.0;
     
+    // Start at level 0
+    vis->robot_chaser_current_level = 0;
+    
     robot_chaser_init_maze(vis);
     robot_chaser_calculate_layout(vis);
+    robot_chaser_init_game_state(vis);
 }
 
 void robot_chaser_calculate_layout(Visualizer *vis) {
@@ -75,12 +75,15 @@ void robot_chaser_calculate_layout(Visualizer *vis) {
 }
 
 void robot_chaser_init_maze(Visualizer *vis) {
-    memcpy(vis->robot_chaser_maze, robot_chaser_maze_template, sizeof(robot_chaser_maze_template));
+    // Load the current level
+    memcpy(vis->robot_chaser_maze, robot_chaser_levels[vis->robot_chaser_current_level], 
+           sizeof(robot_chaser_maze_template));
     
     vis->robot_chaser_pellet_count = 0;
     for (int y = 0; y < ROBOT_CHASER_MAZE_HEIGHT; y++) {
         for (int x = 0; x < ROBOT_CHASER_MAZE_WIDTH; x++) {
-            if (vis->robot_chaser_maze[y][x] == CHASER_PELLET || vis->robot_chaser_maze[y][x] == CHASER_POWER_PELLET) {
+            if (vis->robot_chaser_maze[y][x] == CHASER_PELLET || 
+                vis->robot_chaser_maze[y][x] == CHASER_POWER_PELLET) {
                 ChaserPellet *pellet = &vis->robot_chaser_pellets[vis->robot_chaser_pellet_count];
                 pellet->grid_x = x;
                 pellet->grid_y = y;
@@ -1252,7 +1255,7 @@ void update_robot_chaser_visualization(Visualizer *vis, double dt) {
                     robot_chaser_reset_level(vis);
                 } else {
                     vis->robot_chaser_game_state = GAME_GAME_OVER;
-                    vis->robot_chaser_death_timer = 5.0; // Show game over for 5 seconds
+                    vis->robot_chaser_death_timer = 5.0;
                 }
             }
             break;
@@ -1260,19 +1263,30 @@ void update_robot_chaser_visualization(Visualizer *vis, double dt) {
         case GAME_LEVEL_COMPLETE:
             vis->robot_chaser_death_timer -= dt;
             if (vis->robot_chaser_death_timer <= 0) {
-                // Reset for next level (or restart same level)
+                // Advance to next level
+                vis->robot_chaser_current_level++;
+                
+                // If completed all levels, loop back to first level
+                if (vis->robot_chaser_current_level >= ROBOT_CHASER_NUM_LEVELS) {
+                    vis->robot_chaser_current_level = 0;
+                }
+                
+                // Level complete bonus
+                vis->robot_chaser_score += 1000;
+                
+                // Reload maze for new level
                 robot_chaser_init_maze(vis);
                 robot_chaser_reset_level(vis);
-                vis->robot_chaser_score += 1000; // Bonus for completing level
             }
             break;
             
         case GAME_GAME_OVER:
             vis->robot_chaser_death_timer -= dt;
             if (vis->robot_chaser_death_timer <= 0) {
-                // Restart game
+                // Restart from level 1
                 vis->robot_chaser_lives = 3;
                 vis->robot_chaser_score = 0;
+                vis->robot_chaser_current_level = 0;
                 robot_chaser_init_maze(vis);
                 robot_chaser_reset_level(vis);
             }
@@ -1305,10 +1319,12 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
     cairo_set_font_size(cr, 20);
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.9);
     
-    // Score and lives
+    // Score, lives, and level
     char ui_text[64];
-    snprintf(ui_text, sizeof(ui_text), "Score: %d  Lives: %d", 
-             vis->robot_chaser_score, vis->robot_chaser_lives);
+    snprintf(ui_text, sizeof(ui_text), "Level: %d  Score: %d  Lives: %d", 
+             vis->robot_chaser_current_level + 1, // Display as 1-5 instead of 0-4
+             vis->robot_chaser_score, 
+             vis->robot_chaser_lives);
     cairo_move_to(cr, 20, 30);
     cairo_show_text(cr, ui_text);
     
@@ -1321,11 +1337,32 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
             cairo_show_text(cr, "GAME OVER");
             break;
             
-        case GAME_LEVEL_COMPLETE:
+        case GAME_LEVEL_COMPLETE: {
+            // Add braces to create a scope for variable declarations
             cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.9);
-            cairo_move_to(cr, vis->width / 2 - 120, vis->height / 2);
-            cairo_show_text(cr, "LEVEL COMPLETE!");
+            
+            cairo_text_extents_t extents;
+            char level_complete_text[64];
+            snprintf(level_complete_text, sizeof(level_complete_text), "LEVEL %d COMPLETE!", 
+                     vis->robot_chaser_current_level + 1);
+            
+            cairo_text_extents(cr, level_complete_text, &extents);
+            cairo_move_to(cr, (vis->width - extents.width) / 2, vis->height / 2);
+            cairo_show_text(cr, level_complete_text);
+            
+            // Next level preview
+            cairo_set_font_size(cr, 24);
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.8);
+            
+            int next_level = (vis->robot_chaser_current_level + 1) % ROBOT_CHASER_NUM_LEVELS;
+            char next_level_text[64];
+            snprintf(next_level_text, sizeof(next_level_text), "Next: Level %d", next_level + 1);
+            
+            cairo_text_extents(cr, next_level_text, &extents);
+            cairo_move_to(cr, (vis->width - extents.width) / 2, vis->height / 2 + 50);
+            cairo_show_text(cr, next_level_text);
             break;
+        }
             
         case GAME_GAME_OVER:
             cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, 0.9);
@@ -1334,6 +1371,11 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
             cairo_set_font_size(cr, 20);
             cairo_move_to(cr, vis->width / 2 - 100, vis->height / 2 + 40);
             cairo_show_text(cr, "Restarting...");
+            break;
+            
+        case GAME_PLAYING:
+        default:
+            // No message during normal play
             break;
     }
     
@@ -1359,6 +1401,18 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
     if (vis->robot_chaser_player.beat_pulse > 0) {
         cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, vis->robot_chaser_player.beat_pulse * 0.08);
         cairo_paint(cr);
+    }
+}
+
+// Helper function to get level name/description
+const char* robot_chaser_get_level_name(int level) {
+    switch (level) {
+        case 0: return "Classic Maze";
+        case 1: return "The Corridors";
+        case 2: return "The Cross";
+        case 3: return "The Spiral";
+        case 4: return "The Arena";
+        default: return "Unknown";
     }
 }
 
