@@ -417,7 +417,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
     if (vis->enabled) {
 
         bool vis_type_changed = (last_vis_type != vis->type);
-        bool should_update = vis_type_changed || (player && player->is_playing && !player->is_paused);
+        bool window_focused = gtk_window_is_active(GTK_WINDOW(player->window));
+        bool should_update = vis_type_changed || 
+                            (window_focused && player && player->is_playing && !player->is_paused);
         
         if (!should_update) {
             return TRUE; // Keep timer running but skip updates
