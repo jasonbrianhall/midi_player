@@ -57,6 +57,7 @@ typedef enum {
     VIS_TOWER_OF_HANOI,
     VIS_BEAT_CHESS,
     VIS_BEAT_CHECKERS,
+    VIS_FRACTAL_BLOOM,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -556,6 +557,9 @@ void init_beat_checkers_system(void *vis);
 void update_beat_checkers(void *vis, double dt);
 void draw_beat_checkers(void *vis, cairo_t *cr);
 bool beat_checkers_detect_beat(void *vis);
+
+// Fractal Bloom
+void draw_waveform_fractal_bloom(Visualizer *vis, cairo_t *cr);
 
 #endif
 

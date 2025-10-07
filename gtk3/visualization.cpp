@@ -386,6 +386,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_BEAT_CHECKERS:
           draw_beat_checkers(vis, cr);
           break;          
+       case VIS_FRACTAL_BLOOM:
+          draw_waveform_fractal_bloom(vis, cr);
+          break;                                         
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -607,6 +610,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Tower of Hanoi");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Chess");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Checkers");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fractal Bloom");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

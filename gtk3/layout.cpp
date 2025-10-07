@@ -597,13 +597,11 @@ void create_main_window(AudioPlayer *player) {
     // Right side: queue at top, equalizer at bottom (handled in create_queue_display)
     create_queue_display(player);
     
-#ifdef _WIN32_
     create_tray_icon(player);
-    gtk_status_icon_set_visible(player->tray_icon, FALSE); // Hidden initially
+    gtk_status_icon_set_visible(player->tray_icon, TRUE); // Hidden initially
     
     g_signal_connect(player->window, "window-state-event", 
                      G_CALLBACK(on_window_state_event), player);
-#endif
     
     // Connect all signals
     connect_widget_signals(player);
