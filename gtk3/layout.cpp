@@ -226,16 +226,21 @@ static void create_visualization_section(AudioPlayer *player) {
     // Create event box to handle double-click events
     GtkWidget *vis_event_box = gtk_event_box_new();
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(vis_event_box), FALSE);
+    gtk_event_box_set_above_child(GTK_EVENT_BOX(vis_event_box), FALSE);
     
     // Add tooltip for keyboard shortcuts
-    gtk_widget_set_tooltip_text(vis_event_box, "Q: Next visualization | A: Previous visualization | F/F9: Fullscreen");
+    gtk_widget_set_tooltip_text(vis_event_box, "Double-click or F/F9: Fullscreen | Q: Next | A: Previous");
     
     // Add visualization drawing area to event box
     gtk_container_add(GTK_CONTAINER(vis_event_box), player->visualizer->drawing_area);
     
-    // Set up double-click handling
-    gtk_widget_add_events(vis_event_box, GDK_BUTTON_PRESS_MASK);
+    // Set up double-click handling on BOTH event box and drawing area
+    gtk_widget_add_events(vis_event_box, GDK_BUTTON_PRESS_MASK | GDK_2BUTTON_PRESS);
+    gtk_widget_add_events(player->visualizer->drawing_area, GDK_BUTTON_PRESS_MASK | GDK_2BUTTON_PRESS);
+    
     g_signal_connect(vis_event_box, "button-press-event", 
+                    G_CALLBACK(on_visualizer_button_press), player);
+    g_signal_connect(player->visualizer->drawing_area, "button-press-event", 
                     G_CALLBACK(on_visualizer_button_press), player);
     
     // Add event box (containing drawing area) to the layout
@@ -245,8 +250,7 @@ static void create_visualization_section(AudioPlayer *player) {
     player->vis_controls = create_visualization_controls(player->visualizer);
     gtk_box_pack_start(GTK_BOX(vis_vbox), player->vis_controls, FALSE, FALSE, 0);
     
-    printf("Double-click handler added to visualizer\n");
-
+    printf("Double-click handler added to visualizer (toggles fullscreen)\n");
 }
 
 static void create_player_controls(AudioPlayer *player) {
@@ -614,7 +618,7 @@ gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gp
     
     // Check for double-click (type will be GDK_2BUTTON_PRESS for double-click)
     if (event->type == GDK_2BUTTON_PRESS && event->button == 1) {
-        printf("Visualizer double-clicked, toggling fullscreen\n");
+        printf("Visualizer double-clicked - toggling fullscreen\n");
         toggle_vis_fullscreen(player);
         return TRUE; // Event handled
     }
