@@ -1911,7 +1911,7 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     printf("Closing main window\n");
     gtk_main_quit();
 
-    return FALSE; // Allow the window to be destroyed
+    return TRUE; // Allow the window to be destroyed
 }
 
 void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {

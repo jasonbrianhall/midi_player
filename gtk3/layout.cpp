@@ -597,8 +597,13 @@ void create_main_window(AudioPlayer *player) {
     // Right side: queue at top, equalizer at bottom (handled in create_queue_display)
     create_queue_display(player);
     
-    // Hide the layout that's not being used
-    //hide_unused_layout(player);
+#ifdef _WIN32_
+    create_tray_icon(player);
+    gtk_status_icon_set_visible(player->tray_icon, FALSE); // Hidden initially
+    
+    g_signal_connect(player->window, "window-state-event", 
+                     G_CALLBACK(on_window_state_event), player);
+#endif
     
     // Connect all signals
     connect_widget_signals(player);
@@ -606,6 +611,7 @@ void create_main_window(AudioPlayer *player) {
     printf("Created main window with %s layout (screen-based decision)\n", 
            player->layout.config.is_compact ? "compact" : "regular");
 }
+
 void create_shared_equalizer(AudioPlayer *player) {
     if (!player->layout.shared_equalizer) {
         printf("Creating shared equalizer widget\n");
@@ -690,4 +696,114 @@ static void create_metadata_section(AudioPlayer *player) {
     gtk_widget_set_margin_top(player->metadata_label, 5);
     gtk_widget_set_margin_bottom(player->metadata_label, 5);
     gtk_container_add(GTK_CONTAINER(metadata_frame), player->metadata_label);
+}
+
+static void on_tray_show_window(GtkMenuItem *item, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    gtk_window_deiconify(GTK_WINDOW(player->window));
+    gtk_window_present(GTK_WINDOW(player->window));
+}
+
+void create_tray_icon(AudioPlayer *player) {
+    // Create tray icon
+    GdkPixbuf *icon_pixbuf = load_icon_from_base64();
+    
+    if (icon_pixbuf) {
+        GdkPixbuf *tray_icon_pixbuf = gdk_pixbuf_scale_simple(icon_pixbuf, 
+                                                               22, 22, 
+                                                               GDK_INTERP_BILINEAR);
+        player->tray_icon = gtk_status_icon_new_from_pixbuf(tray_icon_pixbuf);
+        g_object_unref(tray_icon_pixbuf);
+        g_object_unref(icon_pixbuf);
+        printf("Tray icon created from base64 icon\n");
+    } else {
+        player->tray_icon = gtk_status_icon_new_from_icon_name("multimedia-audio-player");
+        printf("Tray icon created from icon name\n");
+    }
+    
+    gtk_status_icon_set_tooltip_text(player->tray_icon, "Zenamp");
+    
+    // Check if embedded
+    if (gtk_status_icon_is_embedded(player->tray_icon)) {
+        printf("✓ Tray icon is embedded in system tray\n");
+    } else {
+        printf("✗ WARNING: Tray icon is NOT embedded (system tray may not be available)\n");
+    }
+    
+    // Connect signals
+    g_signal_connect(player->tray_icon, "activate", 
+                     G_CALLBACK(on_tray_icon_activate), player);
+    g_signal_connect(player->tray_icon, "popup-menu", 
+                     G_CALLBACK(on_tray_icon_popup_menu), player);
+    
+    // Create popup menu
+    player->tray_menu = gtk_menu_new();
+    
+    GtkWidget *play_item = gtk_menu_item_new_with_label("▶ Play");
+    GtkWidget *pause_item = gtk_menu_item_new_with_label("⏸ Pause");
+    GtkWidget *stop_item = gtk_menu_item_new_with_label("⏹ Stop");
+    GtkWidget *prev_item = gtk_menu_item_new_with_label("|◄ Previous");
+    GtkWidget *next_item = gtk_menu_item_new_with_label("►| Next");
+    GtkWidget *sep = gtk_separator_menu_item_new();
+    GtkWidget *show_item = gtk_menu_item_new_with_label("Show Window");
+    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
+    
+    g_signal_connect(play_item, "activate", G_CALLBACK(on_play_clicked), player);
+    g_signal_connect(pause_item, "activate", G_CALLBACK(on_pause_clicked), player);
+    g_signal_connect(stop_item, "activate", G_CALLBACK(on_stop_clicked), player);
+    g_signal_connect(prev_item, "activate", G_CALLBACK(on_previous_clicked), player);
+    g_signal_connect(next_item, "activate", G_CALLBACK(on_next_clicked), player);
+    g_signal_connect(show_item, "activate", G_CALLBACK(on_tray_show_window), player);
+    g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
+    
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), play_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), pause_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), stop_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), prev_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), next_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), sep);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), show_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(player->tray_menu), quit_item);
+    
+    gtk_widget_show_all(player->tray_menu);
+}
+
+void on_tray_icon_activate(GtkStatusIcon *status_icon, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    // Toggle window visibility on left-click
+    if (gtk_widget_get_visible(player->window)) {
+        gtk_widget_hide(player->window);
+    } else {
+        gtk_window_deiconify(GTK_WINDOW(player->window));
+        gtk_window_present(GTK_WINDOW(player->window));
+    }
+}
+
+void on_tray_icon_popup_menu(GtkStatusIcon *status_icon, guint button, 
+                              guint activate_time, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    gtk_menu_popup(GTK_MENU(player->tray_menu), NULL, NULL, 
+                   gtk_status_icon_position_menu, status_icon, 
+                   button, activate_time);
+}
+
+// Add window state event handler
+gboolean on_window_state_event(GtkWidget *widget, GdkEventWindowState *event, 
+                                gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (event->new_window_state & GDK_WINDOW_STATE_ICONIFIED) {
+        // Window was minimized
+        if (player->tray_icon) {
+            gtk_status_icon_set_visible(player->tray_icon, TRUE);
+        }
+    } else {
+        // Window was restored
+        if (player->tray_icon) {
+            gtk_status_icon_set_visible(player->tray_icon, FALSE);
+        }
+    }
+    
+    return FALSE;
 }

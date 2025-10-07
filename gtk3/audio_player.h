@@ -212,6 +212,10 @@ typedef struct {
     GtkWidget *metadata_label;
 
     LayoutManager layout;
+    
+    GtkStatusIcon *tray_icon;
+    GtkWidget *tray_menu;
+    bool minimized_to_tray;
 } AudioPlayer;
 
 typedef struct {
@@ -281,6 +285,12 @@ bool get_settings_path(char *path, size_t path_size);
 // Audio functions
 void audio_callback(void* userdata, Uint8* stream, int len);
 bool init_audio(AudioPlayer *player, int sample_rate = SAMPLE_RATE, int channels = AUDIO_CHANNELS);
+
+// Tray Icon
+void on_tray_icon_activate(GtkStatusIcon *status_icon, gpointer user_data);
+void on_tray_icon_popup_menu(GtkStatusIcon *status_icon, guint button, guint activate_time, gpointer user_data);
+gboolean on_window_state_event(GtkWidget *widget, GdkEventWindowState *event, gpointer user_data);
+void create_tray_icon(AudioPlayer *player);
 
 // File conversion functions
 bool convert_midi_to_wav(AudioPlayer *player, const char* filename);
