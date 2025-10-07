@@ -112,7 +112,8 @@ SOURCES_CPP_COMMON = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp \
 	robotchaser.cpp radialwave.cpp volume_meter.cpp drawbars.cpp \
 	drawoscilloscope.cpp drawwaveform.cpp drawcircle.cpp blockstack.cpp \
 	cdg.cpp karaoke.cpp zip_support.cpp metadata.cpp parrot.cpp sauron.cpp \
-	hanoi.cpp beatchess.cpp beatcheckers.cpp queue.cpp drawfractalbloom.cpp
+	hanoi.cpp beatchess.cpp beatcheckers.cpp queue.cpp drawfractalbloom.cpp \
+	drawsymmetrycascade.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
