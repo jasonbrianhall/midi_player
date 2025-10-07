@@ -114,6 +114,7 @@ void robot_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y) {
             pellet->active = FALSE;
             
             if (pellet->is_power_pellet) {
+                vis->robot_chaser_score += 50; 
                 vis->robot_chaser_power_mode = TRUE;
                 vis->robot_chaser_power_pellet_timer = 5.0;
                 
@@ -121,6 +122,8 @@ void robot_chaser_consume_pellet(Visualizer *vis, int grid_x, int grid_y) {
                     vis->robot_chaser_robots[j].scared = TRUE;
                     vis->robot_chaser_robots[j].scared_timer = 5.0;
                 }
+            } else {
+                vis->robot_chaser_score += 10;
             }
             break;
         }
@@ -952,7 +955,7 @@ void robot_chaser_reset_level(Visualizer *vis) {
 void robot_chaser_init_game_state(Visualizer *vis) {
     vis->robot_chaser_game_state = GAME_PLAYING;
     vis->robot_chaser_death_timer = 0.0;
-    vis->robot_chaser_lives = 3;
+    vis->robot_chaser_lives = 30;  // Up UP Down Down Left Right Left Right B A Start
     vis->robot_chaser_score = 0;
 }
 
@@ -1089,6 +1092,8 @@ void robot_chaser_update_player(Visualizer *vis, double dt) {
                                                          &player->grid_x, &player->grid_y,
                                                          player->direction, 
                                                          player->speed * speed_multiplier, dt);
+        
+        robot_chaser_handle_wraparound(vis, &player->x, &player->y, &player->grid_x, &player->grid_y);
         
         if (!moved) {
             // Hit a wall - must choose new direction
@@ -1252,8 +1257,10 @@ void update_robot_chaser_visualization(Visualizer *vis, double dt) {
             vis->robot_chaser_death_timer -= dt;
             if (vis->robot_chaser_death_timer <= 0) {
                 if (vis->robot_chaser_lives > 0) {
+                    // Still have lives - respawn on CURRENT level (don't reset level number)
                     robot_chaser_reset_level(vis);
                 } else {
+                    // Out of lives - full game over
                     vis->robot_chaser_game_state = GAME_GAME_OVER;
                     vis->robot_chaser_death_timer = 5.0;
                 }
@@ -1283,11 +1290,11 @@ void update_robot_chaser_visualization(Visualizer *vis, double dt) {
         case GAME_GAME_OVER:
             vis->robot_chaser_death_timer -= dt;
             if (vis->robot_chaser_death_timer <= 0) {
-                // Restart from level 1
+                // Full restart - back to level 1, reset everything
                 vis->robot_chaser_lives = 3;
                 vis->robot_chaser_score = 0;
-                vis->robot_chaser_current_level = 0;
-                robot_chaser_init_maze(vis);
+                vis->robot_chaser_current_level = 0;  // Reset to first level ONLY on full game over
+                robot_chaser_init_maze(vis);  // Reload level 1 maze
                 robot_chaser_reset_level(vis);
             }
             break;
@@ -1334,7 +1341,7 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
         case GAME_PLAYER_DIED:
             cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.9);
             cairo_move_to(cr, vis->width / 2 - 100, vis->height / 2);
-            cairo_show_text(cr, "GAME OVER");
+            cairo_show_text(cr, "Terminated");
             break;
             
         case GAME_LEVEL_COMPLETE: {
@@ -1367,7 +1374,7 @@ void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr) {
         case GAME_GAME_OVER:
             cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, 0.9);
             cairo_move_to(cr, vis->width / 2 - 150, vis->height / 2);
-            cairo_show_text(cr, "FINAL GAME OVER");
+            cairo_show_text(cr, "GAME OVER");
             cairo_set_font_size(cr, 20);
             cairo_move_to(cr, vis->width / 2 - 100, vis->height / 2 + 40);
             cairo_show_text(cr, "Restarting...");
@@ -1624,4 +1631,24 @@ ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis) {
     }
      
     return best_direction;
+}
+
+void robot_chaser_handle_wraparound(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y) {
+    if (*x < 0) {
+        *x = ROBOT_CHASER_MAZE_WIDTH - 1;
+        *grid_x = ROBOT_CHASER_MAZE_WIDTH - 1;
+    }
+    else if (*x >= ROBOT_CHASER_MAZE_WIDTH) {
+        *x = 0;
+        *grid_x = 0;
+    }
+    
+    if (*y < 0) {
+        *y = ROBOT_CHASER_MAZE_HEIGHT - 1;
+        *grid_y = ROBOT_CHASER_MAZE_HEIGHT - 1;
+    }
+    else if (*y >= ROBOT_CHASER_MAZE_HEIGHT) {
+        *y = 0;
+        *grid_y = 0;
+    }
 }

@@ -362,7 +362,8 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
           draw_analog_clock(vis, cr);
           break;
         case VIS_ROBOT_CHASER:
-          draw_robot_chaser_visualization(vis, cr);
+          //draw_robot_chaser_visualization(vis, cr);
+          draw_robot_chaser_visualization_enhanced(vis, cr);
           break;
         case VIS_RADIAL_WAVE:
           draw_radial_wave(vis, cr);

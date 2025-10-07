@@ -455,6 +455,8 @@ gboolean robot_chaser_move_entity_safely(Visualizer *vis, double *x, double *y, 
 void robot_chaser_unstick_robot(Visualizer *vis, ChaserRobot *robot);
 ChaserDirection robot_chaser_choose_player_direction(Visualizer *vis);
 void robot_chaser_init_game_state(Visualizer *vis);
+void draw_robot_chaser_visualization_enhanced(Visualizer *vis, cairo_t *cr);
+void robot_chaser_handle_wraparound(Visualizer *vis, double *x, double *y, int *grid_x, int *grid_y);
 
 // Radial Wave
 void init_radial_wave_system(void *vis);
