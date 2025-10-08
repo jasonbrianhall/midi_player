@@ -420,4 +420,6 @@ bool save_current_queue_on_exit(AudioPlayer *player);
 
 char* extract_metadata(const char *filepath);
 
+bool generate_karaoke_zip_from_lrc(const std::string& lrc_path, std::string& out_zip_path);
+
 #endif // AUDIO_PLAYER_H

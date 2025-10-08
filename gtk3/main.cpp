@@ -559,7 +559,56 @@ bool load_file(AudioPlayer *player, const char *filename) {
             printf("Now loading converted virtual WAV file: %s\n", player->temp_wav_file);
             success = load_virtual_wav_file(player, player->temp_wav_file);
         }
-    } else if (strcmp(ext_lower, ".zip") == 0) {
+    } else if (strcmp(ext_lower, ".lrc") == 0) {
+        printf("Generating karaoke ZIP from LRC: %s\n", filename);
+        is_zip_file = true;
+    // Generate ZIP from LRC and matching audio
+    std::string zip_path;
+    bool zip_success = generate_karaoke_zip_from_lrc(filename, zip_path);  // <-- utility function
+
+    if (zip_success) {
+        KaraokeZipContents zip_contents;
+        if (extract_karaoke_zip(zip_path.c_str(), &zip_contents)) {
+            player->karaoke_temp_files = zip_contents;
+
+            if (!player->cdg_display) {
+                player->cdg_display = cdg_display_new();
+            }
+
+            if (player->cdg_display && cdg_load_file(player->cdg_display, zip_contents.cdg_file)) {
+                player->has_cdg = true;
+                player->is_loading_cdg_from_zip = true;
+
+                if (player->visualizer) {
+                    player->visualizer->cdg_display = player->cdg_display;
+                    visualizer_set_type(player->visualizer, VIS_KARAOKE);
+                }
+
+                success = load_file(player, zip_contents.audio_file);
+                player->is_loading_cdg_from_zip = false;
+
+                if (success) {
+                    printf("Loaded karaoke ZIP successfully\n");
+                    strcpy(player->current_file, zip_path.c_str());
+
+                    char *metadata = extract_metadata(zip_contents.audio_file);
+                    gtk_label_set_markup(GTK_LABEL(player->metadata_label), metadata);
+                    g_free(metadata);
+                } else {
+                    printf("Failed to load audio from generated ZIP\n");
+                    cleanup_karaoke_temp_files(&player->karaoke_temp_files);
+                }
+            } else {
+                printf("Failed to load CDG from generated ZIP\n");
+                cleanup_karaoke_temp_files(&zip_contents);
+            }
+        } else {
+            printf("Failed to extract generated karaoke ZIP\n");
+        }
+    } else {
+        printf("Failed to generate karaoke ZIP from LRC\n");
+    }
+} else if (strcmp(ext_lower, ".zip") == 0) {
         printf("Loading karaoke ZIP file: %s\n", filename);
         is_zip_file = true;
     
