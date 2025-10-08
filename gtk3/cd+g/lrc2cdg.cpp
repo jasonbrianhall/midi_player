@@ -9,6 +9,12 @@
 #include <sstream>
 #include <iomanip>
 #include <regex>
+#include <filesystem>
+#include <vector>
+#include <string>
+#include <iomanip>
+#include "miniz.h" 
+namespace fs = std::filesystem;
 
 // Required libraries:
 // - Cairo for text rendering: libcairo2-dev
@@ -133,6 +139,8 @@ CDGPacket create_tile_block_packet(uint8_t color0, uint8_t color1, uint8_t row,
     }
     return CDGPacket(0x09, 6, data);
 }
+
+
 
 // Parse LRC timestamp [mm:ss.xx] or [mm:ss.xxx]
 double parse_lrc_timestamp(const std::string& timestamp) {
@@ -672,4 +680,58 @@ int main(int argc, char* argv[]) {
     std::cout << "CDG duration: " << std::fixed << std::setprecision(2) << expected_duration << " seconds" << std::endl;
     
     return 0;
+}
+
+bool process_lrc_to_cdg_and_zip(const std::string& lrc_path) {
+    fs::path lrc_file(lrc_path);
+    if (!fs::exists(lrc_file) || lrc_file.extension() != ".lrc") {
+        std::cerr << "Invalid LRC file: " << lrc_path << std::endl;
+        return false;
+    }
+
+    std::string base_name = lrc_file.stem().string();
+    fs::path dir = lrc_file.parent_path();
+    std::string output_cdg = (dir / (base_name + ".cdg")).string();
+    std::string image_path;
+    double song_duration = 0.0;
+
+    // Find matching image (e.g., .mp3 .m4a)
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (entry.path().stem() == base_name &&
+            (entry.path().extension() == ".mp3" || entry.path().extension() == ".m4a")) {
+            image_path = entry.path().string();
+            break;
+        }
+    }
+
+    // Parse LRC
+    auto lrc_lines = parse_lrc_file(lrc_path);
+    if (lrc_lines.empty()) {
+        std::cerr << "ERROR: No lyrics found in LRC file" << std::endl;
+        return false;
+    }
+
+    song_duration = lrc_lines.back().timestamp + 5.0;
+
+    auto word_timings = lrc_to_word_timings(lrc_lines);
+    auto packets = generate_cdg_packets(word_timings, song_duration, image_path);
+    write_cdg_file(packets, output_cdg);
+
+    // Create ZIP archive
+    std::string zip_path = (dir / (base_name + ".zip")).string();
+    mz_zip_archive zip;
+    memset(&zip, 0, sizeof(zip));
+    mz_zip_writer_init_file(&zip, zip_path.c_str(), 0);
+
+    mz_zip_writer_add_file(&zip, lrc_file.filename().string().c_str(), lrc_path.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
+    mz_zip_writer_add_file(&zip, fs::path(output_cdg).filename().string().c_str(), output_cdg.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
+    if (!image_path.empty()) {
+        mz_zip_writer_add_file(&zip, fs::path(image_path).filename().string().c_str(), image_path.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
+    }
+
+    mz_zip_writer_finalize_archive(&zip);
+    mz_zip_writer_end(&zip);
+
+    std::cout << "ZIP archive created: " << zip_path << std::endl;
+    return true;
 }
