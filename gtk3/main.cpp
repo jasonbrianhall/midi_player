@@ -2063,16 +2063,9 @@ bool save_current_queue_on_exit(AudioPlayer *player) {
     
     fprintf(f, "#EXTM3U\n");
     
-    // Save in the visual display order (which might be sorted)
-    GtkTreeModel *model = GTK_TREE_MODEL(player->queue_store);
-    GtkTreeIter iter;
-    gboolean valid = gtk_tree_model_get_iter_first(model, &iter);
-    
-    while (valid) {
-        int queue_index;
-        gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &queue_index, -1);
-        fprintf(f, "%s\n", player->queue.files[queue_index]);
-        valid = gtk_tree_model_iter_next(model, &iter);
+    // Save ALL files from the actual queue, not just the filtered display
+    for (int i = 0; i < player->queue.count; i++) {
+        fprintf(f, "%s\n", player->queue.files[i]);
     }
     
     fclose(f);
