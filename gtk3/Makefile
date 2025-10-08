@@ -77,10 +77,6 @@ LDFLAGS_LINUX  += $(shell pkg-config --libs taglib_c)
 CXXFLAGS_LINUX += -Os -ffunction-sections -fdata-sections -flto
 LDFLAGS_LINUX  += -s -Wl,--gc-sections -flto
 
-CXXFLAGS_WIN += -Os -ffunction-sections -fdata-sections -flto
-LDFLAGS_WIN  += -s -Wl,--gc-sections -flto
-
-
 
 # Windows-specific flags
 SDL2_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags sdl2 2>/dev/null || echo "")
@@ -102,6 +98,9 @@ MEDIA_FOUNDATION_LIBS = -lmf -lmfplat -lmfreadwrite -lmfuuid -lole32
 CXXFLAGS_WIN = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32 -DVERSION=\"$(BUILDNUM)\"
 CFLAGS_WIN = $(CFLAGS_COMMON) $(SDL2_CFLAGS_WIN) $(GTK_CFLAGS_WIN) $(VORBIS_CFLAGS_WIN) $(OPUS_CFLAGS_WIN) $(TAGLIB_CFLAGS_WIN) -DWIN32 -D_WIN32
 LDFLAGS_WIN = $(SDL2_LIBS_WIN) $(GTK_LIBS_WIN) $(VORBIS_LIBS_WIN) $(OPUS_LIBS_WIN) $(TAGLIB_LIBS_WIN) -lSDL2_mixer -lm -lstdc++ -lFLAC -lwinmm $(MEDIA_FOUNDATION_LIBS)
+
+CXXFLAGS_WIN += -Os -ffunction-sections -fdata-sections
+LDFLAGS_WIN  += -s -Wl,--gc-sections
 
 # Debug-specific flags
 CXXFLAGS_LINUX_DEBUG = $(CXXFLAGS_LINUX) $(DEBUG_FLAGS)
