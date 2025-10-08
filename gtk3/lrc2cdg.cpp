@@ -16,6 +16,10 @@
 #include "miniz.h" 
 namespace fs = std::filesystem;
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 std::string get_temp_directory() {
 #ifdef _WIN32
     char buffer[MAX_PATH];
