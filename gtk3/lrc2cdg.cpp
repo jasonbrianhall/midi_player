@@ -698,7 +698,7 @@ bool generate_karaoke_zip_from_lrc(const std::string& lrc_path, std::string& out
     std::string base_name = lrc_file.stem().string();
     fs::path dir = lrc_file.parent_path();
 
-    std::vector<std::string> audio_exts = {".mp3", ".m4a", ".ogg", ".flac", ".wav"};
+    std::vector<std::string> audio_exts = {".mp3", ".m4a", ".ogg", ".flac", ".wav", ".aif", ".aiff", ".opus", ".wma"};
     std::string audio_path;
     for (const auto& entry : fs::directory_iterator(dir)) {
         if (entry.path().stem() == base_name &&
