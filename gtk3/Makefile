@@ -71,8 +71,16 @@ CXXFLAGS_LINUX = $(CXXFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(V
 CFLAGS_LINUX = $(CFLAGS_COMMON) $(SDL2_CFLAGS_LINUX) $(GTK_CFLAGS_LINUX) $(VORBIS_CFLAGS_LINUX) $(OPUS_CFLAGS_LINUX) $(AVCODEC_CFLAGS_LINUX) -DLINUX
 LDFLAGS_LINUX = $(SDL2_LIBS_LINUX) $(GTK_LIBS_LINUX) $(VORBIS_LIBS_LINUX) $(OPUS_LIBS_LINUX) $(AVCODEC_LIBS_LINUX) -lSDL2_mixer -lm -pthread -lstdc++ -lFLAC
 
-CFLAGS_LINUX += $(shell pkg-config --cflags taglib_c)
-LDFLAGS_LINUX += $(shell pkg-config --libs taglib_c)
+CFLAGS_LINUX   += $(shell pkg-config --cflags taglib_c)
+LDFLAGS_LINUX  += $(shell pkg-config --libs taglib_c)
+
+CXXFLAGS_LINUX += -Os -ffunction-sections -fdata-sections -flto
+LDFLAGS_LINUX  += -s -Wl,--gc-sections -flto
+
+CXXFLAGS_WIN += -Os -ffunction-sections -fdata-sections -flto
+LDFLAGS_WIN  += -s -Wl,--gc-sections -flto
+
+
 
 # Windows-specific flags
 SDL2_CFLAGS_WIN := $(shell $(PKG_CONFIG_WIN) --cflags sdl2 2>/dev/null || echo "")
