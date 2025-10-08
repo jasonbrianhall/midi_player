@@ -16,6 +16,17 @@
 #include "miniz.h" 
 namespace fs = std::filesystem;
 
+std::string get_temp_directory() {
+#ifdef _WIN32
+    char buffer[MAX_PATH];
+    DWORD len = GetTempPathA(MAX_PATH, buffer);
+    return std::string(buffer, len);
+#else
+    const char* tmp = getenv("TMPDIR");
+    return tmp ? tmp : "/tmp";
+#endif
+}
+
 // Required libraries:
 // - Cairo for text rendering: libcairo2-dev
 // - STB Image for image loading (header-only)
@@ -702,24 +713,28 @@ bool generate_karaoke_zip_from_lrc(const std::string& lrc_path, std::string& out
         return false;
     }
 
-    std::string cdg_path = (dir / (base_name + ".cdg")).string();
+    // Use system temp directory
+    fs::path temp_dir = get_temp_directory();
+    fs::path cdg_path = temp_dir / (base_name + ".cdg");
+    fs::path zip_path = temp_dir / (base_name + ".zip");
+
     auto lrc_lines = parse_lrc_file(lrc_path);
     if (lrc_lines.empty()) return false;
 
     double duration = lrc_lines.back().timestamp + 5.0;
     auto word_timings = lrc_to_word_timings(lrc_lines);
     auto packets = generate_cdg_packets(word_timings, duration, audio_path);
-    write_cdg_file(packets, cdg_path);
+    write_cdg_file(packets, cdg_path.string());
 
-    out_zip_path = (dir / (base_name + ".zip")).string();
     mz_zip_archive zip;
     memset(&zip, 0, sizeof(zip));
-    mz_zip_writer_init_file(&zip, out_zip_path.c_str(), 0);
+    mz_zip_writer_init_file(&zip, zip_path.string().c_str(), 0);
     mz_zip_writer_add_file(&zip, lrc_file.filename().string().c_str(), lrc_path.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
-    mz_zip_writer_add_file(&zip, fs::path(cdg_path).filename().string().c_str(), cdg_path.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
+    mz_zip_writer_add_file(&zip, cdg_path.filename().string().c_str(), cdg_path.string().c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
     mz_zip_writer_add_file(&zip, fs::path(audio_path).filename().string().c_str(), audio_path.c_str(), nullptr, 0, MZ_BEST_COMPRESSION);
     mz_zip_writer_finalize_archive(&zip);
     mz_zip_writer_end(&zip);
 
+    out_zip_path = zip_path.string();
     return true;
 }
