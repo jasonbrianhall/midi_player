@@ -1,4 +1,25 @@
 #include "audio_player.h"
+#include "miniz.h"
+#include <glib.h>
+#include <string.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+std::string get_temp_directory_queue() {
+#ifdef _WIN32
+    char buffer[MAX_PATH];
+    DWORD len = GetTempPathA(MAX_PATH, buffer);
+    return std::string(buffer, len);
+#else
+    const char* tmp = getenv("TMPDIR");
+    return tmp ? tmp : "/tmp";
+#endif
+}
 
 // Global variable to track drag source row
 static GtkTreeRowReference *drag_source_ref = NULL;
@@ -19,6 +40,44 @@ void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer
         pending_move_file = player->queue.files[pending_delete_index];
     }
 }
+
+char* extract_audio_from_zip(const char *zip_path) {
+    const char *audio_exts[] = { ".mp3", ".ogg", ".flac", ".wav", ".m4a" };
+    mz_zip_archive zip;
+    memset(&zip, 0, sizeof(zip));
+
+    if (!mz_zip_reader_init_file(&zip, zip_path, 0)) {
+        return NULL;
+    }
+
+    int num_files = (int)mz_zip_reader_get_num_files(&zip);
+    for (int i = 0; i < num_files; i++) {
+        mz_zip_archive_file_stat file_stat;
+        if (!mz_zip_reader_file_stat(&zip, i, &file_stat)) continue;
+
+        const char *name = file_stat.m_filename;
+        for (int j = 0; j < G_N_ELEMENTS(audio_exts); j++) {
+            if (g_str_has_suffix(name, audio_exts[j])) {
+                // Build cross-platform temp path
+                std::string temp_dir = get_temp_directory_queue();
+                std::string filename = fs::path(name).filename().string();
+                std::string temp_path = (fs::path(temp_dir) / ("zenamp-" + filename)).string();
+
+                void *data = mz_zip_reader_extract_to_heap(&zip, i, NULL, 0);
+                if (data) {
+                    g_file_set_contents(temp_path.c_str(), data, file_stat.m_uncomp_size, NULL);
+                    mz_free(data);
+                    mz_zip_reader_end(&zip);
+                    return g_strdup(temp_path.c_str()); // Caller must g_free()
+                }
+            }
+        }
+    }
+
+    mz_zip_reader_end(&zip);
+    return NULL;
+}
+
 
 void on_queue_model_row_inserted(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer user_data) {
     (void)iter;
@@ -288,7 +347,20 @@ void update_queue_display(AudioPlayer *player) {
         GtkTreeIter iter;
         gtk_list_store_append(player->queue_store, &iter);
         
-        char *metadata = extract_metadata(player->queue.files[i]);
+        char *metadata = NULL;
+
+        const char *ext = strrchr(player->queue.files[i], '.');
+        if (ext && strcasecmp(ext, ".zip") == 0) {
+            char *extracted_path = extract_audio_from_zip(player->queue.files[i]);
+            if (extracted_path) {
+                metadata = extract_metadata(extracted_path);
+                g_free(extracted_path);
+            } else {
+                metadata = g_strdup("No metadata available");
+            }
+        } else {
+            metadata = extract_metadata(player->queue.files[i]);
+        }
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         int duration_seconds = 0;
         
@@ -329,7 +401,7 @@ void update_queue_display(AudioPlayer *player) {
         
         char *basename = g_path_get_basename(player->queue.files[i]);
         
-        const char *ext = strrchr(player->queue.files[i], '.');
+        //const char *ext = strrchr(player->queue.files[i], '.');
         const char *cdgk_indicator = "";
         if (ext && strcasecmp(ext, ".zip") == 0) {
             cdgk_indicator = "✓";
@@ -720,53 +792,66 @@ void update_queue_display_with_filter(AudioPlayer *player) {
     if (player->queue_store) {
         gtk_list_store_clear(player->queue_store);
     }
-    
+
     const char *filter = player->queue_filter_text;
     bool has_filter = (filter && filter[0] != '\0');
-    
+
     int visible_count = 0;
-    
+
     for (int i = 0; i < player->queue.count; i++) {
-        char *metadata = extract_metadata(player->queue.files[i]);
+        const char *filepath = player->queue.files[i];
+        const char *ext = strrchr(filepath, '.');
+
+        char *metadata = NULL;
+        int duration_seconds = 0;
+
+        if (ext && strcasecmp(ext, ".zip") == 0) {
+            char *extracted_path = extract_audio_from_zip(filepath);
+            if (extracted_path) {
+                metadata = extract_metadata(extracted_path);
+                duration_seconds = get_file_duration(extracted_path);
+                unlink(extracted_path);
+                g_free(extracted_path);
+            } else {
+                metadata = g_strdup("No metadata available");
+            }
+        } else {
+            metadata = extract_metadata(filepath);
+            duration_seconds = get_file_duration(filepath);
+        }
+
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
-        
         parse_metadata(metadata, title, artist, album, genre);
         g_free(metadata);
-        
-        char *basename = g_path_get_basename(player->queue.files[i]);
-        
+
+        char *basename = g_path_get_basename(filepath);
+
         bool matches = true;
         if (has_filter) {
             matches = matches_filter(basename, filter) ||
-                     matches_filter(title, filter) ||
-                     matches_filter(artist, filter) ||
-                     matches_filter(album, filter) ||
-                     matches_filter(genre, filter);
+                      matches_filter(title, filter) ||
+                      matches_filter(artist, filter) ||
+                      matches_filter(album, filter) ||
+                      matches_filter(genre, filter);
         }
-        
+
         if (matches) {
             GtkTreeIter iter;
             gtk_list_store_append(player->queue_store, &iter);
-            
-            int duration_seconds = get_file_duration(player->queue.files[i]);
+
             char duration_str[16];
             if (duration_seconds > 0) {
-                snprintf(duration_str, sizeof(duration_str), "%d:%02d", 
-                        duration_seconds / 60, duration_seconds % 60);
+                snprintf(duration_str, sizeof(duration_str), "%d:%02d",
+                         duration_seconds / 60, duration_seconds % 60);
             } else {
                 strcpy(duration_str, "");
             }
-            
-            const char *ext = strrchr(player->queue.files[i], '.');
-            const char *cdgk_indicator = "";
-            if (ext && strcasecmp(ext, ".zip") == 0) {
-                cdgk_indicator = "✓";
-            }
-            
+
+            const char *cdgk_indicator = (ext && strcasecmp(ext, ".zip") == 0) ? "✓" : "";
             const char *indicator = (i == player->queue.current_index) ? "▶" : "";
-            
+
             gtk_list_store_set(player->queue_store, &iter,
-                COL_FILEPATH, player->queue.files[i],
+                COL_FILEPATH, filepath,
                 COL_PLAYING, indicator,
                 COL_FILENAME, basename,
                 COL_TITLE, title,
@@ -777,41 +862,43 @@ void update_queue_display_with_filter(AudioPlayer *player) {
                 COL_CDGK, cdgk_indicator,
                 COL_QUEUE_INDEX, i,
                 -1);
-            
+
             visible_count++;
         }
-        
+
         g_free(basename);
     }
-    
+
     printf("Queue filter: showing %d of %d items\n", visible_count, player->queue.count);
-    
+
     if (player->queue.current_index >= 0 && player->queue_tree_view) {
         GtkTreeIter iter;
         gboolean valid = gtk_tree_model_get_iter_first(
             GTK_TREE_MODEL(player->queue_store), &iter);
-        
+
         while (valid) {
             int queue_index = -1;
             gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &iter,
-                             COL_QUEUE_INDEX, &queue_index, -1);
-            
+                               COL_QUEUE_INDEX, &queue_index, -1);
+
             if (queue_index == player->queue.current_index) {
                 GtkTreePath *path = gtk_tree_model_get_path(
                     GTK_TREE_MODEL(player->queue_store), &iter);
                 gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view),
-                                           path, NULL, TRUE, 0.5, 0.0);
+                                             path, NULL, TRUE, 0.5, 0.0);
                 GtkTreeSelection *selection = gtk_tree_view_get_selection(
                     GTK_TREE_VIEW(player->queue_tree_view));
                 gtk_tree_selection_select_path(selection, path);
                 gtk_tree_path_free(path);
                 break;
             }
-            
+
             valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &iter);
         }
     }
 }
+
+
 // Cleanup function to call on exit
 void cleanup_queue_filter(AudioPlayer *player) {
     if (player->queue_filter_timeout_id != 0) {
