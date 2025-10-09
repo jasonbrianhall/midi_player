@@ -285,7 +285,7 @@ bool load_background_image(ZenGDisplay& display, const std::string& image_path) 
 
 // Draw text with alpha blending onto display
 void draw_text_with_alpha(ZenGDisplay& display, const RenderedText& text, 
-                          int x, int y, uint8_t color_idx, uint8_t threshold = 128) {
+                          int x, int y, uint8_t color_idx, uint8_t threshold = 100) {
     for (int ty = 0; ty < text.height && (y + ty) < display.height; ty++) {
         if ((y + ty) < 0) continue;
         for (int tx = 0; tx < text.width && (x + tx) < display.width; tx++) {
@@ -293,7 +293,8 @@ void draw_text_with_alpha(ZenGDisplay& display, const RenderedText& text,
             
             uint8_t alpha = text.alpha_data[ty * text.width + tx];
             if (alpha > threshold) {
-                display.screen[(y + ty) * display.width + (x + tx)] = color_idx;
+                int screen_idx = (y + ty) * display.width + (x + tx);
+                display.screen[screen_idx] = color_idx;
             }
         }
     }
@@ -362,11 +363,28 @@ bool generate_zeng_from_lrc(const std::string& lrc_path,
         }
     }
     
-    // Save initial state as first packet
-    ZenGPacket init_packet(0, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_LOAD_PALETTE_FULL);
-    init_packet.setData(reinterpret_cast<uint8_t*>(display.palette.data()), 
-                        display.palette.size() * 4);
+    // Save initial background as first packet (BLIT operation)
+    ZenGPacket init_packet(0, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_BLIT);
+    std::vector<uint8_t> blit_data;
+    
+    // Store dimensions
+    blit_data.push_back((display.width >> 8) & 0xFF);
+    blit_data.push_back(display.width & 0xFF);
+    blit_data.push_back((display.height >> 8) & 0xFF);
+    blit_data.push_back(display.height & 0xFF);
+    
+    // Store entire screen buffer
+    blit_data.insert(blit_data.end(), display.screen.begin(), display.screen.end());
+    
+    init_packet.setData(blit_data.data(), blit_data.size());
     display.packets.push_back(init_packet);
+    
+    // Also save palette
+    ZenGPacket palette_packet(0, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_LOAD_PALETTE_FULL);
+    std::vector<uint8_t> palette_data(display.palette.size() * 4);
+    memcpy(palette_data.data(), display.palette.data(), palette_data.size());
+    palette_packet.setData(palette_data.data(), palette_data.size());
+    display.packets.push_back(palette_packet);
     
     // Convert to word timings
     auto word_timings = lrc_to_word_timings(lrc_lines);
@@ -379,6 +397,9 @@ bool generate_zeng_from_lrc(const std::string& lrc_path,
     // Calculate font size based on resolution
     int font_size = display.height / 15;  // Adjust for resolution
     int line_height = display.height / 6;
+    
+    // Store background for restoration
+    std::vector<uint8_t> background_copy = display.screen;
     
     // Process each line
     for (size_t line_idx = 0; line_idx < lines.size(); line_idx++) {
@@ -395,50 +416,77 @@ bool generate_zeng_from_lrc(const std::string& lrc_path,
         int y_pos = (display.height / 2) - font_size + (line_idx % 4) * line_height;
         int x_pos = (display.width - rendered.text_width) / 2;
         
-        // Create packet to draw white text at line start time
+        // Create screen state with WHITE text
+        std::vector<uint8_t> white_screen = background_copy;
+        draw_text_with_alpha(display, rendered, x_pos, y_pos, 254, 100);
+        std::vector<uint8_t> white_text_screen = display.screen;
+        
+        // Restore background
+        display.screen = background_copy;
+        
+        // Create screen state with HIGHLIGHTED text
+        draw_text_with_alpha(display, rendered, x_pos, y_pos, 255, 100);
+        std::vector<uint8_t> highlight_screen = display.screen;
+        
+        // Restore background
+        display.screen = background_copy;
+        
+        // Create packet with white text at line start
         uint32_t line_start_ms = static_cast<uint32_t>(line.start * 1000);
         
-        // For high precision, we could store the rendered text data
-        // For now, we'll create a simplified draw packet
-        ZenGPacket text_packet(line_start_ms, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_DRAW_TEXT);
+        ZenGPacket text_packet(line_start_ms, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_BLIT);
         
-        // Store position and text
-        std::vector<uint8_t> text_data;
-        text_data.push_back((x_pos >> 8) & 0xFF);
-        text_data.push_back(x_pos & 0xFF);
-        text_data.push_back((y_pos >> 8) & 0xFF);
-        text_data.push_back(y_pos & 0xFF);
-        text_data.push_back(254);  // White color
-        text_data.push_back(font_size);
+        // Create blit data for the text region only (optimization)
+        std::vector<uint8_t> text_blit;
+        int region_x = std::max(0, x_pos - 10);
+        int region_y = std::max(0, y_pos - 10);
+        int region_w = std::min(display.width - region_x, rendered.width + 20);
+        int region_h = std::min(display.height - region_y, rendered.height + 20);
         
-        // Add text
-        for (char c : line.text) {
-            text_data.push_back(static_cast<uint8_t>(c));
+        // Store position and dimensions
+        text_blit.push_back((region_x >> 8) & 0xFF);
+        text_blit.push_back(region_x & 0xFF);
+        text_blit.push_back((region_y >> 8) & 0xFF);
+        text_blit.push_back(region_y & 0xFF);
+        text_blit.push_back((region_w >> 8) & 0xFF);
+        text_blit.push_back(region_w & 0xFF);
+        text_blit.push_back((region_h >> 8) & 0xFF);
+        text_blit.push_back(region_h & 0xFF);
+        
+        // Store pixel data for this region
+        for (int y = region_y; y < region_y + region_h; y++) {
+            for (int x = region_x; x < region_x + region_w; x++) {
+                text_blit.push_back(white_text_screen[y * display.width + x]);
+            }
         }
         
-        text_packet.setData(text_data.data(), text_data.size());
+        text_packet.setData(text_blit.data(), text_blit.size());
         display.packets.push_back(text_packet);
         
         // Highlight first word
         if (!line.words.empty()) {
             uint32_t highlight_ms = static_cast<uint32_t>(line.words[0].start * 1000);
             
-            ZenGPacket highlight_packet(highlight_ms, ZENG_CMD_GRAPHICS_EXT, 
-                                       ZENG_INST_DRAW_TEXT);
+            ZenGPacket highlight_packet(highlight_ms, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_BLIT);
             
-            std::vector<uint8_t> highlight_data;
-            highlight_data.push_back((x_pos >> 8) & 0xFF);
-            highlight_data.push_back(x_pos & 0xFF);
-            highlight_data.push_back((y_pos >> 8) & 0xFF);
-            highlight_data.push_back(y_pos & 0xFF);
-            highlight_data.push_back(255);  // Highlight color
-            highlight_data.push_back(font_size);
+            std::vector<uint8_t> highlight_blit;
+            highlight_blit.push_back((region_x >> 8) & 0xFF);
+            highlight_blit.push_back(region_x & 0xFF);
+            highlight_blit.push_back((region_y >> 8) & 0xFF);
+            highlight_blit.push_back(region_y & 0xFF);
+            highlight_blit.push_back((region_w >> 8) & 0xFF);
+            highlight_blit.push_back(region_w & 0xFF);
+            highlight_blit.push_back((region_h >> 8) & 0xFF);
+            highlight_blit.push_back(region_h & 0xFF);
             
-            for (char c : line.text) {
-                highlight_data.push_back(static_cast<uint8_t>(c));
+            // Store highlighted pixel data
+            for (int y = region_y; y < region_y + region_h; y++) {
+                for (int x = region_x; x < region_x + region_w; x++) {
+                    highlight_blit.push_back(highlight_screen[y * display.width + x]);
+                }
             }
             
-            highlight_packet.setData(highlight_data.data(), highlight_data.size());
+            highlight_packet.setData(highlight_blit.data(), highlight_blit.size());
             display.packets.push_back(highlight_packet);
             
             // Restore to white after 2 seconds
@@ -446,6 +494,33 @@ bool generate_zeng_from_lrc(const std::string& lrc_path,
             ZenGPacket restore_packet = text_packet;
             restore_packet.timestamp_ms = restore_ms;
             display.packets.push_back(restore_packet);
+        }
+        
+        // Clear text when next line appears (if there is a next line)
+        if (line_idx + 1 < lines.size()) {
+            uint32_t clear_ms = static_cast<uint32_t>(lines[line_idx + 1].start * 1000) - 100;
+            
+            ZenGPacket clear_packet(clear_ms, ZENG_CMD_GRAPHICS_EXT, ZENG_INST_BLIT);
+            
+            std::vector<uint8_t> clear_blit;
+            clear_blit.push_back((region_x >> 8) & 0xFF);
+            clear_blit.push_back(region_x & 0xFF);
+            clear_blit.push_back((region_y >> 8) & 0xFF);
+            clear_blit.push_back(region_y & 0xFF);
+            clear_blit.push_back((region_w >> 8) & 0xFF);
+            clear_blit.push_back(region_w & 0xFF);
+            clear_blit.push_back((region_h >> 8) & 0xFF);
+            clear_blit.push_back(region_h & 0xFF);
+            
+            // Restore background pixels
+            for (int y = region_y; y < region_y + region_h; y++) {
+                for (int x = region_x; x < region_x + region_w; x++) {
+                    clear_blit.push_back(background_copy[y * display.width + x]);
+                }
+            }
+            
+            clear_packet.setData(clear_blit.data(), clear_blit.size());
+            display.packets.push_back(clear_packet);
         }
     }
     
@@ -462,8 +537,17 @@ bool generate_zeng_from_lrc(const std::string& lrc_path,
         return false;
     }
     
+    // Calculate actual file size
+    size_t total_size = sizeof(ZenGHeader);
+    total_size += display.palette.size() * sizeof(uint32_t);
+    for (const auto& packet : display.packets) {
+        total_size += 8 + packet.data_size;  // packet header + data
+    }
+    
     std::cout << "Successfully created ZenG file with " << display.packets.size() 
               << " packets" << std::endl;
+    std::cout << "Estimated file size: " << total_size << " bytes (" 
+              << (total_size / 1024) << " KB)" << std::endl;
     std::cout << "Resolution: " << display.width << "x" << display.height << std::endl;
     std::cout << "Color mode: 256 indexed colors" << std::endl;
     std::cout << "Frame rate: " << display.fps << " fps" << std::endl;
