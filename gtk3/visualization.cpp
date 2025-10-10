@@ -319,6 +319,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         case VIS_BARS:
             draw_bars(vis, cr);
             break;
+       case VIS_TRIPPY_BARS:
+          draw_trippy(vis, cr);
+          break;                                         
         case VIS_CIRCLE:
             draw_circle(vis, cr);
             break;
@@ -591,6 +594,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Waveform");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Oscilloscope");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bars");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Trippy Bars");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Circle");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Volume Meter");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bubbles");

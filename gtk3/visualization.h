@@ -35,6 +35,7 @@ typedef enum {
     VIS_WAVEFORM,
     VIS_OSCILLOSCOPE,
     VIS_BARS,
+    VIS_TRIPPY_BARS,
     VIS_CIRCLE,
     VIS_VOLUME_METER,
     VIS_BUBBLES,
@@ -565,5 +566,6 @@ void draw_waveform_fractal_bloom(Visualizer *vis, cairo_t *cr);
 // Cascade
 void draw_waveform_symmetry_cascade(Visualizer *vis, cairo_t *cr);
 
+void draw_trippy(Visualizer *vis, cairo_t *cr);
 #endif
 
