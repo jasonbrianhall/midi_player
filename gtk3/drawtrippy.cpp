@@ -1,21 +1,62 @@
 #include "visualization.h"
 #include <math.h>
 
+// Static variables for animation state
+static double time_offset = 0;
+static double dolphin_jumps[VIS_FREQUENCY_BARS] = {0};
+static int dolphin_colors[VIS_FREQUENCY_BARS] = {0};
+static double bird_x[5] = {0, -100, -200, -300, -400};
+static double bird_y[5] = {0};
+static int bird_colors[5] = {0, 1, 2, 3, 4};
+
+void update_trippy(Visualizer *vis, double dt) {
+    const double min_dt = 1.0 / 120.0;
+    double speed_factor = dt / 0.033;  // Calculate speed relative to 30 FPS baseline
+    
+    if (dt < min_dt) {
+        dt = min_dt;
+        speed_factor = dt / 0.033;  // Recalculate speed_factor
+    }
+    
+    // Update time offset for animations
+    time_offset += 0.05 * speed_factor;
+    
+    // Update bird positions
+    for (int b = 0; b < 5; b++) {
+        bird_x[b] += (3 + b * 0.5) * speed_factor;
+        if (bird_x[b] > vis->width + 50) {
+            bird_x[b] = -50;
+            bird_y[b] = 50 + (rand() % (vis->height - 150));
+            bird_colors[b] = rand() % 6;
+        }
+        if (bird_y[b] == 0) {
+            bird_y[b] = 50 + (rand() % (vis->height - 150));
+        }
+    }
+    
+    // Update dolphin jumps
+    for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
+        if (dolphin_jumps[i] > 0) {
+            dolphin_jumps[i] -= 0.02 * speed_factor;
+            if (dolphin_jumps[i] < 0) {
+                dolphin_jumps[i] = 0;
+            }
+        }
+        
+        // Trigger new dolphin jumps on strong beats
+        if (vis->frequency_bands[i] > 0.6 && dolphin_jumps[i] <= 0) {
+            if ((rand() % 100) < 15) { // 15% chance to jump
+                dolphin_jumps[i] = 1.0;
+                dolphin_colors[i] = rand() % 6;
+            }
+        }
+    }
+}
+
 void draw_trippy(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
     double bar_width = (double)vis->width / VIS_FREQUENCY_BARS;
-    static double time_offset = 0;
-    time_offset += 0.05;
-    
-    // Track dolphins jumping from bars
-    static double dolphin_jumps[VIS_FREQUENCY_BARS] = {0};
-    static int dolphin_colors[VIS_FREQUENCY_BARS] = {0};
-    
-    // Track birds flying across
-    static double bird_x[5] = {0, -100, -200, -300, -400};
-    static double bird_y[5] = {0};
-    static int bird_colors[5] = {0, 1, 2, 3, 4};
     
     // Psychedelic background waves
     for (int layer = 0; layer < 3; layer++) {
@@ -36,19 +77,6 @@ void draw_trippy(Visualizer *vis, cairo_t *cr) {
             cairo_fill(cr);
         }
         cairo_restore(cr);
-    }
-    
-    // Update bird positions
-    for (int b = 0; b < 5; b++) {
-        bird_x[b] += 3 + b * 0.5;
-        if (bird_x[b] > vis->width + 50) {
-            bird_x[b] = -50;
-            bird_y[b] = 50 + (rand() % (vis->height - 150));
-            bird_colors[b] = rand() % 6;
-        }
-        if (bird_y[b] == 0) {
-            bird_y[b] = 50 + (rand() % (vis->height - 150));
-        }
     }
     
     // Draw frequency bars with trippy effects
@@ -92,14 +120,6 @@ void draw_trippy(Visualizer *vis, cairo_t *cr) {
             cairo_set_source_rgba(cr, 1, 1, 1, 0.8);
             cairo_arc(cr, x + bar_width/2, sparkle_y, 2, 0, 6.28);
             cairo_fill(cr);
-        }
-        
-        // Trigger dolphin jumps on strong beats
-        if (vis->frequency_bands[i] > 0.6 && dolphin_jumps[i] <= 0) {
-            if ((rand() % 100) < 15) { // 15% chance to jump
-                dolphin_jumps[i] = 1.0;
-                dolphin_colors[i] = rand() % 6;
-            }
         }
         
         // Draw dolphins jumping from bars
@@ -161,8 +181,6 @@ void draw_trippy(Visualizer *vis, cairo_t *cr) {
                     cairo_fill(cr);
                 }
             }
-            
-            dolphin_jumps[i] -= 0.02;
         }
     }
     

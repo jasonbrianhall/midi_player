@@ -320,8 +320,8 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
             draw_bars(vis, cr);
             break;
        case VIS_TRIPPY_BARS:
-          draw_trippy(vis, cr);
-          break;                                         
+            draw_trippy(vis, cr);
+            break;                                         
         case VIS_CIRCLE:
             draw_circle(vis, cr);
             break;
@@ -467,6 +467,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
         gtk_widget_queue_draw(vis->drawing_area);
         
         switch (vis->type) {
+            case VIS_TRIPPY_BARS:
+                update_trippy(vis, dt); // 33ms = ~30 FPS
+                break;
             case VIS_FIREWORKS:
                 update_fireworks(vis, dt); // 33ms = ~30 FPS
                 break;

@@ -77,9 +77,9 @@ typedef struct {
     
     // CDG
     CDGDisplay *cdg_display;
-    cairo_surface_t *cdg_surface;  // ADD THIS
-    bool cdg_needs_update;         // ADD THIS
-    int cdg_last_packet;           // ADD THIS
+    cairo_surface_t *cdg_surface;
+    bool cdg_needs_update;
+    int cdg_last_packet;
     
     // Simple frequency analysis without FFT
     double *band_filters[VIS_FREQUENCY_BARS];  // Use renamed constant
@@ -567,5 +567,6 @@ void draw_waveform_fractal_bloom(Visualizer *vis, cairo_t *cr);
 void draw_waveform_symmetry_cascade(Visualizer *vis, cairo_t *cr);
 
 void draw_trippy(Visualizer *vis, cairo_t *cr);
+void update_trippy(Visualizer *vis, double dt);
 #endif
 
