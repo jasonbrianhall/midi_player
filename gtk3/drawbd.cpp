@@ -313,14 +313,39 @@ void draw_birthday_candles(Visualizer *vis, cairo_t *cr) {
         }
     }
     
-    // "Happy Birthday" text with sine wave and rainbow colors
+    // "Happy Birthday" text with sequential fly-in animation and explosion effect
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_ITALIC, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, 56);
     
     const char *text = "Happy Birthday!";
     double text_base_y = vis->height * 0.12;
+    int text_length = strlen(text);
     
-    // Draw each letter individually with sine wave motion and color
+    // Animation phases: 0 = fly in, 1 = formed, 2 = explode
+    double animation_cycle = fmod(vis->time_offset, 10.0); // 10 second cycle
+    int phase = 0;
+    double phase_time = 0;
+    
+    if (animation_cycle < 4.0) {
+        phase = 0; // Fly in phase (0-4 seconds, sequential)
+        phase_time = animation_cycle / 4.0; // 0 to 1
+    } else if (animation_cycle < 8.0) {
+        phase = 1; // Formed phase (4-8 seconds)
+        phase_time = (animation_cycle - 4.0) / 4.0; // 0 to 1
+    } else {
+        phase = 2; // Explode phase (8-10 seconds)
+        phase_time = (animation_cycle - 8.0) / 2.0; // 0 to 1
+    }
+    
+    // Detect if we should trigger explosion (beat during formed phase)
+    bool should_explode = false;
+    if (phase == 1 && vis->volume_level > 0.6) {
+        should_explode = true;
+        phase = 2;
+        phase_time = 0.0;
+    }
+    
+    // Draw each letter individually
     double letter_x = center_x - 250;
     
     for (int i = 0; text[i] != '\0'; i++) {
@@ -328,38 +353,107 @@ void draw_birthday_candles(Visualizer *vis, cairo_t *cr) {
         cairo_text_extents_t extents;
         cairo_text_extents(cr, letter, &extents);
         
-        // Sine wave motion (more pronounced)
-        double wave_offset = sin(vis->time_offset * 4 + i * 0.6) * 20;
-        double letter_y = text_base_y + wave_offset;
+        double target_x = letter_x + extents.width / 2;
+        double target_y = text_base_y;
+        double current_x = target_x;
+        double current_y = target_y;
+        double alpha = 1.0;
+        double scale = 1.0;
+        double rotation = 0.0;
         
-        // Individual letter rotation
-        double rotation = sin(vis->time_offset * 2 + i * 0.5) * 0.15;
+        if (phase == 0) {
+            // Sequential fly in - each letter has its own timing
+            double letter_start_time = (double)i / text_length; // When this letter starts (0 to 1)
+            double letter_duration = 0.15; // Each letter takes 15% of the phase to fly in
+            double letter_phase = (phase_time - letter_start_time) / letter_duration;
+            
+            if (letter_phase < 0) {
+                // Letter hasn't started flying in yet - don't draw
+                letter_x += extents.x_advance + 2;
+                continue;
+            } else if (letter_phase > 1.0) {
+                // Letter has finished flying in - hold in position
+                letter_phase = 1.0;
+            }
+            
+            // Ease in cubic for smooth deceleration
+            double eased = 1.0 - pow(1.0 - letter_phase, 3);
+            
+            // Fly in from random directions
+            double start_angle = (i * 0.7 + 2.1) * M_PI; // Different angle for each letter
+            double distance = 800 * (1.0 - eased);
+            
+            current_x = target_x + cos(start_angle) * distance;
+            current_y = target_y + sin(start_angle) * distance;
+            
+            // Spinning while flying in
+            rotation = (1.0 - letter_phase) * M_PI * 4;
+            alpha = letter_phase;
+            scale = 0.3 + letter_phase * 0.7;
+            
+        } else if (phase == 1) {
+            // Formed - gentle wave motion
+            double wave_offset = sin(vis->time_offset * 4 + i * 0.6) * 20;
+            current_y = target_y + wave_offset;
+            rotation = sin(vis->time_offset * 2 + i * 0.5) * 0.15;
+            
+        } else if (phase == 2) {
+            // Explode outward all at once
+            double explode_angle = (i * 0.5 + 1.3) * M_PI;
+            double explode_distance = phase_time * phase_time * 500; // Accelerate
+            
+            current_x = target_x + cos(explode_angle) * explode_distance;
+            current_y = target_y + sin(explode_angle) * explode_distance;
+            
+            // Spinning while exploding
+            rotation = phase_time * M_PI * 6;
+            alpha = 1.0 - phase_time;
+            scale = 1.0 + phase_time * 2.0;
+        }
         
         // Rainbow color based on position and time
-        double hue = fmod(vis->time_offset * 0.4 + (double)i / strlen(text), 1.0);
+        double hue = fmod(vis->time_offset * 0.4 + (double)i / text_length, 1.0);
         double r, g, b;
         hsv_to_rgb(hue, 0.9, 1.0, &r, &g, &b);
         
         cairo_save(cr);
-        cairo_translate(cr, letter_x + extents.width / 2, letter_y);
+        cairo_translate(cr, current_x, current_y);
         cairo_rotate(cr, rotation);
+        cairo_scale(cr, scale, scale);
         cairo_translate(cr, -(extents.width / 2), 0);
         
         // Multi-layer glow effect with beat pulse
-        for (int glow = 0; glow < 4; glow++) {
-            cairo_set_source_rgba(cr, r, g, b, 0.5 * vis->volume_level / (glow + 1));
-            cairo_move_to(cr, glow, glow);
-            cairo_show_text(cr, letter);
+        if (phase == 1) {
+            for (int glow = 0; glow < 4; glow++) {
+                cairo_set_source_rgba(cr, r, g, b, 0.5 * vis->volume_level / (glow + 1) * alpha);
+                cairo_move_to(cr, glow, glow);
+                cairo_show_text(cr, letter);
+            }
+        }
+        
+        // Explosion particles
+        if (phase == 2) {
+            for (int p = 0; p < 8; p++) {
+                double particle_angle = (p / 8.0) * 2 * M_PI;
+                double particle_dist = phase_time * 60;
+                double px = (extents.width / 2) + cos(particle_angle) * particle_dist;
+                double py = sin(particle_angle) * particle_dist;
+                double particle_size = 3 * (1.0 - phase_time);
+                
+                cairo_set_source_rgba(cr, r, g, b, alpha * 0.8);
+                cairo_arc(cr, px, py, particle_size, 0, 2 * M_PI);
+                cairo_fill(cr);
+            }
         }
         
         // Main letter with outline
-        cairo_set_source_rgb(cr, r, g, b);
+        cairo_set_source_rgba(cr, r, g, b, alpha);
         cairo_move_to(cr, 0, 0);
         cairo_text_path(cr, letter);
         cairo_fill_preserve(cr);
         
         // White outline
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.8);
+        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.8 * alpha);
         cairo_set_line_width(cr, 2.0);
         cairo_stroke(cr);
         
