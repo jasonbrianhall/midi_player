@@ -395,6 +395,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_SYMMETRY_CASCADE:
           draw_waveform_symmetry_cascade(vis, cr);
           break;                                         
+       case VIS_DRAW_WORMHOLE:
+          draw_stargate(vis, cr);
+          break;                                         
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -524,6 +527,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_BEAT_CHECKERS:
                 update_beat_checkers(vis, dt);
                 break;                                                
+            case VIS_DRAW_WORMHOLE:
+                update_stargate(vis, dt);
+                break;                                                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -622,6 +628,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Checkers");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fractal Bloom");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Symmetry Cascade");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Wormhole Simulation");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

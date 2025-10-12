@@ -60,6 +60,7 @@ typedef enum {
     VIS_BEAT_CHECKERS,
     VIS_FRACTAL_BLOOM,
     VIS_SYMMETRY_CASCADE,
+    VIS_DRAW_WORMHOLE,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -566,7 +567,13 @@ void draw_waveform_fractal_bloom(Visualizer *vis, cairo_t *cr);
 // Cascade
 void draw_waveform_symmetry_cascade(Visualizer *vis, cairo_t *cr);
 
+// Trippy Bars
 void draw_trippy(Visualizer *vis, cairo_t *cr);
 void update_trippy(Visualizer *vis, double dt);
+
+// wormhole 
+void draw_stargate(Visualizer *vis, cairo_t *cr);
+void update_stargate(Visualizer *vis, double dt);
+
 #endif
 
