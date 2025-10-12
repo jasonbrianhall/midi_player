@@ -398,6 +398,10 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_DRAW_WORMHOLE:
           draw_stargate(vis, cr);
           break;                                         
+       case VIS_BIRTHDAY:
+          draw_birthday_candles(vis, cr);
+          break;                                         
+
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -629,6 +633,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fractal Bloom");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Symmetry Cascade");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Wormhole Simulation");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Birthday Cake");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

@@ -61,6 +61,7 @@ typedef enum {
     VIS_FRACTAL_BLOOM,
     VIS_SYMMETRY_CASCADE,
     VIS_DRAW_WORMHOLE,
+    VIS_BIRTHDAY,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -574,6 +575,8 @@ void update_trippy(Visualizer *vis, double dt);
 // wormhole 
 void draw_stargate(Visualizer *vis, cairo_t *cr);
 void update_stargate(Visualizer *vis, double dt);
+
+void draw_birthday_candles(Visualizer *vis, cairo_t *cr);
 
 #endif
 
