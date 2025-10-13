@@ -61,55 +61,79 @@ void update_rabbithare(Visualizer *vis, double dt) {
         }
         avg_energy /= VIS_FREQUENCY_BARS;
         
-        // Turtle moves steadily, slightly faster with music
-        turtle_x += (2.8 + avg_energy * 1.2) * speed_factor * screen_speed_factor;
+        // Turtle moves steadily, slightly faster with music (slower than before)
+        turtle_x += (1.8 + avg_energy * 0.6) * speed_factor * screen_speed_factor;
         
         // Hare behavior based on music energy
         if (hare_sleeping) {
             hare_sleep_timer -= dt;
-            // Hare is a DEEP sleeper - only wakes up when timer runs out
-            // Music won't wake the hare anymore!
-            if (hare_sleep_timer <= 0) {
+            
+            // Very small chance of waking if turtle passes - turtle makes noises!
+            double lead = hare_x - turtle_x;
+            double wake_chance = 0;
+            
+            if (lead < -30) {
+                wake_chance = 0.03; // 3% chance if turtle is way ahead
+            } else if (lead < -10) {
+                wake_chance = 0.02; // 2% chance if turtle is ahead
+            } else if (lead < 0) {
+                wake_chance = 0.01; // 1% chance if turtle just passed
+            }
+            
+            bool noise_wake = (rand() % 1000) < (wake_chance * 1000);
+            
+            // Hare is a DEEP sleeper - mostly only wakes up when timer runs out
+            if (hare_sleep_timer <= 0 || noise_wake) {
                 hare_sleeping = false;
             }
         } else {
-            // Hare runs fast when music is energetic
+            // Hare runs fast when music is energetic (faster than before)
             if (avg_energy > 0.35) {
-                hare_x += (3.5 + avg_energy * 2.5) * speed_factor * screen_speed_factor;
+                hare_x += (6.0 + avg_energy * 3.0) * speed_factor * screen_speed_factor;
             } else {
-                hare_x += 0.2 * speed_factor * screen_speed_factor;
+                // Better minimum speed to stay competitive
+                hare_x += 2.5 * speed_factor * screen_speed_factor;
             }
             
             // Calculate how far ahead the hare is
             double lead = hare_x - turtle_x;
             
             // Hare gets more confident and lazy the further ahead it is
+            // Uses exponential scaling - barely ahead = very cautious, far ahead = very lazy
             double confidence_factor = 1.0;
             double sleep_time_bonus = 0;
             
-            if (lead > 100) {
-                confidence_factor = 4.0; // 4x more likely to sleep
-                sleep_time_bonus = 4.0;  // Sleep 4 extra seconds
+            if (lead > 150) {
+                confidence_factor = 10.0; // Way ahead - extremely overconfident
+                sleep_time_bonus = 6.0;   // Very long naps
+            } else if (lead > 100) {
+                confidence_factor = 7.0;  // Far ahead - very lazy
+                sleep_time_bonus = 5.0;
             } else if (lead > 60) {
-                confidence_factor = 3.0; // 3x more likely to sleep
-                sleep_time_bonus = 3.0;  // Sleep 3 extra seconds
+                confidence_factor = 5.0;  // Comfortable lead - quite lazy
+                sleep_time_bonus = 4.0;
             } else if (lead > 30) {
-                confidence_factor = 2.0; // 2x more likely to sleep
-                sleep_time_bonus = 2.0;  // Sleep 2 extra seconds
-            } else if (lead > 10) {
-                confidence_factor = 1.5; // 1.5x more likely to sleep
-                sleep_time_bonus = 1.0;  // Sleep 1 extra second
+                confidence_factor = 3.0;  // Moderate lead - somewhat lazy
+                sleep_time_bonus = 3.0;
+            } else if (lead > 15) {
+                confidence_factor = 1.5;  // Small lead - bit cautious
+                sleep_time_bonus = 1.5;
+            } else if (lead > 5) {
+                confidence_factor = 0.5;  // Barely ahead - very cautious
+                sleep_time_bonus = 0.5;
             }
+            // If lead <= 5, confidence_factor stays at 1.0 (minimal sleep chance)
             
-            // Hare is super lazy and takes naps constantly when ahead
-            double sleep_chance = 20 * confidence_factor;
-            // Even if music is energetic, hare might nap if way ahead
+            // Base sleep chance is lower, but scales dramatically with confidence
+            double sleep_chance = 3 * confidence_factor;  // Was 20
+            
+            // Hare only sleeps when ahead and conditions are right
             double energy_threshold = 0.50;
             if (lead > 80) energy_threshold = 0.60; // Can sleep even with more energetic music
             
             if (avg_energy < energy_threshold && lead > 5 && (rand() % 100) < sleep_chance) {
                 hare_sleeping = true;
-                hare_sleep_timer = 3.0 + sleep_time_bonus + (rand() % 5); // 3-7 seconds base
+                hare_sleep_timer = 2.0 + sleep_time_bonus + (rand() % 2); // 2-4 base + bonus
             }
         }
         
