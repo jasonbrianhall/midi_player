@@ -330,6 +330,7 @@ bool load_last_visualization(VisualizationType *vis_type);
 static gboolean on_queue_focus_in(GtkWidget *widget, GdkEventFocus *event, gpointer user_data);
 void visualizer_next_mode(Visualizer *vis);
 void visualizer_prev_mode(Visualizer *vis);
+void on_vis_type_changed(GtkComboBox *combo, gpointer user_data);
 
 // Bubble system function declarations
 void init_bubble_system(Visualizer *vis);

@@ -116,8 +116,8 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             // Q: Next visualization
             if (player->visualizer) {
-                visualizer_next_mode(player->visualizer);
-                printf("Switched to next visualization\n");
+                visualizer_prev_mode(player->visualizer);
+                printf("Switched to prev visualization\n");
             }
             return TRUE;
             
@@ -129,8 +129,8 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             // A: Previous visualization
             if (player->visualizer) {
-                visualizer_prev_mode(player->visualizer);
-                printf("Switched to previous visualization\n");
+                visualizer_next_mode(player->visualizer);
+                printf("Switched to next visualization\n");
             }
             return TRUE;
             
@@ -352,16 +352,16 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
         case GDK_KEY_q:
         case GDK_KEY_Q:
             if (player->visualizer) {
-                visualizer_next_mode(player->visualizer);
-                printf("Switched to next visualization in fullscreen\n");
+                visualizer_prev_mode(player->visualizer);
+                printf("Switched to previous visualization in fullscreen\n");
             }
             return TRUE;
             
         case GDK_KEY_a:
         case GDK_KEY_A:
             if (player->visualizer) {
-                visualizer_prev_mode(player->visualizer);
-                printf("Switched to previous visualization in fullscreen\n");
+                visualizer_next_mode(player->visualizer);
+                printf("Switched to next visualization in fullscreen\n");
             }
             return TRUE;
             

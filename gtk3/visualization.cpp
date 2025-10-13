@@ -159,6 +159,30 @@ void visualizer_free(Visualizer *vis) {
 void visualizer_set_type(Visualizer *vis, VisualizationType type) {
     if (vis) {
         vis->type = type;
+        
+        // Find the combo box widget using the global player reference
+        if (player && player->vis_controls) {
+            // Search for the combo box by name
+            GList *children = gtk_container_get_children(GTK_CONTAINER(player->vis_controls));
+            for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
+                GtkWidget *widget = GTK_WIDGET(iter->data);
+                const char *name = gtk_widget_get_name(widget);
+                
+                if (name && strcmp(name, "vis_type_combo") == 0) {
+                    // Found it! Update the combo box
+                    g_signal_handlers_block_by_func(widget, 
+                                                   (gpointer)on_vis_type_changed, 
+                                                   vis);
+                    gtk_combo_box_set_active(GTK_COMBO_BOX(widget), type);
+                    g_signal_handlers_unblock_by_func(widget, 
+                                                     (gpointer)on_vis_type_changed, 
+                                                     vis);
+                    break;
+                }
+            }
+            g_list_free(children);
+        }
+        
         gtk_widget_queue_draw(vis->drawing_area);
     }
 }
@@ -647,6 +671,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(type_combo), vis->type);
     gtk_widget_set_tooltip_text(type_combo, "Select visualization type (Q: Next | A: Previous)");
+    gtk_widget_set_name(type_combo, "vis_type_combo");
     g_signal_connect(type_combo, "changed", G_CALLBACK(on_vis_type_changed), vis);
     
     if (use_compact_controls) {
@@ -683,7 +708,7 @@ void visualizer_next_mode(Visualizer *vis) {
     if (!vis) return;
     
     int current = (int)vis->type;
-    int next = (current + 1) % VIS_KARAOKE_EXCITING;  // Wrap around to first mode
+    int next = (current + 1) % (VIS_KARAOKE_EXCITING+1);  // Wrap around to first mode
     
     // Skip to first mode if we go past the last
     if (next > VIS_KARAOKE_EXCITING) {
