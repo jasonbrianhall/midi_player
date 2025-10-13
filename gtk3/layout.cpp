@@ -412,13 +412,19 @@ static void create_icon_section(AudioPlayer *player) {
 
 static void create_queue_display(AudioPlayer *player) {
     player->layout.queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_box_pack_start(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, TRUE, TRUE, 0);
+    
+    // CRITICAL: Set fixed size on queue_vbox BEFORE packing
+    gtk_widget_set_size_request(player->layout.queue_vbox, 
+                               player->layout.config.queue_width, -1);
+    
+    // Pack with FALSE, FALSE to prevent it from expanding and squeezing the left side
+    gtk_box_pack_end(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, FALSE, FALSE, 0);
 
     GtkWidget *queue_label = gtk_label_new("Queue:");
     gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), queue_label, FALSE, FALSE, 0);
 
-    // ADD THE SEARCH BAR HERE
+    // THE SEARCH BAR HERE
     GtkWidget *search_bar = create_queue_search_bar(player);
     gtk_box_pack_start(GTK_BOX(player->layout.queue_vbox), search_bar, FALSE, FALSE, 0);
 
