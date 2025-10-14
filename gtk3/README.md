@@ -51,22 +51,22 @@ Transform your music into visual art with real-time, audio-reactive visualizatio
 - **Ripples**: Concentric wave patterns
 - **Kaleidoscope**: Symmetric, mirror-effect patterns
 - **Radial Wave**: Circular wave propagation
-- **Fractal Bloom**: Recursive fractal patterns
+- **Fractal Bloom**: Trippy colorful flower like effect
 - **Symmetry Cascade**: Multi-axis symmetry effects
 - **Wormhole Simulation**: 3D tunnel effect
 
 **Interactive Visualizations**
-- **Sudoku Solver**: Watch a real sudoku puzzle solve itself to the beat
+- **Sudoku Solver**: Watch a real sudoku puzzle solve itself to the beat (it also generates the puzzles)
 - **Tower of Hanoi**: Classic puzzle solving in rhythm
 - **Beat Chess**: AI chess game synchronized with music
 - **Beat Checkers**: AI checkers match moving with the beat
 - **Bouncy Balls**: Physics simulation with audio-driven energy
-- **Block Stack**: Tetris-style falling blocks
-- **Robot Chaser**: Animated robot following audio patterns
+- **Block Stack**: Stack building with the beat
+- **Robot Chaser**: Animated robot following audio patterns in a maze
 
 **Themed Visualizations**
 - **Digital Clock**: Time display with audio-reactive swirls
-- **Analog Clock**: Classic clock with dancing hands
+- **Analog Clock**: Classic clock with intensity base effect
 - **Dancing Parrot**: Animated parrot character
 - **Eye of Sauron**: All-seeing eye that reacts to music
 - **Birthday Cake**: Animated cake with candles
@@ -74,7 +74,7 @@ Transform your music into visual art with real-time, audio-reactive visualizatio
 
 **Karaoke Modes**
 - **Karaoke Classic**: Traditional scrolling lyrics (for CD+G files)
-- **Karaoke Starburst**: Dynamic, explosive lyric display
+- **Karaoke Starburst**: Flower in the background of the lyrics
 
 **Pro Tips**:
 - Press **F9** or **F** to toggle fullscreen visualization
@@ -113,7 +113,7 @@ Professional-grade audio equalization with precise frequency control:
 - **MIDI** (.mid/.midi) – With authentic OPL3 FM synthesis
 
 **Generic Support**
-- **Any audio format** supported by libavcodec (Linux) or Windows native codecs
+- **Any audio format** supported by libavcodec (Linux) or Windows native codecs (.ape comes to mind but other weird formats like .au or .ra should work)
 
 ### 💾 Playlist Management
 - **M3U Support**: Load and save standard M3U playlists
@@ -197,7 +197,7 @@ sudo apt install mingw-w64-x86-64-dev
 - **pkg-config** (for library detection)
 - **MinGW-w64** (for Windows cross-compilation)
 
-## 🔨 Building
+## 🔨 Building and Installing
 
 ### Quick Start (Linux)
 ```bash
@@ -206,6 +206,17 @@ cd midi_player/gtk3
 make
 ./build/linux/zenamp
 ```
+
+### Quick Start (Windows)
+
+Builds are automatically created using GitHub Actions at https://github.com/jasonbrianhall/midi_player/releases
+
+Available packages:
+- **MSI** - Standard Windows installer
+- **MSIX** - Microsoft Store package
+- **RPM** - Fedora/RHEL/CentOS installer
+- **Portable ZIP** - No installation required, run directly
+- **Source code** - ZIP/tar.gz archives for building from source
 
 ### Build Options
 
@@ -344,7 +355,7 @@ zenamp song.lrc
 1. Load a CD+G ZIP file or LRC file
 2. Visualization automatically switches to karaoke mode
 3. Press F9 for fullscreen experience
-4. Use A/Q to switch between Classic and Starburst modes
+4. Use A/Q to switch between Classic and Starburst modes and other visualizations
 5. Playback controls work normally during karaoke
 
 ## 🎨 Visualization Features
@@ -365,12 +376,12 @@ Adjust how strongly visualizations respond to audio:
 
 **Analysis-Based**
 - **Fourier Transform**: Real mathematical frequency analysis
-- **Bars/Trippy Bars**: Classic frequency spectrum display
+- **Bars/Trippy Bars**: Classic frequency spectrum display (Trippy bars has multi-colored fishies and flying animals)
 
 **Physics Simulations**
 - **Bouncy Balls**: Real physics with gravity and collisions
 - **Ripples**: Wave interference patterns
-- **Block Stack**: Tetris-style stacking mechanics
+- **Block Stack**: Stack building with the beat
 
 **Game/Puzzle Solvers**
 - **Sudoku**: Watches real sudoku solving algorithm (CPU-intensive, may cause brief pauses)
@@ -382,7 +393,7 @@ Adjust how strongly visualizations respond to audio:
 - **Kaleidoscope**: Multi-axis symmetry
 - **DNA Helix**: Rotating double helix structures
 - **Matrix Rain**: Falling characters like the movie
-- **Fractal Bloom**: Recursive branching patterns
+- **Fractal Bloom**: Trippy flower
 
 ## 🔧 Troubleshooting
 
@@ -545,6 +556,7 @@ OPL3 emulation provides authentic FM synthesis:
 - Beat Checkers is CPU-intensive
 - Chess/Checkers AI difficulty fixed (for consistent beat sync)
 - Windows M4A/WMA support requires Windows 7+ codecs
+- Two-channel support only
 
 ## 🗺️ Future Considerations
 
