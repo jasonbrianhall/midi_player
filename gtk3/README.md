@@ -202,7 +202,7 @@ sudo apt install mingw-w64-x86-64-dev
 ### Quick Start (Linux)
 ```bash
 git clone https://github.com/jasonbrianhall/midi_player.git
-cd midi_player
+cd midi_player/gtk3
 make
 ./build/linux/zenamp
 ```
