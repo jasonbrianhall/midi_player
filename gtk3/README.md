@@ -8,7 +8,7 @@ A minimalist music/audio player that doesn't mess around. Built with GTK3 and SD
   Play, pause, stop, rewind/fast-forward (5-second jumps), and skip between tracks. All the buttons you actually need, none of the bloat you don't.
 
 - **📜 Visual Queue Management**  
-  Add multiple files, see what's playing, remove tracks individually, drag-and-drop reordering, and toggle repeat mode. The queue is right there where you can see it—no hidden mysteries.
+  Add multiple files, see what's playing, remove tracks individually, drag-and-drop reordering, and toggle repeat mode. The queue is right there where you can see it—no hidden mysteries.  It is also filterable and sortable.
 
 - **🔊 Flexible Volume Control**  
   Scale from whisper-quiet (10%) to surprisingly loud (300%) with a smooth slider that actually responds to your input.
@@ -63,6 +63,7 @@ sudo apt install build-essential pkg-config
 sudo apt install libgtk-3-dev libsdl2-dev libsdl2-mixer-dev
 sudo apt install libvorbis-dev libogg-dev libflac-dev
 sudo apt install libopusfile-dev libopus-dev
+sudo apt install ffmpeg-devel
 ```
 
 #### Linux (Fedora/RHEL/CentOS)
@@ -71,6 +72,7 @@ sudo dnf groupinstall "Development Tools"
 sudo dnf install pkg-config gtk3-devel SDL2-devel SDL2_mixer-devel
 sudo dnf install libvorbis-devel libogg-devel flac-devel
 sudo dnf install opusfile-devel opus-devel
+sudo dnf install ffmpeg-devel
 ```
 
 #### Linux (Arch)
@@ -102,6 +104,7 @@ sudo apt install libgtk-3-dev:mingw-w64
 | **libogg** | OGG container support | 1.3.0+ |
 | **opusfile** | Opus format decoding | 0.7+ |
 | **opus** | Opus codec support | 1.1+ |
+| **ffmpeg** | (Linux Only) For misc. audio conversion | Latest |
 
 ### Development Tools
 - **GCC** or **Clang** (C++11 support required)
