@@ -577,8 +577,7 @@ MIT License – use it, modify it, distribute it. Just keep the attribution.
 - **OPL3 Emulation**: DosBox OPL3 emulator
 - **Audio Libraries**: SDL2, libFLAC, libvorbis, opus
 - **UI Framework**: GTK3
-- **Chess Engine**: Stockfish (for Beat Chess visualization)
-- **Inspiration**: WinAmp, XMMS, Audacious
+- **Chess Engine**: Custom chess Engine (not a good chess engine but it is custom)
 
 ---
 
