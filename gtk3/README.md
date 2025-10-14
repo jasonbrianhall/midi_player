@@ -386,7 +386,7 @@ Adjust how strongly visualizations respond to audio:
 **Game/Puzzle Solvers**
 - **Sudoku**: Watches real sudoku solving algorithm (CPU-intensive, may cause brief pauses)
 - **Tower of Hanoi**: Classic recursive puzzle solution
-- **Beat Chess**: Stockfish chess AI playing to music (CPU-intensive)
+- **Beat Chess**: AI playing to music (CPU-intensive); custom engine (not a good engine but it is custom)
 - **Beat Checkers**: AI checkers with beat-synced moves (CPU-intensive)
 
 **Artistic Effects**
