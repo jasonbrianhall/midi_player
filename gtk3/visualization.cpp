@@ -665,7 +665,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Symmetry Cascade");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Wormhole Simulation");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Birthday Cake");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Rabbit/Hare");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Rabbit/Turtle Race");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
