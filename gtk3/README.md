@@ -52,7 +52,7 @@ Transform your music into visual art with real-time, audio-reactive visualizatio
 - **Kaleidoscope**: Symmetric, mirror-effect patterns
 - **Radial Wave**: Circular wave propagation
 - **Fractal Bloom**: Trippy colorful flower like effect
-- **Symmetry Cascade**: Multi-axis symmetry effects
+- **Symmetry Cascade**: Rainbow cascading sound waves
 - **Wormhole Simulation**: 3D tunnel effect
 
 **Interactive Visualizations**
@@ -67,10 +67,10 @@ Transform your music into visual art with real-time, audio-reactive visualizatio
 **Themed Visualizations**
 - **Digital Clock**: Time display with audio-reactive swirls
 - **Analog Clock**: Classic clock with intensity base effect
-- **Dancing Parrot**: Animated parrot character
+- **Dancing Parrot**: Animated parrot character that dances to the music
 - **Eye of Sauron**: All-seeing eye that reacts to music
 - **Birthday Cake**: Animated cake with candles
-- **Rabbit/Hare**: Animated creature visualization
+- **Rabbit/Turtle**: Animated creature race visualization with a slow and stead turtle and rabbit that likes to take naps
 
 **Karaoke Modes**
 - **Karaoke Classic**: Traditional scrolling lyrics (for CD+G files)
