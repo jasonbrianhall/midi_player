@@ -557,6 +557,7 @@ OPL3 emulation provides authentic FM synthesis:
 - Chess/Checkers AI difficulty fixed (for consistent beat sync)
 - Windows M4A/WMA support requires Windows 7+ codecs
 - Two-channel support only
+- My Raspberry PI choked on the queue (black screen) so I think Raspian has a bad implementation of GTK3
 
 ## 🗺️ Future Considerations
 
