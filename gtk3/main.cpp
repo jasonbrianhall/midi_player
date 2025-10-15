@@ -1976,6 +1976,18 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     return TRUE; // Allow the window to be destroyed
 }
 
+bool isValidM3U(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.find_first_not_of(" \t\r\n") != std::string::npos)
+            return true; // Found meaningful content
+    }
+    return false;
+}
+
 void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AudioPlayer *player = (AudioPlayer*)user_data;
@@ -1994,8 +2006,12 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     filename[0] = '\0';
     
     if (GetOpenFileName(&ofn)) {
-        if (load_m3u_playlist(player, filename)) {
-            add_to_recent_files(filename, "audio/x-mpegurl");
+        if (isValidM3U(filename)) {
+            if (load_m3u_playlist(player, filename)) {
+                add_to_recent_files(filename, "audio/x-mpegurl");
+            }
+        } else {
+            printf("Playlist appears empty or corrupted\n");
         }
     }
 #else
@@ -2014,12 +2030,17 @@ void on_menu_load_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        if (load_m3u_playlist(player, filename)) {
-            add_to_recent_files(filename, "audio/x-mpegurl");
-            save_last_playlist_path(filename); 
+        if (isValidM3U(filename)) {
+            if (load_m3u_playlist(player, filename)) {
+                add_to_recent_files(filename, "audio/x-mpegurl");
+                save_last_playlist_path(filename); 
+            }
+        } else {
+            printf("Playlist appears empty or corrupted.");
         }
         g_free(filename);
     }
+
     
     gtk_widget_destroy(dialog);
 #endif
