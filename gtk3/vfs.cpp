@@ -386,6 +386,37 @@ bool convert_midi_to_virtual_wav(AudioPlayer *player, const char* filename) {
 }
 
 bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
+    // Check cache first (use virtual filename as key)
+    CachedAudioBuffer *cached = find_in_cache(&player->audio_cache, virtual_filename);
+    if (cached) {
+        player->sample_rate = cached->sample_rate;
+        player->channels = cached->channels;
+        player->bits_per_sample = cached->bits_per_sample;
+        player->song_duration = cached->song_duration;
+        
+        if (!init_audio(player, player->sample_rate, player->channels)) {
+            return false;
+        }
+        
+        // COPY data from cache
+        int16_t *data_copy = malloc(cached->length * sizeof(int16_t));
+        if (!data_copy) return false;
+        memcpy(data_copy, cached->data, cached->length * sizeof(int16_t));
+        
+        pthread_mutex_lock(&player->audio_mutex);
+        if (player->audio_buffer.data) free(player->audio_buffer.data);
+        player->audio_buffer.data = data_copy;
+        player->audio_buffer.length = cached->length;
+        player->audio_buffer.position = 0;
+        pthread_mutex_unlock(&player->audio_mutex);
+        
+        printf("Loaded virtual file from cache: %zu samples\n", cached->length);
+        
+        // Can delete virtual file now since it's in cache
+        delete_virtual_file(virtual_filename);
+        return true;
+    }
+    
     VirtualFile* vf = get_virtual_file(virtual_filename);
     if (!vf) {
         printf("Cannot open virtual WAV file: %s\n", virtual_filename);
@@ -416,7 +447,7 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
     printf("Virtual WAV: %d Hz, %d channels, %d bits\n", 
            player->sample_rate, player->channels, player->bits_per_sample);
     
-    // ADDED: Reinitialize audio with the correct sample rate and channels
+    // Reinitialize audio with the correct sample rate and channels
     if (!init_audio(player, player->sample_rate, player->channels)) {
         printf("Failed to reinitialize audio for virtual WAV format\n");
         return false;
@@ -443,6 +474,16 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
         return false;
     }
     
+    // Make a copy for cache
+    int16_t *cache_copy = malloc(data_size);
+    if (cache_copy) {
+        memcpy(cache_copy, wav_data, data_size);
+        add_to_cache(&player->audio_cache, virtual_filename, cache_copy,
+                     data_size / sizeof(int16_t), player->sample_rate,
+                     player->channels, player->bits_per_sample,
+                     player->song_duration);
+    }
+    
     // Store in audio buffer
     pthread_mutex_lock(&player->audio_mutex);
     if (player->audio_buffer.data) {
@@ -455,8 +496,8 @@ bool load_virtual_wav_file(AudioPlayer *player, const char* virtual_filename) {
     
     printf("Loaded %zu samples from virtual file\n", player->audio_buffer.length);
     
-    // NOW delete the virtual file since we've copied the data
-    printf("Deleting virtual file '%s' after copying data\n", virtual_filename);
+    // NOW delete the virtual file since we've copied the data and cached it
+    printf("Deleting virtual file '%s' after copying to cache\n", virtual_filename);
     fflush(stdout);
     delete_virtual_file(virtual_filename);
     

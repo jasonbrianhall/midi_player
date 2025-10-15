@@ -25,6 +25,26 @@
 
 typedef struct {
     char *filepath;
+    int16_t *data;
+    size_t length;
+    int sample_rate;
+    int channels;
+    int bits_per_sample;
+    double song_duration;
+    time_t last_access;
+    size_t memory_size;  // in bytes
+} CachedAudioBuffer;
+
+typedef struct {
+    CachedAudioBuffer **buffers;
+    int count;
+    int capacity;
+    size_t total_memory;  // Track total memory used
+    size_t max_memory;    // Maximum memory to use (e.g., 500 MB)
+} AudioBufferCache;
+
+typedef struct {
+    char *filepath;
     char *title;
     char *artist;
     char *album;
@@ -216,6 +236,9 @@ typedef struct {
     GtkStatusIcon *tray_icon;
     GtkWidget *tray_menu;
     bool minimized_to_tray;
+    
+    AudioBufferCache audio_cache; 
+    
 } AudioPlayer;
 
 typedef struct {
@@ -230,6 +253,7 @@ typedef struct {
     int vis_type;
     float vis_sensitivity;
 } PlayerSettings;
+
 
 
 // External variables from midiplayer
@@ -421,5 +445,12 @@ bool save_current_queue_on_exit(AudioPlayer *player);
 char* extract_metadata(const char *filepath);
 
 bool generate_karaoke_zip_from_lrc(const std::string& lrc_path, std::string& out_zip_path);
+
+void init_audio_cache(AudioBufferCache *cache, size_t max_memory_mb);
+CachedAudioBuffer* find_in_cache(AudioBufferCache *cache, const char *filepath);
+void add_to_cache(AudioBufferCache *cache, const char *filepath, 
+                  int16_t *data, size_t length, int sample_rate, 
+                  int channels, int bits_per_sample, double song_duration);
+void cleanup_audio_cache(AudioBufferCache *cache);
 
 #endif // AUDIO_PLAYER_H

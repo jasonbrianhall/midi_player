@@ -367,6 +367,35 @@ bool init_audio(AudioPlayer *player, int sample_rate, int channels) {
 }
 
 bool load_wav_file(AudioPlayer *player, const char* wav_path) {
+    // Check cache first
+    CachedAudioBuffer *cached = find_in_cache(&player->audio_cache, wav_path);
+    if (cached) {
+        player->sample_rate = cached->sample_rate;
+        player->channels = cached->channels;
+        player->bits_per_sample = cached->bits_per_sample;
+        player->song_duration = cached->song_duration;
+        
+        if (!init_audio(player, player->sample_rate, player->channels)) {
+            return false;
+        }
+        
+        // COPY data from cache (don't give away the cached pointer)
+        int16_t *data_copy = malloc(cached->length * sizeof(int16_t));
+        if (!data_copy) return false;
+        memcpy(data_copy, cached->data, cached->length * sizeof(int16_t));
+        
+        pthread_mutex_lock(&player->audio_mutex);
+        if (player->audio_buffer.data) free(player->audio_buffer.data);
+        player->audio_buffer.data = data_copy;
+        player->audio_buffer.length = cached->length;
+        player->audio_buffer.position = 0;
+        pthread_mutex_unlock(&player->audio_mutex);
+        
+        printf("Loaded from cache: %zu samples\n", cached->length);
+        return true;
+    }
+    
+    // Not in cache, load from file
     FILE* wav_file = fopen(wav_path, "rb");
     if (!wav_file) {
         printf("Cannot open WAV file: %s\n", wav_path);
@@ -427,6 +456,16 @@ bool load_wav_file(AudioPlayer *player, const char* wav_path) {
     }
     
     fclose(wav_file);
+    
+    // Make a copy for cache
+    int16_t *cache_copy = malloc(data_size);
+    if (cache_copy) {
+        memcpy(cache_copy, wav_data, data_size);
+        add_to_cache(&player->audio_cache, wav_path, cache_copy, 
+                     data_size / sizeof(int16_t), player->sample_rate,
+                     player->channels, player->bits_per_sample, 
+                     player->song_duration);
+    }
     
     // Store in audio buffer
     pthread_mutex_lock(&player->audio_mutex);
@@ -1943,6 +1982,7 @@ gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer use
     clear_queue(&player->queue);
     cleanup_queue_filter(player);
     cleanup_conversion_cache(&player->conversion_cache);
+    cleanup_audio_cache(&player->audio_cache); 
     cleanup_virtual_filesystem();
     
     printf("Cleaing up Audio\n");
@@ -2589,7 +2629,8 @@ int main(int argc, char *argv[]) {
     
     init_queue(&player->queue);
     init_conversion_cache(&player->conversion_cache);
-    
+    init_audio_cache(&player->audio_cache, 500);
+   
     if (!init_audio(player)) {
         printf("Audio initialization failed\n");
         cleanup_conversion_cache(&player->conversion_cache);
