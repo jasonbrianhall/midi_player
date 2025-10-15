@@ -2616,9 +2616,310 @@ void add_column(GtkWidget *tree_view, const char *title, int col_id,  int width,
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
 }
 
+#ifndef _WIN32
+static void handle_dbus_method_call(GDBusConnection *connection,
+                                    const gchar *sender,
+                                    const gchar *object_path,
+                                    const gchar *interface_name,
+                                    const gchar *method_name,
+                                    GVariant *parameters,
+                                    GDBusMethodInvocation *invocation,
+                                    gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    
+    if (g_strcmp0(method_name, "AddAndPlay") == 0) {
+        const gchar *filepath;
+        g_variant_get(parameters, "(s)", &filepath);
+        
+        printf("Received file from another instance: %s\n", filepath);
+        
+        // Add to queue and play
+        add_to_queue(&player->queue, filepath);
+        player->queue.current_index = player->queue.count - 1;
+        
+        if (load_file_from_queue(player)) {
+            update_queue_display_with_filter(player);
+            update_gui_state(player);
+            start_playback(player);
+        }
+        
+        // Bring window to front
+        gtk_window_present(GTK_WINDOW(player->window));
+        
+        g_dbus_method_invocation_return_value(invocation, NULL);
+    }
+}
+
+static const GDBusInterfaceVTable interface_vtable = {
+    handle_dbus_method_call,
+    NULL,
+    NULL
+};
+
+static const gchar introspection_xml[] =
+    "<node>"
+    "  <interface name='com.zenamp.AudioPlayer'>"
+    "    <method name='AddAndPlay'>"
+    "      <arg type='s' name='filepath' direction='in'/>"
+    "    </method>"
+    "  </interface>"
+    "</node>";
+
+bool try_send_to_existing_instance(const char *filepath) {
+    GError *error = NULL;
+    GDBusConnection *connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+    
+    if (!connection) {
+        g_error_free(error);
+        return false;
+    }
+    
+    GVariant *result = g_dbus_connection_call_sync(
+        connection,
+        ZENAMP_DBUS_NAME,
+        ZENAMP_DBUS_PATH,
+        "com.zenamp.AudioPlayer",
+        "AddAndPlay",
+        g_variant_new("(s)", filepath),
+        NULL,
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        NULL,
+        &error
+    );
+    
+    if (result) {
+        g_variant_unref(result);
+        g_object_unref(connection);
+        printf("Sent file to existing instance: %s\n", filepath);
+        return true;
+    }
+    
+    if (error) {
+        g_error_free(error);
+    }
+    g_object_unref(connection);
+    return false;
+}
+
+void setup_dbus_service(AudioPlayer *player) {
+    GError *error = NULL;
+    GDBusNodeInfo *introspection_data = g_dbus_node_info_new_for_xml(introspection_xml, &error);
+    
+    if (!introspection_data) {
+        printf("Failed to parse D-Bus introspection XML\n");
+        return;
+    }
+    
+    player->dbus_connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+    if (!player->dbus_connection) {
+        printf("Failed to connect to D-Bus\n");
+        return;
+    }
+    
+    g_dbus_connection_register_object(
+        player->dbus_connection,
+        ZENAMP_DBUS_PATH,
+        introspection_data->interfaces[0],
+        &interface_vtable,
+        player,
+        NULL,
+        &error
+    );
+    
+    player->dbus_owner_id = g_bus_own_name_on_connection(
+        player->dbus_connection,
+        ZENAMP_DBUS_NAME,
+        G_BUS_NAME_OWNER_FLAGS_NONE,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+    );
+    
+    g_dbus_node_info_unref(introspection_data);
+    printf("D-Bus service registered: %s\n", ZENAMP_DBUS_NAME);
+}
+
+void cleanup_dbus_service(AudioPlayer *player) {
+    if (player->dbus_owner_id > 0) {
+        g_bus_unown_name(player->dbus_owner_id);
+    }
+    if (player->dbus_connection) {
+        g_object_unref(player->dbus_connection);
+    }
+}
+#endif
+
+#ifdef _WIN32
+bool try_send_to_existing_instance(const char *filepath) {
+    HANDLE mutex = OpenMutexA(SYNCHRONIZE, FALSE, ZENAMP_MUTEX_NAME);
+    
+    if (!mutex) {
+        // No existing instance
+        return false;
+    }
+    
+    CloseHandle(mutex);
+    
+    // Find existing Zenamp window
+    HWND hwnd = FindWindowA(NULL, "Zenamp Audio Player");
+    if (!hwnd) {
+        return false;
+    }
+    
+    // Send filepath via WM_COPYDATA
+    COPYDATASTRUCT cds;
+    cds.dwData = 1; // Custom identifier
+    cds.cbData = strlen(filepath) + 1;
+    cds.lpData = (void*)filepath;
+    
+    SendMessage(hwnd, WM_COPYDATA, 0, (LPARAM)&cds);
+    
+    // Bring window to front
+    SetForegroundWindow(hwnd);
+    
+    printf("Sent file to existing instance: %s\n", filepath);
+    return true;
+}
+
+LRESULT CALLBACK window_proc_wrapper(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_COPYDATA) {
+        COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
+        if (cds->dwData == 1) {
+            char *filepath = (char*)cds->lpData;
+            
+            // Get player from window data
+            AudioPlayer *player = (AudioPlayer*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+            if (player) {
+                printf("Received file from another instance: %s\n", filepath);
+                
+                // Add to queue and play
+                add_to_queue(&player->queue, filepath);
+                player->queue.current_index = player->queue.count - 1;
+                
+                if (load_file_from_queue(player)) {
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                    start_playback(player);
+                }
+            }
+            return TRUE;
+        }
+    }
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+void setup_windows_single_instance(AudioPlayer *player) {
+    // Create mutex
+    player->single_instance_mutex = CreateMutexA(NULL, TRUE, ZENAMP_MUTEX_NAME);
+    
+    // Hook into GTK window's Win32 HWND
+    GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+    if (gdk_window) {
+        HWND hwnd = (HWND)gdk_win32_window_get_handle(gdk_window);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)player);
+        
+        // Subclass window to receive WM_COPYDATA
+        SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)window_proc_wrapper);
+    }
+    
+    printf("Windows single instance mutex created\n");
+}
+
+void cleanup_windows_single_instance(AudioPlayer *player) {
+    if (player->single_instance_mutex) {
+        CloseHandle(player->single_instance_mutex);
+    }
+}
+#endif
+
 
 int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
+    
+#ifndef _WIN32
+    // Check if instance already running on Linux
+    if (argc > 1) {
+        GError *error = NULL;
+        GDBusConnection *connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+        
+        if (connection) {
+            bool sent_all = true;
+            for (int i = 1; i < argc; i++) {
+                char abs_path[4096];
+                if (!realpath(argv[i], abs_path)) {
+                    strncpy(abs_path, argv[i], sizeof(abs_path) - 1);
+                }
+                
+                GVariant *result = g_dbus_connection_call_sync(
+                    connection,
+                    ZENAMP_DBUS_NAME,
+                    ZENAMP_DBUS_PATH,
+                    "com.zenamp.AudioPlayer",
+                    "AddAndPlay",
+                    g_variant_new("(s)", abs_path),
+                    NULL,
+                    G_DBUS_CALL_FLAGS_NONE,
+                    -1,
+                    NULL,
+                    &error
+                );
+                
+                if (result) {
+                    g_variant_unref(result);
+                    printf("Sent file to existing instance: %s\n", abs_path);
+                } else {
+                    sent_all = false;
+                    if (error) {
+                        g_error_free(error);
+                        error = NULL;
+                    }
+                }
+            }
+            
+            g_object_unref(connection);
+            
+            if (sent_all) {
+                printf("All files forwarded to existing instance, exiting\n");
+                return 0;
+            }
+        }
+        
+        if (error) {
+            g_error_free(error);
+        }
+    }
+#else
+    // Check if instance already running on Windows
+    if (argc > 1) {
+        HANDLE mutex = OpenMutexA(SYNCHRONIZE, FALSE, ZENAMP_MUTEX_NAME);
+        
+        if (mutex) {
+            CloseHandle(mutex);
+            
+            HWND hwnd = FindWindowA(NULL, "Zenamp Audio Player");
+            if (hwnd) {
+                for (int i = 1; i < argc; i++) {
+                    char abs_path[4096];
+                    _fullpath(abs_path, argv[i], sizeof(abs_path));
+                    
+                    COPYDATASTRUCT cds;
+                    cds.dwData = 1;
+                    cds.cbData = strlen(abs_path) + 1;
+                    cds.lpData = (void*)abs_path;
+                    
+                    SendMessage(hwnd, WM_COPYDATA, 0, (LPARAM)&cds);
+                    printf("Sent file to existing instance: %s\n", abs_path);
+                }
+                
+                SetForegroundWindow(hwnd);
+                printf("All files forwarded to existing instance, exiting\n");
+                return 0;
+            }
+        }
+    }
+#endif
     
     init_virtual_filesystem();
     
@@ -2652,6 +2953,121 @@ int main(int argc, char *argv[]) {
     create_main_window(player);
     update_gui_state(player);
     gtk_widget_show_all(player->window);
+    
+#ifndef _WIN32
+    // Setup D-Bus service on Linux
+    GError *error = NULL;
+    static const gchar introspection_xml[] =
+        "<node>"
+        "  <interface name='com.zenamp.AudioPlayer'>"
+        "    <method name='AddAndPlay'>"
+        "      <arg type='s' name='filepath' direction='in'/>"
+        "    </method>"
+        "  </interface>"
+        "</node>";
+    
+    GDBusNodeInfo *introspection_data = g_dbus_node_info_new_for_xml(introspection_xml, &error);
+    
+    if (introspection_data) {
+        GDBusConnection *connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+        
+        if (connection) {
+            static const GDBusInterfaceVTable interface_vtable = {
+                [](GDBusConnection *connection, const gchar *sender, const gchar *object_path,
+                   const gchar *interface_name, const gchar *method_name, GVariant *parameters,
+                   GDBusMethodInvocation *invocation, gpointer user_data) {
+                    AudioPlayer *player = (AudioPlayer*)user_data;
+                    
+                    if (g_strcmp0(method_name, "AddAndPlay") == 0) {
+                        const gchar *filepath;
+                        g_variant_get(parameters, "(s)", &filepath);
+                        
+                        printf("Received file from another instance: %s\n", filepath);
+                        
+                        add_to_queue(&player->queue, filepath);
+                        player->queue.current_index = player->queue.count - 1;
+                        
+                        if (load_file_from_queue(player)) {
+                            update_queue_display_with_filter(player);
+                            update_gui_state(player);
+                            start_playback(player);
+                        }
+                        
+                        gtk_window_present(GTK_WINDOW(player->window));
+                        g_dbus_method_invocation_return_value(invocation, NULL);
+                    }
+                },
+                NULL,
+                NULL
+            };
+            
+            g_dbus_connection_register_object(
+                connection,
+                ZENAMP_DBUS_PATH,
+                introspection_data->interfaces[0],
+                &interface_vtable,
+                player,
+                NULL,
+                &error
+            );
+            
+            g_bus_own_name_on_connection(
+                connection,
+                ZENAMP_DBUS_NAME,
+                G_BUS_NAME_OWNER_FLAGS_NONE,
+                NULL,
+                NULL,
+                NULL,
+                NULL
+            );
+            
+            printf("D-Bus service registered: %s\n", ZENAMP_DBUS_NAME);
+        }
+        
+        g_dbus_node_info_unref(introspection_data);
+    }
+    
+    if (error) {
+        printf("D-Bus setup error: %s\n", error->message);
+        g_error_free(error);
+    }
+#else
+    // Setup Windows single instance
+    HANDLE single_instance_mutex = CreateMutexA(NULL, TRUE, ZENAMP_MUTEX_NAME);
+    
+    GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+    if (gdk_window) {
+        HWND hwnd = (HWND)gdk_win32_window_get_handle(gdk_window);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)player);
+        
+        WNDPROC old_proc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)[](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
+            if (msg == WM_COPYDATA) {
+                COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
+                if (cds->dwData == 1) {
+                    char *filepath = (char*)cds->lpData;
+                    AudioPlayer *player = (AudioPlayer*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+                    
+                    if (player) {
+                        printf("Received file from another instance: %s\n", filepath);
+                        
+                        add_to_queue(&player->queue, filepath);
+                        player->queue.current_index = player->queue.count - 1;
+                        
+                        if (load_file_from_queue(player)) {
+                            update_queue_display_with_filter(player);
+                            update_gui_state(player);
+                            start_playback(player);
+                        }
+                    }
+                    return TRUE;
+                }
+            }
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+        });
+    }
+    
+    printf("Windows single instance mutex created\n");
+#endif
     
     load_player_settings(player);
     
@@ -2774,24 +3190,12 @@ int main(int argc, char *argv[]) {
     
     gtk_main();
     
-/*    printf("Cleaningg CDG\n");
-    if (player->cdg_display) {
-        cdg_display_free(player->cdg_display);
+#ifdef _WIN32
+    if (single_instance_mutex) {
+        CloseHandle(single_instance_mutex);
     }
-
-    printf("Cleaning visualizer\n");
-    if (player->visualizer) {
-        visualizer_free(player->visualizer);
-    }
-
-    
-    clear_queue(&player->queue);
-    cleanup_conversion_cache(&player->conversion_cache);
-    cleanup_virtual_filesystem();
-    pthread_mutex_destroy(&player->audio_mutex);*/
+#endif
     
     g_free(player);
     return 0;
 }
-
-

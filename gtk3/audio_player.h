@@ -1,6 +1,16 @@
 #ifndef AUDIO_PLAYER_H
 #define AUDIO_PLAYER_H
 
+// Add to audio_player.h:
+#ifndef _WIN32
+#include <gio/gio.h>
+#define ZENAMP_DBUS_NAME "com.zenamp.AudioPlayer"
+#define ZENAMP_DBUS_PATH "/com/zenamp/AudioPlayer"
+#else
+#include <windows.h>
+#define ZENAMP_MUTEX_NAME "Global\\ZenampSingleInstance"
+#endif
+
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
 #include <glib.h>
@@ -238,6 +248,15 @@ typedef struct {
     bool minimized_to_tray;
     
     AudioBufferCache audio_cache; 
+
+#ifndef _WIN32
+    guint dbus_owner_id;
+    GDBusConnection *dbus_connection;
+#else
+    HANDLE single_instance_mutex;
+    HANDLE pipe_handle;
+#endif
+
     
 } AudioPlayer;
 
