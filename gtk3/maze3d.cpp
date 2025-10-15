@@ -256,12 +256,33 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     
     // Draw textured sky with gradient
     cairo_pattern_t *sky_pattern = cairo_pattern_create_linear(0, 0, 0, half_height);
-    cairo_pattern_add_color_stop_rgb(sky_pattern, 0, 0.05, 0.05, 0.15);
-    cairo_pattern_add_color_stop_rgb(sky_pattern, 1, 0.15, 0.1, 0.25);
+    cairo_pattern_add_color_stop_rgb(sky_pattern, 0, 0.3, 0.6, 1.0);
+    cairo_pattern_add_color_stop_rgb(sky_pattern, 1, 0.6, 0.8, 1.0);
     cairo_set_source(cr, sky_pattern);
     cairo_rectangle(cr, 0, 0, vis->width, half_height);
     cairo_fill(cr);
     cairo_pattern_destroy(sky_pattern);
+    
+    // Draw clouds in the sky
+    for (int cloud_x = 0; cloud_x < vis->width; cloud_x += 60) {
+        int cloud_seed = cloud_x + (int)(maze->maze_time * 30) % 200;
+        double cloud_noise = sin(cloud_seed * 0.02) * 0.5 + 0.5;
+        
+        if (cloud_noise > 0.4) {
+            double cloud_y = 50 + sin(cloud_x * 0.01) * 40 + cloud_noise * 30;
+            double cloud_opacity = (cloud_noise - 0.4) * 1.5;
+            if (cloud_opacity > 0.7) cloud_opacity = 0.7;
+            
+            // Draw puffy cloud shapes
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, cloud_opacity);
+            cairo_arc(cr, cloud_x - 15, cloud_y, 12.0, 0, 2 * M_PI);
+            cairo_fill(cr);
+            cairo_arc(cr, cloud_x, cloud_y - 8, 14.0, 0, 2 * M_PI);
+            cairo_fill(cr);
+            cairo_arc(cr, cloud_x + 15, cloud_y, 12.0, 0, 2 * M_PI);
+            cairo_fill(cr);
+        }
+    }
     
     // Draw textured floor with gradient
     cairo_pattern_t *floor_pattern = cairo_pattern_create_linear(0, half_height, 0, vis->height);
@@ -357,6 +378,188 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         cairo_set_source_rgb(cr, r, g, b);
         cairo_rectangle(cr, ray, top_y, 1, height);
         cairo_fill(cr);
+    }
+    
+    // Draw wall decorations: different visualization for each wall direction
+    int num_wall_bars = VIS_FREQUENCY_BARS;
+    
+    for (int ray = 0; ray < num_rays; ray++) {
+        double ray_angle = player->angle - fov / 2.0 + (ray / (double)num_rays) * fov;
+        
+        if (wall_distances[ray] > 0.5 && wall_distances[ray] < 10.0) {
+            double ray_dx = cos(ray_angle);
+            double ray_dy = sin(ray_angle);
+            
+            // Simple raycasting to determine wall type
+            double ray_x = player->x;
+            double ray_y = player->y;
+            double step_size = 0.02;
+            double dist = 0.0;
+            int hit = 0;
+            int wall_type = 0;
+            
+            while (dist < 20.0 && !hit) {
+                ray_x += ray_dx * step_size;
+                ray_y += ray_dy * step_size;
+                dist += step_size;
+                
+                int map_x = (int)ray_x;
+                int map_y = (int)ray_y;
+                
+                if (map_x < 0 || map_x >= MAZE_WIDTH || map_y < 0 || map_y >= MAZE_HEIGHT) {
+                    hit = 1;
+                    wall_type = 0;
+                    break;
+                }
+                
+                double frac_x = ray_x - map_x;
+                double frac_y = ray_y - map_y;
+                
+                if (maze->cells[map_y][map_x] & WALL_NORTH && frac_y < 0.1) {
+                    hit = 1;
+                    wall_type = 0;
+                } else if (maze->cells[map_y][map_x] & WALL_SOUTH && frac_y > 0.9) {
+                    hit = 1;
+                    wall_type = 2;
+                } else if (maze->cells[map_y][map_x] & WALL_WEST && frac_x < 0.1) {
+                    hit = 1;
+                    wall_type = 3;
+                } else if (maze->cells[map_y][map_x] & WALL_EAST && frac_x > 0.9) {
+                    hit = 1;
+                    wall_type = 1;
+                }
+            }
+            
+            double wall_height = (vis->height / wall_distances[ray]) * 0.5;
+            if (wall_height > vis->height * 2) wall_height = vis->height * 2;
+            
+            int top_y = (int)(half_height - wall_height / 2);
+            int center_y = (int)half_height;
+            int height = (int)wall_height;
+            
+            // Draw multi-colored bars on SOUTH walls (wall_type == 2)
+            if (wall_type == 2) {
+                int bar_idx = (int)((ray / (double)num_rays) * num_wall_bars) % num_wall_bars;
+                double bar_intensity = vis->frequency_bands[bar_idx];
+                
+                double bar_extend = bar_intensity * (wall_height * 0.35);
+                double bar_top = center_y - bar_extend;
+                double bar_bottom = center_y + bar_extend;
+                
+                // Multi-color gradient based on frequency
+                double hue = (double)bar_idx / num_wall_bars;
+                double bar_r, bar_g, bar_b;
+                
+                // Create rainbow spectrum
+                if (hue < 0.166) {
+                    bar_r = 1.0; bar_g = hue / 0.166; bar_b = 0.0;
+                } else if (hue < 0.333) {
+                    bar_r = 1.0 - (hue - 0.166) / 0.167; bar_g = 1.0; bar_b = 0.0;
+                } else if (hue < 0.5) {
+                    bar_r = 0.0; bar_g = 1.0; bar_b = (hue - 0.333) / 0.167;
+                } else if (hue < 0.666) {
+                    bar_r = 0.0; bar_g = 1.0 - (hue - 0.5) / 0.166; bar_b = 1.0;
+                } else if (hue < 0.833) {
+                    bar_r = (hue - 0.666) / 0.167; bar_g = 0.0; bar_b = 1.0;
+                } else {
+                    bar_r = 1.0; bar_g = 0.0; bar_b = 1.0 - (hue - 0.833) / 0.167;
+                }
+                
+                // Add glow effect
+                cairo_set_source_rgba(cr, bar_r, bar_g, bar_b, bar_intensity * 0.5);
+                cairo_rectangle(cr, ray - 1, bar_top - 2, 3, bar_bottom - bar_top + 4);
+                cairo_fill(cr);
+                
+                // Draw bright core
+                cairo_set_source_rgba(cr, bar_r, bar_g, bar_b, 0.9);
+                cairo_rectangle(cr, ray, bar_top, 1, bar_bottom - bar_top);
+                cairo_fill(cr);
+            }
+            
+            // Draw oscilloscope on EAST walls (wall_type == 1)
+            else if (wall_type == 1) {
+                int sample_idx = (int)((ray / (double)num_rays) * VIS_SAMPLES) % VIS_SAMPLES;
+                double sample = vis->audio_samples[sample_idx];
+                
+                double wave_y = center_y + sample * (wall_height * 0.4);
+                
+                // Draw grid lines
+                if ((int)ray % 32 == 0) {
+                    cairo_set_source_rgba(cr, 0.2, 0.2, 0.2, 0.3);
+                    cairo_move_to(cr, ray, top_y);
+                    cairo_line_to(cr, ray, top_y + height);
+                    cairo_stroke(cr);
+                }
+                
+                // Draw waveform line - FIXED: proper cairo_move_to + cairo_line_to
+                cairo_set_source_rgba(cr, 0.2, 1.0, 0.8, 0.8);
+                cairo_set_line_width(cr, 1.5);
+                cairo_move_to(cr, ray, wave_y);
+                cairo_line_to(cr, ray + 1, wave_y);
+                cairo_stroke(cr);
+                
+                // Add glow point
+                cairo_set_source_rgba(cr, 0.2, 1.0, 0.8, 0.6);
+                cairo_arc(cr, ray, wave_y, 1.0, 0, 2 * M_PI);
+                cairo_fill(cr);
+            }
+            
+            // Draw vertical bars on WEST walls (wall_type == 3)
+            else if (wall_type == 3) {
+                int bar_idx = (int)((ray / (double)num_rays) * num_wall_bars) % num_wall_bars;
+                double bar_intensity = vis->frequency_bands[bar_idx];
+                
+                // Draw tall vertical bars across the wall
+                double bar_width = 2.0;
+                double bar_height = bar_intensity * height * 0.6;
+                double bar_x = ray;
+                double bar_top = center_y - bar_height * 0.5;
+                
+                // Rainbow colors
+                double hue = (double)bar_idx / num_wall_bars;
+                double bar_r, bar_g, bar_b;
+                
+                if (hue < 0.166) {
+                    bar_r = 1.0; bar_g = hue / 0.166; bar_b = 0.0;
+                } else if (hue < 0.333) {
+                    bar_r = 1.0 - (hue - 0.166) / 0.167; bar_g = 1.0; bar_b = 0.0;
+                } else if (hue < 0.5) {
+                    bar_r = 0.0; bar_g = 1.0; bar_b = (hue - 0.333) / 0.167;
+                } else if (hue < 0.666) {
+                    bar_r = 0.0; bar_g = 1.0 - (hue - 0.5) / 0.166; bar_b = 1.0;
+                } else if (hue < 0.833) {
+                    bar_r = (hue - 0.666) / 0.167; bar_g = 0.0; bar_b = 1.0;
+                } else {
+                    bar_r = 1.0; bar_g = 0.0; bar_b = 1.0 - (hue - 0.833) / 0.167;
+                }
+                
+                cairo_set_source_rgba(cr, bar_r, bar_g, bar_b, 0.7);
+                cairo_rectangle(cr, bar_x, bar_top, bar_width, bar_height);
+                cairo_fill(cr);
+            }
+            
+            // Draw waveform on NORTH walls (wall_type == 0)
+            else if (wall_type == 0) {
+                // Map ray to audio sample index
+                int sample_idx = (int)((ray / (double)num_rays) * VIS_SAMPLES) % VIS_SAMPLES;
+                double sample = vis->audio_samples[sample_idx];
+                
+                // Draw dark background
+                cairo_set_source_rgb(cr, 0.05, 0.05, 0.1);
+                cairo_rectangle(cr, ray, top_y, 1, height);
+                cairo_fill(cr);
+                
+                // Draw centered waveform line - FIXED: proper cairo_move_to + cairo_line_to
+                double wave_y = center_y + sample * (height * 0.35);
+                
+                // Draw white waveform with proper path
+                cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.8);
+                cairo_set_line_width(cr, 1.0);
+                cairo_move_to(cr, ray, wave_y);
+                cairo_line_to(cr, ray + 1, wave_y);
+                cairo_stroke(cr);
+            }
+        }
     }
     
     // Draw penguin if visible and in front of walls
