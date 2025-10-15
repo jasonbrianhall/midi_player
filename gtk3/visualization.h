@@ -26,6 +26,7 @@
 #include "hanoi.h"
 #include "beatchess.h"
 #include "beatcheckers.h"
+#include "maze3d.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -63,6 +64,7 @@ typedef enum {
     VIS_DRAW_WORMHOLE,
     VIS_BIRTHDAY,
     VIS_RABBITHARE,
+    VIS_MAZE_3D,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -302,6 +304,9 @@ typedef struct {
     
     // Checkers
     BeatCheckersVisualization beat_checkers;
+
+    // Maze 3D
+    Maze3D maze3d;
 
 } Visualizer;
 
@@ -582,6 +587,15 @@ void draw_birthday_candles(Visualizer *vis, cairo_t *cr);
 
 void draw_rabbithare(Visualizer *vis, cairo_t *cr);
 void update_rabbithare(Visualizer *vis, double dt);
+
+// Function declarations
+void init_maze3d_system(Visualizer *vis);
+void generate_maze(Maze3D *maze);
+void solve_maze(Maze3D *maze);
+void update_maze3d(Visualizer *vis, double dt);
+void draw_maze3d(Visualizer *vis, cairo_t *cr);
+void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale, 
+                     double rotation, double bob_offset, gboolean found, double pulse);
 
 #endif
 

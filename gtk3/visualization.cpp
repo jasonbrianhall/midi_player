@@ -87,6 +87,7 @@ Visualizer* visualizer_new(void) {
     init_hanoi_system(vis);
     init_beat_chess_system(vis);
     init_beat_checkers_system(vis);
+    init_maze3d_system(vis);
     
     // Auto-cleanup when widget is destroyed
     g_object_set_data_full(G_OBJECT(vis->drawing_area), "visualizer", vis, (GDestroyNotify)visualizer_free);
@@ -428,6 +429,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_RABBITHARE:
           draw_rabbithare(vis, cr);
           break;                                         
+       case VIS_MAZE_3D:
+          draw_maze3d(vis, cr);
+          break;                                         
 
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
@@ -564,7 +568,9 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_RABBITHARE:
                 update_rabbithare(vis, dt);
                 break;                                                
-
+            case VIS_MAZE_3D:
+                update_maze3d(vis, dt);
+                break;                                                
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -666,6 +672,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Wormhole Simulation");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Birthday Cake");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Rabbit/Turtle Race");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "3d Maze");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
