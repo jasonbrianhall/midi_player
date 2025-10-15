@@ -276,6 +276,9 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     double fov = M_PI / 3.0; // 60 degrees
     int num_rays = vis->width;  // One ray per pixel column
     
+    // Store wall distances for z-buffering
+    double *wall_distances = (double*)malloc(num_rays * sizeof(double));
+    
     for (int ray = 0; ray < num_rays; ray++) {
         double ray_angle = player->angle - fov / 2.0 + (ray / (double)num_rays) * fov;
         
@@ -329,6 +332,9 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         dist = dist * cos(ray_angle - player->angle);
         if (dist < 0.1) dist = 0.1;
         
+        // Store wall distance for z-buffering
+        wall_distances[ray] = dist;
+        
         // Calculate wall height
         double wall_height = (vis->height / dist) * 0.5;
         if (wall_height > vis->height * 2) wall_height = vis->height * 2;
@@ -353,7 +359,7 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         cairo_fill(cr);
     }
     
-    // Draw penguin if visible
+    // Draw penguin if visible and in front of walls
     double dx = maze->penguin.x - player->x;
     double dy = maze->penguin.y - player->y;
     double penguin_dist = sqrt(dx * dx + dy * dy);
@@ -365,10 +371,18 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     
     if (fabs(angle_diff) < fov / 2.0 && penguin_dist < 15.0) {
         double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
-        draw_penguin_3d(cr, screen_x, penguin_dist, maze->penguin.scale,
-                       maze->penguin.rotation, maze->penguin.bob_offset,
-                       maze->penguin.found, maze->audio_pulse);
+        int penguin_ray = (int)screen_x;
+        
+        // Only draw penguin if it's closer than the wall at this position
+        if (penguin_ray >= 0 && penguin_ray < num_rays && penguin_dist < wall_distances[penguin_ray]) {
+            draw_penguin_3d(cr, screen_x, penguin_dist, maze->penguin.scale,
+                           maze->penguin.rotation, maze->penguin.bob_offset,
+                           maze->penguin.found, maze->audio_pulse);
+        }
     }
+    
+    // Free the z-buffer
+    free(wall_distances);
     
     // Draw minimap
     double minimap_size = 200;
