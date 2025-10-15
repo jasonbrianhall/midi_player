@@ -551,12 +551,19 @@ void switch_layout(AudioPlayer *player, bool to_compact) {
 }
 
 void create_main_window(AudioPlayer *player) {
+#ifdef _WIN32
+    // Mark for Windows single instance detection
+    // The actual property will be set after gtk_widget_show_all() in main()
+    static bool zenamp_window_marker = true;
+    printf("Windows single instance marker prepared\n");
+#endif
+    
     // Calculate layout configuration first
     calculate_layout_config(&player->layout);
     
     // Create main window
     player->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp");
+    gtk_window_set_title(GTK_WINDOW(player->window), "Zenamp Audio Player");
     gtk_window_set_default_size(GTK_WINDOW(player->window), 
                                player->layout.config.window_width, 
                                player->layout.config.window_height);

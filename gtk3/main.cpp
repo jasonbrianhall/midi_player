@@ -2899,8 +2899,18 @@ int main(int argc, char *argv[]) {
         if (mutex) {
             CloseHandle(mutex);
             
-            HWND hwnd = FindWindowA(NULL, "Zenamp Audio Player");
+            // Find Zenamp window by property
+            HWND hwnd = NULL;
+            EnumWindows([](HWND hwnd_enum, LPARAM lParam) -> BOOL {
+                if (GetPropA(hwnd_enum, "ZenampInstance")) {
+                    *(HWND*)lParam = hwnd_enum;
+                    return FALSE; // Stop enumeration
+                }
+                return TRUE; // Continue
+            }, (LPARAM)&hwnd);
+            
             if (hwnd) {
+                printf("Found existing Zenamp window, sending files...\n");
                 for (int i = 1; i < argc; i++) {
                     char abs_path[4096];
                     _fullpath(abs_path, argv[i], sizeof(abs_path));
@@ -2915,6 +2925,7 @@ int main(int argc, char *argv[]) {
                 }
                 
                 SetForegroundWindow(hwnd);
+                ShowWindow(hwnd, SW_RESTORE);
                 printf("All files forwarded to existing instance, exiting\n");
                 return 0;
             }
@@ -2954,6 +2965,64 @@ int main(int argc, char *argv[]) {
     create_main_window(player);
     update_gui_state(player);
     gtk_widget_show_all(player->window);
+    
+#ifdef _WIN32
+    // Setup Windows single instance AFTER window is shown
+    HANDLE single_instance_mutex = CreateMutexA(NULL, TRUE, ZENAMP_MUTEX_NAME);
+    player->single_instance_mutex = single_instance_mutex;
+    
+    GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+    if (gdk_window) {
+        HWND hwnd = (HWND)gdk_win32_window_get_handle(gdk_window);
+        if (hwnd) {
+            // Set a window property to identify this as Zenamp
+            SetPropA(hwnd, "ZenampInstance", (HANDLE)1);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)player);
+            
+            // Subclass to handle WM_COPYDATA
+            WNDPROC old_proc = (WNDPROC)GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+            SetProp(hwnd, TEXT("OldWndProc"), (HANDLE)old_proc);
+            
+            SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)+[](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
+                if (msg == WM_COPYDATA) {
+                    COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
+                    if (cds->dwData == 1) {
+                        char *filepath = (char*)cds->lpData;
+                        AudioPlayer *player = (AudioPlayer*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+                        
+                        if (player) {
+                            printf("Received file from another instance: %s\n", filepath);
+                            
+                            add_to_queue(&player->queue, filepath);
+                            player->queue.current_index = player->queue.count - 1;
+                            
+                            if (load_file_from_queue(player)) {
+                                update_queue_display_with_filter(player);
+                                update_gui_state(player);
+                                start_playback(player);
+                            }
+                            
+                            // Bring window to front
+                            SetForegroundWindow(hwnd);
+                            ShowWindow(hwnd, SW_RESTORE);
+                        }
+                        return TRUE;
+                    }
+                }
+                
+                WNDPROC old_proc = (WNDPROC)GetProp(hwnd, TEXT("OldWndProc"));
+                if (old_proc) {
+                    return CallWindowProc(old_proc, hwnd, msg, wParam, lParam);
+                }
+                return DefWindowProc(hwnd, msg, wParam, lParam);
+            });
+            
+            printf("Windows message handler installed on HWND %p\n", hwnd);
+        }
+    }
+    
+    printf("Windows single instance mutex created\n");
+#endif
     
 #ifndef _WIN32
     // Setup D-Bus service on Linux
@@ -3032,59 +3101,6 @@ int main(int argc, char *argv[]) {
         printf("D-Bus setup error: %s\n", error->message);
         g_error_free(error);
     }
-#endif
-
-#ifdef _WIN32
-    // Setup Windows single instance
-    HANDLE single_instance_mutex = CreateMutexA(NULL, TRUE, ZENAMP_MUTEX_NAME);
-    player->single_instance_mutex = single_instance_mutex;
-    
-    // We need to wait for window to be realized before getting HWND
-    g_signal_connect(player->window, "realize", G_CALLBACK(+[](GtkWidget *widget, gpointer user_data) {
-        AudioPlayer *player = (AudioPlayer*)user_data;
-        GdkWindow *gdk_window = gtk_widget_get_window(widget);
-        if (gdk_window) {
-            HWND hwnd = (HWND)gdk_win32_window_get_handle(gdk_window);
-            SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)player);
-            
-            // Store old window proc and set new one
-            WNDPROC old_proc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)+[](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
-                static WNDPROC old_wnd_proc = NULL;
-                
-                if (msg == WM_COPYDATA) {
-                    COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
-                    if (cds->dwData == 1) {
-                        char *filepath = (char*)cds->lpData;
-                        AudioPlayer *player = (AudioPlayer*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-                        
-                        if (player) {
-                            printf("Received file from another instance: %s\n", filepath);
-                            
-                            add_to_queue(&player->queue, filepath);
-                            player->queue.current_index = player->queue.count - 1;
-                            
-                            if (load_file_from_queue(player)) {
-                                update_queue_display_with_filter(player);
-                                update_gui_state(player);
-                                start_playback(player);
-                            }
-                        }
-                        return TRUE;
-                    }
-                }
-                
-                if (old_wnd_proc) {
-                    return CallWindowProc(old_wnd_proc, hwnd, msg, wParam, lParam);
-                }
-                return DefWindowProc(hwnd, msg, wParam, lParam);
-            });
-            
-            // Store old proc for chaining
-            SetProp(hwnd, TEXT("OldWndProc"), (HANDLE)old_proc);
-        }
-    }), player);
-    
-    printf("Windows single instance mutex created\n");
 #endif
     
     load_player_settings(player);
