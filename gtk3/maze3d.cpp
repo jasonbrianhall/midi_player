@@ -2,9 +2,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 void init_maze3d_system(Visualizer *vis) {
     Maze3D *maze = &vis->maze3d;
+    
+    // Seed random for unique maze generation on every restart and solve
+    srand((unsigned int)time(NULL) + rand());
     
     // Initialize maze
     memset(maze->cells, 0x0F, sizeof(maze->cells)); // All walls initially
@@ -263,23 +267,40 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     cairo_fill(cr);
     cairo_pattern_destroy(sky_pattern);
     
-    // Draw clouds in the sky
-    for (int cloud_x = 0; cloud_x < vis->width; cloud_x += 60) {
-        int cloud_seed = cloud_x + (int)(maze->maze_time * 30) % 200;
+    // Draw clouds in the sky - location aware based on player position
+    double player_angle_normalized = player->angle;
+    while (player_angle_normalized < 0) player_angle_normalized += 2 * M_PI;
+    while (player_angle_normalized > 2 * M_PI) player_angle_normalized -= 2 * M_PI;
+    
+    // Map player viewing angle to horizontal cloud offset
+    double cloud_offset = (player_angle_normalized / (2 * M_PI)) * vis->width * 4;
+    
+    for (int cloud_idx = 0; cloud_idx < 6; cloud_idx++) {
+        // Position clouds based on viewing angle
+        int cloud_base_x = cloud_idx * 100;
+        int cloud_x = (int)(cloud_base_x - cloud_offset) % (int)(vis->width * 2);
+        if (cloud_x < 0) cloud_x += vis->width * 2;
+        cloud_x = cloud_x % (int)vis->width;
+        
+        // Use cloud index as seed for consistent cloud properties
+        int cloud_seed = cloud_idx * 12345;
         double cloud_noise = sin(cloud_seed * 0.02) * 0.5 + 0.5;
         
-        if (cloud_noise > 0.4) {
-            double cloud_y = 50 + sin(cloud_x * 0.01) * 40 + cloud_noise * 30;
-            double cloud_opacity = (cloud_noise - 0.4) * 1.5;
-            if (cloud_opacity > 0.7) cloud_opacity = 0.7;
+        if (cloud_noise > 0.3) {
+            double cloud_y = 40 + sin(cloud_idx * 0.5) * 50 + cloud_noise * 40;
+            double cloud_opacity = (cloud_noise - 0.3) * 1.2;
+            if (cloud_opacity > 0.6) cloud_opacity = 0.6;
+            
+            // Vary cloud size based on cloud index
+            double cloud_size_mult = 0.8 + cloud_noise * 0.4;
             
             // Draw puffy cloud shapes
             cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, cloud_opacity);
-            cairo_arc(cr, cloud_x - 15, cloud_y, 12.0, 0, 2 * M_PI);
+            cairo_arc(cr, cloud_x - 15 * cloud_size_mult, cloud_y, 12.0 * cloud_size_mult, 0, 2 * M_PI);
             cairo_fill(cr);
-            cairo_arc(cr, cloud_x, cloud_y - 8, 14.0, 0, 2 * M_PI);
+            cairo_arc(cr, cloud_x, cloud_y - 8, 14.0 * cloud_size_mult, 0, 2 * M_PI);
             cairo_fill(cr);
-            cairo_arc(cr, cloud_x + 15, cloud_y, 12.0, 0, 2 * M_PI);
+            cairo_arc(cr, cloud_x + 15 * cloud_size_mult, cloud_y, 12.0 * cloud_size_mult, 0, 2 * M_PI);
             cairo_fill(cr);
         }
     }
