@@ -4,6 +4,13 @@
 #include <string.h>
 #include <time.h>
 
+typedef struct {
+    int wall_type;
+    double hit_x;
+    double hit_y;
+    double dist;
+} RayHit;
+
 void init_maze3d_system(Visualizer *vis) {
     Maze3D *maze = &vis->maze3d;
     
@@ -41,6 +48,26 @@ void init_maze3d_system(Visualizer *vis) {
     maze->penguin.scale = 1.0;
     maze->penguin.found = FALSE;
     maze->penguin.found_time = 0.0;
+    
+    // Initialize rats scattered throughout the maze
+    for (int i = 0; i < MAX_RATS; i++) {
+        maze->rats[i].x = 2.0 + rand() % (MAZE_WIDTH - 4);
+        maze->rats[i].y = 2.0 + rand() % (MAZE_HEIGHT - 4);
+        maze->rats[i].angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
+        maze->rats[i].speed = 0.5 + (rand() / (double)RAND_MAX) * 0.5;
+        maze->rats[i].bob_offset = 0.0;
+        maze->rats[i].active = TRUE;
+    }
+    
+    // Initialize elephants
+    for (int i = 0; i < MAX_ELEPHANTS; i++) {
+        maze->elephants[i].x = 3.0 + (i * 10.0);
+        maze->elephants[i].y = 3.0 + (i * 10.0);
+        maze->elephants[i].angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
+        maze->elephants[i].speed = 0.3 + (rand() / (double)RAND_MAX) * 0.2;
+        maze->elephants[i].bob_offset = 0.0;
+        maze->elephants[i].active = TRUE;
+    }
     
     // Initialize wall colors with vibrant, distinct colors for each direction
     // North - Blue
@@ -168,6 +195,26 @@ void solve_maze(Maze3D *maze) {
     }
 }
 
+gboolean is_valid_position(Maze3D *maze, double x, double y, double radius) {
+    int map_x = (int)x;
+    int map_y = (int)y;
+    
+    if (map_x < 1 || map_x >= MAZE_WIDTH - 1 || map_y < 1 || map_y >= MAZE_HEIGHT - 1) {
+        return FALSE;
+    }
+    
+    double frac_x = x - map_x;
+    double frac_y = y - map_y;
+    
+    // Check walls around the position
+    if (maze->cells[map_y][map_x] & WALL_NORTH && frac_y - radius < 0.1) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_SOUTH && frac_y + radius > 0.9) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_WEST && frac_x - radius < 0.1) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_EAST && frac_x + radius > 0.9) return FALSE;
+    
+    return TRUE;
+}
+
 void update_maze3d(Visualizer *vis, double dt) {
     Maze3D *maze = &vis->maze3d;
     Player *player = &maze->player;
@@ -182,6 +229,58 @@ void update_maze3d(Visualizer *vis, double dt) {
     }
     avg_intensity /= VIS_FREQUENCY_BARS;
     maze->audio_pulse = maze->audio_pulse * 0.8 + avg_intensity * 0.2;
+    
+    // Update rats - random wandering with collision detection
+    for (int i = 0; i < MAX_RATS; i++) {
+        Creature *rat = &maze->rats[i];
+        if (!rat->active) continue;
+        
+        // Random direction changes
+        if (fmod(maze->maze_time * rat->speed, 3.0) < dt) {
+            rat->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI;
+        }
+        
+        // Try to move rat
+        double new_x = rat->x + cos(rat->angle) * rat->speed * dt;
+        double new_y = rat->y + sin(rat->angle) * rat->speed * dt;
+        
+        // Check if new position is valid (rat radius = 0.15)
+        if (is_valid_position(maze, new_x, new_y, 0.15)) {
+            rat->x = new_x;
+            rat->y = new_y;
+        } else {
+            // Hit a wall, pick random direction
+            rat->angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
+        }
+        
+        rat->bob_offset = sin(maze->maze_time * 4.0 + i) * 0.1;
+    }
+    
+    // Update elephants - slower wandering with collision detection
+    for (int i = 0; i < MAX_ELEPHANTS; i++) {
+        Creature *elephant = &maze->elephants[i];
+        if (!elephant->active) continue;
+        
+        // Elephants change direction less often
+        if (fmod(maze->maze_time * elephant->speed, 5.0) < dt) {
+            elephant->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI * 0.5;
+        }
+        
+        // Try to move elephant
+        double new_x = elephant->x + cos(elephant->angle) * elephant->speed * dt;
+        double new_y = elephant->y + sin(elephant->angle) * elephant->speed * dt;
+        
+        // Check if new position is valid (elephant radius = 0.4)
+        if (is_valid_position(maze, new_x, new_y, 0.4)) {
+            elephant->x = new_x;
+            elephant->y = new_y;
+        } else {
+            // Hit a wall, pick random direction
+            elephant->angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
+        }
+        
+        elephant->bob_offset = sin(maze->maze_time * 1.5 + i) * 0.2;
+    }
     
     // Auto-solve navigation
     if (maze->auto_solve && maze->solved && maze->move_timer > 0.1) {
@@ -245,13 +344,6 @@ void update_maze3d(Visualizer *vis, double dt) {
         init_maze3d_system(vis);
     }
 }
-
-typedef struct {
-    int wall_type;
-    double hit_x;
-    double hit_y;
-    double dist;
-} RayHit;
 
 void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     Maze3D *maze = &vis->maze3d;
@@ -569,6 +661,59 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         }
     }
     
+    // Draw creatures in order of distance (z-sorting)
+    // Draw rats
+    for (int i = 0; i < MAX_RATS; i++) {
+        if (!maze->rats[i].active) continue;
+        
+        double dx = maze->rats[i].x - player->x;
+        double dy = maze->rats[i].y - player->y;
+        double rat_dist = sqrt(dx * dx + dy * dy);
+        
+        if (rat_dist < 0.2) continue; // Too close
+        if (rat_dist > 15.0) continue; // Too far
+        
+        double rat_angle = atan2(dy, dx);
+        double angle_diff = rat_angle - player->angle;
+        while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
+        while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
+        
+        if (fabs(angle_diff) < fov / 2.0) {
+            double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
+            int rat_ray = (int)screen_x;
+            
+            if (rat_ray >= 0 && rat_ray < num_rays && rat_dist < wall_distances[rat_ray]) {
+                draw_rat_3d(cr, screen_x, rat_dist, maze->rats[i].angle, maze->rats[i].bob_offset);
+            }
+        }
+    }
+    
+    // Draw elephants
+    for (int i = 0; i < MAX_ELEPHANTS; i++) {
+        if (!maze->elephants[i].active) continue;
+        
+        double dx = maze->elephants[i].x - player->x;
+        double dy = maze->elephants[i].y - player->y;
+        double elephant_dist = sqrt(dx * dx + dy * dy);
+        
+        if (elephant_dist < 0.5) continue; // Too close
+        if (elephant_dist > 15.0) continue; // Too far
+        
+        double elephant_angle = atan2(dy, dx);
+        double angle_diff = elephant_angle - player->angle;
+        while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
+        while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
+        
+        if (fabs(angle_diff) < fov / 2.0) {
+            double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
+            int elephant_ray = (int)screen_x;
+            
+            if (elephant_ray >= 0 && elephant_ray < num_rays && elephant_dist < wall_distances[elephant_ray]) {
+                draw_elephant_3d(cr, screen_x, elephant_dist, maze->elephants[i].angle, maze->elephants[i].bob_offset);
+            }
+        }
+    }
+    
     // Draw penguin if visible and in front of walls
     double dx = maze->penguin.x - player->x;
     double dy = maze->penguin.y - player->y;
@@ -644,6 +789,24 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         }
     }
     
+    // Draw rats on minimap
+    for (int i = 0; i < MAX_RATS; i++) {
+        if (!maze->rats[i].active) continue;
+        cairo_set_source_rgb(cr, 0.8, 0.3, 0.3);
+        cairo_arc(cr, minimap_x + maze->rats[i].x * cell_size,
+                  minimap_y + maze->rats[i].y * cell_size, 2, 0, 2 * M_PI);
+        cairo_fill(cr);
+    }
+    
+    // Draw elephants on minimap
+    for (int i = 0; i < MAX_ELEPHANTS; i++) {
+        if (!maze->elephants[i].active) continue;
+        cairo_set_source_rgb(cr, 0.7, 0.5, 0.2);
+        cairo_arc(cr, minimap_x + maze->elephants[i].x * cell_size,
+                  minimap_y + maze->elephants[i].y * cell_size, 3, 0, 2 * M_PI);
+        cairo_fill(cr);
+    }
+    
     // Draw player on minimap
     cairo_set_source_rgb(cr, 1.0, 0, 0);
     cairo_arc(cr, minimap_x + player->x * cell_size, 
@@ -664,15 +827,149 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     cairo_fill(cr);
 }
 
+void draw_rat_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset) {
+    double size = (80.0 / distance);
+    if (size > 150) size = 150;
+    if (size < 5) size = 5;
+    
+    double screen_y = 300 + bob_offset * 30 - size * 0.05;
+    
+    cairo_save(cr);
+    cairo_translate(cr, screen_x, screen_y);
+    
+    // Body
+    cairo_set_source_rgb(cr, 0.4, 0.35, 0.3);
+    cairo_save(cr);
+    cairo_scale(cr, 1.2, 0.8);
+    cairo_arc(cr, 0, 0, size * 0.3, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    
+    // Head
+    cairo_set_source_rgb(cr, 0.45, 0.4, 0.35);
+    cairo_arc(cr, size * 0.25, -size * 0.1, size * 0.25, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Ears
+    cairo_arc(cr, size * 0.15, -size * 0.35, size * 0.1, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_arc(cr, size * 0.35, -size * 0.35, size * 0.1, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Eyes
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_arc(cr, size * 0.2, -size * 0.15, size * 0.05, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Nose
+    cairo_set_source_rgb(cr, 0.8, 0.3, 0.3);
+    cairo_arc(cr, size * 0.35, -size * 0.08, size * 0.08, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Tail
+    cairo_set_source_rgb(cr, 0.35, 0.3, 0.25);
+    cairo_set_line_width(cr, size * 0.08);
+    cairo_move_to(cr, -size * 0.35, 0);
+    cairo_curve_to(cr, -size * 0.5, size * 0.2 + sin(rotation) * size * 0.15,
+                   -size * 0.4, size * 0.4 + sin(rotation) * size * 0.2,
+                   -size * 0.2, size * 0.35 + sin(rotation) * size * 0.1);
+    cairo_stroke(cr);
+    
+    cairo_restore(cr);
+}
+
+void draw_elephant_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset) {
+    double size = (250.0 / distance);
+    if (size > 400) size = 400;
+    if (size < 10) size = 10;
+    
+    double screen_y = 300 + bob_offset * 40 - size * 0.15;
+    
+    cairo_save(cr);
+    cairo_translate(cr, screen_x, screen_y);
+    
+    // Body
+    cairo_set_source_rgb(cr, 0.6, 0.55, 0.5);
+    cairo_save(cr);
+    cairo_scale(cr, 1.3, 1.0);
+    cairo_arc(cr, 0, size * 0.05, size * 0.35, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    
+    // Head
+    cairo_set_source_rgb(cr, 0.63, 0.58, 0.53);
+    cairo_arc(cr, -size * 0.15, -size * 0.25, size * 0.28, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Ears
+    cairo_set_source_rgb(cr, 0.6, 0.55, 0.5);
+    cairo_save(cr);
+    cairo_translate(cr, -size * 0.35, -size * 0.1);
+    cairo_scale(cr, 0.6, 1.0);
+    cairo_arc(cr, 0, 0, size * 0.3, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    
+    cairo_save(cr);
+    cairo_translate(cr, size * 0.05, -size * 0.1);
+    cairo_scale(cr, 0.6, 1.0);
+    cairo_arc(cr, 0, 0, size * 0.3, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    
+    // Trunk
+    cairo_set_source_rgb(cr, 0.55, 0.5, 0.45);
+    cairo_set_line_width(cr, size * 0.12);
+    cairo_move_to(cr, -size * 0.1, size * 0.02);
+    double trunk_curve = sin(rotation * 0.5) * size * 0.15;
+    cairo_curve_to(cr, -size * 0.1 + trunk_curve * 0.5, size * 0.2,
+                   -size * 0.05 + trunk_curve, size * 0.4,
+                   -size * 0.02 + trunk_curve * 0.8, size * 0.5);
+    cairo_stroke(cr);
+    
+    // Eyes
+    cairo_set_source_rgb(cr, 0.2, 0.2, 0.2);
+    cairo_arc(cr, -size * 0.28, -size * 0.32, size * 0.08, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Tusks
+    cairo_set_source_rgb(cr, 0.95, 0.95, 0.9);
+    cairo_set_line_width(cr, size * 0.06);
+    cairo_move_to(cr, -size * 0.08, size * 0.08);
+    cairo_line_to(cr, -size * 0.12, size * 0.2);
+    cairo_stroke(cr);
+    
+    cairo_move_to(cr, size * 0.02, size * 0.08);
+    cairo_line_to(cr, size * 0.08, size * 0.2);
+    cairo_stroke(cr);
+    
+    // Legs
+    cairo_set_source_rgb(cr, 0.55, 0.5, 0.45);
+    double leg_positions[4] = {-size * 0.25, -size * 0.08, size * 0.08, size * 0.25};
+    for (int i = 0; i < 4; i++) {
+        cairo_rectangle(cr, leg_positions[i] - size * 0.08, size * 0.35, size * 0.16, size * 0.25);
+        cairo_fill(cr);
+    }
+    
+    // Tail
+    cairo_set_source_rgb(cr, 0.5, 0.45, 0.4);
+    cairo_set_line_width(cr, size * 0.08);
+    cairo_move_to(cr, size * 0.35, size * 0.15);
+    cairo_curve_to(cr, size * 0.5, size * 0.25 + sin(rotation * 0.3) * size * 0.1,
+                   size * 0.45, size * 0.45,
+                   size * 0.35, size * 0.55);
+    cairo_stroke(cr);
+    
+    cairo_restore(cr);
+}
+
 void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale,
                      double rotation, double bob_offset, gboolean found, double pulse) {
-    // Scale based on distance
     double size = (200.0 / distance) * scale;
     if (size > 300) size = 300;
     
     double screen_y = 300 + bob_offset * 50 - size * 0.1;
     
-    // Penguin body (ellipse)
     cairo_save(cr);
     cairo_translate(cr, screen_x, screen_y);
     

@@ -66,4 +66,10 @@ typedef struct {
     int exit_x, exit_y;            // Exit position (where penguin is)
 } Maze3D;
 
+void draw_rat_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset);
+void draw_elephant_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset);
+void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale,
+                     double rotation, double bob_offset, gboolean found, double pulse);
+
+
 #endif // MAZE3D_H
