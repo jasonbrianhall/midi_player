@@ -49,20 +49,22 @@ void init_maze3d_system(Visualizer *vis) {
     maze->penguin.found = FALSE;
     maze->penguin.found_time = 0.0;
     
-    // Initialize rats scattered throughout the maze
+    // Generate maze first
+    generate_maze(maze);
+    solve_maze(maze);
+    
+    // NOW initialize rats with valid positions
     for (int i = 0; i < MAX_RATS; i++) {
-        maze->rats[i].x = 2.0 + rand() % (MAZE_WIDTH - 4);
-        maze->rats[i].y = 2.0 + rand() % (MAZE_HEIGHT - 4);
+        find_valid_spawn_position(maze, &maze->rats[i].x, &maze->rats[i].y, 0.15);
         maze->rats[i].angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
         maze->rats[i].speed = 0.5 + (rand() / (double)RAND_MAX) * 0.5;
         maze->rats[i].bob_offset = 0.0;
         maze->rats[i].active = TRUE;
     }
     
-    // Initialize elephants
+    // NOW initialize elephants with valid positions
     for (int i = 0; i < MAX_ELEPHANTS; i++) {
-        maze->elephants[i].x = 3.0 + (i * 10.0);
-        maze->elephants[i].y = 3.0 + (i * 10.0);
+        find_valid_spawn_position(maze, &maze->elephants[i].x, &maze->elephants[i].y, 0.4);
         maze->elephants[i].angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
         maze->elephants[i].speed = 0.3 + (rand() / (double)RAND_MAX) * 0.2;
         maze->elephants[i].bob_offset = 0.0;
@@ -82,9 +84,6 @@ void init_maze3d_system(Visualizer *vis) {
     // West - Green
     hsv_to_rgb(140.0, 0.8, 0.85, &maze->wall_colors[3][0], 
                &maze->wall_colors[3][1], &maze->wall_colors[3][2]);
-    
-    generate_maze(maze);
-    solve_maze(maze);
 }
 
 // Recursive backtracking maze generation
@@ -206,13 +205,32 @@ gboolean is_valid_position(Maze3D *maze, double x, double y, double radius) {
     double frac_x = x - map_x;
     double frac_y = y - map_y;
     
-    // Check walls around the position
-    if (maze->cells[map_y][map_x] & WALL_NORTH && frac_y - radius < 0.1) return FALSE;
-    if (maze->cells[map_y][map_x] & WALL_SOUTH && frac_y + radius > 0.9) return FALSE;
-    if (maze->cells[map_y][map_x] & WALL_WEST && frac_x - radius < 0.1) return FALSE;
-    if (maze->cells[map_y][map_x] & WALL_EAST && frac_x + radius > 0.9) return FALSE;
+    // Relax collision checks - creatures can get closer to walls
+    if (maze->cells[map_y][map_x] & WALL_NORTH && frac_y - radius < 0.2) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_SOUTH && frac_y + radius > 0.8) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_WEST && frac_x - radius < 0.2) return FALSE;
+    if (maze->cells[map_y][map_x] & WALL_EAST && frac_x + radius > 0.8) return FALSE;
     
     return TRUE;
+}
+
+void find_valid_spawn_position(Maze3D *maze, double *x, double *y, double radius) {
+    int max_attempts = 100;
+    for (int attempt = 0; attempt < max_attempts; attempt++) {
+        int test_x = 2 + rand() % (MAZE_WIDTH - 4);
+        int test_y = 2 + rand() % (MAZE_HEIGHT - 4);
+        double test_pos_x = test_x + 0.5;
+        double test_pos_y = test_y + 0.5;
+        
+        if (is_valid_position(maze, test_pos_x, test_pos_y, radius)) {
+            *x = test_pos_x;
+            *y = test_pos_y;
+            return;
+        }
+    }
+    // Fallback to center of map
+    *x = MAZE_WIDTH / 2.0;
+    *y = MAZE_HEIGHT / 2.0;
 }
 
 void update_maze3d(Visualizer *vis, double dt) {
@@ -235,21 +253,29 @@ void update_maze3d(Visualizer *vis, double dt) {
         Creature *rat = &maze->rats[i];
         if (!rat->active) continue;
         
-        // Random direction changes
+        // Randomly change direction
         if (fmod(maze->maze_time * rat->speed, 3.0) < dt) {
-            rat->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI;
+            rat->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI * 0.5;
         }
         
-        // Try to move rat
-        double new_x = rat->x + cos(rat->angle) * rat->speed * dt;
-        double new_y = rat->y + sin(rat->angle) * rat->speed * dt;
+        // Try multiple small steps
+        double step_x = cos(rat->angle) * rat->speed * dt;
+        double step_y = sin(rat->angle) * rat->speed * dt;
+        double new_x = rat->x + step_x;
+        double new_y = rat->y + step_y;
         
-        // Check if new position is valid (rat radius = 0.15)
-        if (is_valid_position(maze, new_x, new_y, 0.15)) {
+        // Try full step
+        if (is_valid_position(maze, new_x, new_y, 0.1)) {
             rat->x = new_x;
             rat->y = new_y;
-        } else {
-            // Hit a wall, pick random direction
+        } 
+        // Try half step
+        else if (is_valid_position(maze, rat->x + step_x * 0.5, rat->y + step_y * 0.5, 0.1)) {
+            rat->x += step_x * 0.5;
+            rat->y += step_y * 0.5;
+        }
+        // Can't move, turn
+        else {
             rat->angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
         }
         
@@ -261,21 +287,29 @@ void update_maze3d(Visualizer *vis, double dt) {
         Creature *elephant = &maze->elephants[i];
         if (!elephant->active) continue;
         
-        // Elephants change direction less often
+        // Less frequent direction changes
         if (fmod(maze->maze_time * elephant->speed, 5.0) < dt) {
-            elephant->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI * 0.5;
+            elephant->angle += (rand() / (double)RAND_MAX - 0.5) * M_PI * 0.3;
         }
         
-        // Try to move elephant
-        double new_x = elephant->x + cos(elephant->angle) * elephant->speed * dt;
-        double new_y = elephant->y + sin(elephant->angle) * elephant->speed * dt;
+        // Try multiple small steps
+        double step_x = cos(elephant->angle) * elephant->speed * dt;
+        double step_y = sin(elephant->angle) * elephant->speed * dt;
+        double new_x = elephant->x + step_x;
+        double new_y = elephant->y + step_y;
         
-        // Check if new position is valid (elephant radius = 0.4)
-        if (is_valid_position(maze, new_x, new_y, 0.4)) {
+        // Try full step
+        if (is_valid_position(maze, new_x, new_y, 0.3)) {
             elephant->x = new_x;
             elephant->y = new_y;
-        } else {
-            // Hit a wall, pick random direction
+        }
+        // Try half step
+        else if (is_valid_position(maze, elephant->x + step_x * 0.5, elephant->y + step_y * 0.5, 0.3)) {
+            elephant->x += step_x * 0.5;
+            elephant->y += step_y * 0.5;
+        }
+        // Can't move, turn
+        else {
             elephant->angle = (rand() / (double)RAND_MAX) * 2 * M_PI;
         }
         
@@ -296,20 +330,15 @@ void update_maze3d(Visualizer *vis, double dt) {
             if (distance < 0.3) {
                 maze->current_path_index++;
             } else {
-                // Calculate target angle
                 double target_angle = atan2(dy, dx);
-                
-                // Smooth angle transition
                 double angle_diff = target_angle - player->angle;
                 while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
                 while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
                 
                 if (fabs(angle_diff) < 0.1) {
-                    // Move forward
                     player->x += cos(player->angle) * player->move_speed * dt;
                     player->y += sin(player->angle) * player->move_speed * dt;
                 } else {
-                    // Turn towards target
                     player->angle += angle_diff * player->turn_speed * dt;
                 }
             }
@@ -661,81 +690,81 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         }
     }
     
-    // Draw creatures in order of distance (z-sorting)
-    // Draw rats
-    for (int i = 0; i < MAX_RATS; i++) {
-        if (!maze->rats[i].active) continue;
-        
-        double dx = maze->rats[i].x - player->x;
-        double dy = maze->rats[i].y - player->y;
-        double rat_dist = sqrt(dx * dx + dy * dy);
-        
-        if (rat_dist < 0.2) continue; // Too close
-        if (rat_dist > 15.0) continue; // Too far
-        
-        double rat_angle = atan2(dy, dx);
-        double angle_diff = rat_angle - player->angle;
-        while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
-        while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
-        
-        if (fabs(angle_diff) < fov / 2.0) {
-            double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
-            int rat_ray = (int)screen_x;
-            
-            if (rat_ray >= 0 && rat_ray < num_rays && rat_dist < wall_distances[rat_ray]) {
-                draw_rat_3d(cr, screen_x, rat_dist, maze->rats[i].angle, maze->rats[i].bob_offset);
-            }
-        }
-    }
+// In draw_maze3d function, replace the creature drawing calls with these:
+
+// Draw rats (replace existing rat drawing code)
+for (int i = 0; i < MAX_RATS; i++) {
+    if (!maze->rats[i].active) continue;
     
-    // Draw elephants
-    for (int i = 0; i < MAX_ELEPHANTS; i++) {
-        if (!maze->elephants[i].active) continue;
-        
-        double dx = maze->elephants[i].x - player->x;
-        double dy = maze->elephants[i].y - player->y;
-        double elephant_dist = sqrt(dx * dx + dy * dy);
-        
-        if (elephant_dist < 0.5) continue; // Too close
-        if (elephant_dist > 15.0) continue; // Too far
-        
-        double elephant_angle = atan2(dy, dx);
-        double angle_diff = elephant_angle - player->angle;
-        while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
-        while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
-        
-        if (fabs(angle_diff) < fov / 2.0) {
-            double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
-            int elephant_ray = (int)screen_x;
-            
-            if (elephant_ray >= 0 && elephant_ray < num_rays && elephant_dist < wall_distances[elephant_ray]) {
-                draw_elephant_3d(cr, screen_x, elephant_dist, maze->elephants[i].angle, maze->elephants[i].bob_offset);
-            }
-        }
-    }
+    double dx = maze->rats[i].x - player->x;
+    double dy = maze->rats[i].y - player->y;
+    double rat_dist = sqrt(dx * dx + dy * dy);
     
-    // Draw penguin if visible and in front of walls
-    double dx = maze->penguin.x - player->x;
-    double dy = maze->penguin.y - player->y;
-    double penguin_dist = sqrt(dx * dx + dy * dy);
-    double penguin_angle = atan2(dy, dx);
+    if (rat_dist < 0.2) continue; // Too close
+    if (rat_dist > 15.0) continue; // Too far
     
-    double angle_diff = penguin_angle - player->angle;
+    double rat_angle = atan2(dy, dx);
+    double angle_diff = rat_angle - player->angle;
     while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
     while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
     
-    if (fabs(angle_diff) < fov / 2.0 && penguin_dist < 15.0) {
+    if (fabs(angle_diff) < fov / 2.0) {
         double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
-        int penguin_ray = (int)screen_x;
+        int rat_ray = (int)screen_x;
         
-        // Only draw penguin if it's closer than the wall at this position
-        if (penguin_ray >= 0 && penguin_ray < num_rays && penguin_dist < wall_distances[penguin_ray]) {
-            draw_penguin_3d(cr, screen_x, penguin_dist, maze->penguin.scale,
-                           maze->penguin.rotation, maze->penguin.bob_offset,
-                           maze->penguin.found, maze->audio_pulse);
+        if (rat_ray >= 0 && rat_ray < num_rays && rat_dist < wall_distances[rat_ray]) {
+            draw_rat_3d(cr, screen_x, rat_dist, maze->rats[i].angle, maze->rats[i].bob_offset, half_height);
         }
     }
+}
+
+// Draw elephants (replace existing elephant drawing code)
+for (int i = 0; i < MAX_ELEPHANTS; i++) {
+    if (!maze->elephants[i].active) continue;
     
+    double dx = maze->elephants[i].x - player->x;
+    double dy = maze->elephants[i].y - player->y;
+    double elephant_dist = sqrt(dx * dx + dy * dy);
+    
+    if (elephant_dist < 0.5) continue; // Too close
+    if (elephant_dist > 15.0) continue; // Too far
+    
+    double elephant_angle = atan2(dy, dx);
+    double angle_diff = elephant_angle - player->angle;
+    while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
+    while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
+    
+    if (fabs(angle_diff) < fov / 2.0) {
+        double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
+        int elephant_ray = (int)screen_x;
+        
+        if (elephant_ray >= 0 && elephant_ray < num_rays && elephant_dist < wall_distances[elephant_ray]) {
+            draw_elephant_3d(cr, screen_x, elephant_dist, maze->elephants[i].angle, maze->elephants[i].bob_offset, half_height);
+        }
+    }
+}
+
+// Draw penguin (replace existing penguin drawing code)
+double dx = maze->penguin.x - player->x;
+double dy = maze->penguin.y - player->y;
+double penguin_dist = sqrt(dx * dx + dy * dy);
+double penguin_angle = atan2(dy, dx);
+
+double angle_diff = penguin_angle - player->angle;
+while (angle_diff > M_PI) angle_diff -= 2 * M_PI;
+while (angle_diff < -M_PI) angle_diff += 2 * M_PI;
+
+if (fabs(angle_diff) < fov / 2.0 && penguin_dist < 15.0) {
+    double screen_x = half_width + (angle_diff / (fov / 2.0)) * half_width;
+    int penguin_ray = (int)screen_x;
+    
+    // Only draw penguin if it's closer than the wall at this position
+    if (penguin_ray >= 0 && penguin_ray < num_rays && penguin_dist < wall_distances[penguin_ray]) {
+        draw_penguin_3d(cr, screen_x, penguin_dist, maze->penguin.scale,
+                       maze->penguin.rotation, maze->penguin.bob_offset,
+                       maze->penguin.found, maze->audio_pulse, half_height);
+    }
+}
     // Free the z-buffer and ray hits
     free(wall_distances);
     free(ray_hits);
@@ -827,12 +856,14 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     cairo_fill(cr);
 }
 
-void draw_rat_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset) {
+void draw_rat_3d(cairo_t *cr, double screen_x, double distance, double rotation, 
+                 double bob_offset, double half_height) {
     double size = (80.0 / distance);
     if (size > 150) size = 150;
     if (size < 5) size = 5;
     
-    double screen_y = 300 + bob_offset * 30 - size * 0.05;
+    // Ground plane positioning - creatures sit on the horizon
+    double screen_y = half_height + (20.0 / (distance + 0.5)) + bob_offset * 30;
     
     cairo_save(cr);
     cairo_translate(cr, screen_x, screen_y);
@@ -878,12 +909,14 @@ void draw_rat_3d(cairo_t *cr, double screen_x, double distance, double rotation,
     cairo_restore(cr);
 }
 
-void draw_elephant_3d(cairo_t *cr, double screen_x, double distance, double rotation, double bob_offset) {
+void draw_elephant_3d(cairo_t *cr, double screen_x, double distance, double rotation, 
+                      double bob_offset, double half_height) {
     double size = (250.0 / distance);
     if (size > 400) size = 400;
     if (size < 10) size = 10;
     
-    double screen_y = 300 + bob_offset * 40 - size * 0.15;
+    // Ground plane positioning
+    double screen_y = half_height + (20.0 / (distance + 0.5)) + bob_offset * 40;
     
     cairo_save(cr);
     cairo_translate(cr, screen_x, screen_y);
@@ -964,11 +997,12 @@ void draw_elephant_3d(cairo_t *cr, double screen_x, double distance, double rota
 }
 
 void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale,
-                     double rotation, double bob_offset, gboolean found, double pulse) {
+                     double rotation, double bob_offset, gboolean found, double pulse, double half_height) {
     double size = (200.0 / distance) * scale;
     if (size > 300) size = 300;
     
-    double screen_y = 300 + bob_offset * 50 - size * 0.1;
+    // Ground plane positioning
+    double screen_y = half_height + (20.0 / (distance + 0.5)) + bob_offset * 50;
     
     cairo_save(cr);
     cairo_translate(cr, screen_x, screen_y);
