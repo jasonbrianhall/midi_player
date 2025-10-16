@@ -246,6 +246,13 @@ void update_maze3d(Visualizer *vis, double dt) {
     }
 }
 
+typedef struct {
+    int wall_type;
+    double hit_x;
+    double hit_y;
+    double dist;
+} RayHit;
+
 void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     Maze3D *maze = &vis->maze3d;
     Player *player = &maze->player;
@@ -320,7 +327,9 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
     
     // Store wall distances for z-buffering
     double *wall_distances = (double*)malloc(num_rays * sizeof(double));
+    RayHit *ray_hits = (RayHit*)malloc(num_rays * sizeof(RayHit));
     
+    // First pass: raycasting to find walls and store hit data
     for (int ray = 0; ray < num_rays; ray++) {
         double ray_angle = player->angle - fov / 2.0 + (ray / (double)num_rays) * fov;
         
@@ -377,6 +386,12 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         // Store wall distance for z-buffering
         wall_distances[ray] = dist;
         
+        // Store ray hit data
+        ray_hits[ray].wall_type = wall_type;
+        ray_hits[ray].hit_x = ray_x;
+        ray_hits[ray].hit_y = ray_y;
+        ray_hits[ray].dist = dist;
+        
         // Calculate wall height
         double wall_height = (vis->height / dist) * 0.5;
         if (wall_height > vis->height * 2) wall_height = vis->height * 2;
@@ -401,66 +416,37 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         cairo_fill(cr);
     }
     
-    // Draw wall decorations: different visualization for each wall direction
+    // Draw wall decorations using stored hit data
     int num_wall_bars = VIS_FREQUENCY_BARS;
     
     for (int ray = 0; ray < num_rays; ray++) {
-        double ray_angle = player->angle - fov / 2.0 + (ray / (double)num_rays) * fov;
-        
         if (wall_distances[ray] > 0.5 && wall_distances[ray] < 10.0) {
-            double ray_dx = cos(ray_angle);
-            double ray_dy = sin(ray_angle);
+            int wall_type = ray_hits[ray].wall_type;
+            double hit_x = ray_hits[ray].hit_x;
+            double hit_y = ray_hits[ray].hit_y;
+            double dist = ray_hits[ray].dist;
             
-            // Simple raycasting to determine wall type
-            double ray_x = player->x;
-            double ray_y = player->y;
-            double step_size = 0.02;
-            double dist = 0.0;
-            int hit = 0;
-            int wall_type = 0;
-            
-            while (dist < 20.0 && !hit) {
-                ray_x += ray_dx * step_size;
-                ray_y += ray_dy * step_size;
-                dist += step_size;
-                
-                int map_x = (int)ray_x;
-                int map_y = (int)ray_y;
-                
-                if (map_x < 0 || map_x >= MAZE_WIDTH || map_y < 0 || map_y >= MAZE_HEIGHT) {
-                    hit = 1;
-                    wall_type = 0;
-                    break;
-                }
-                
-                double frac_x = ray_x - map_x;
-                double frac_y = ray_y - map_y;
-                
-                if (maze->cells[map_y][map_x] & WALL_NORTH && frac_y < 0.1) {
-                    hit = 1;
-                    wall_type = 0;
-                } else if (maze->cells[map_y][map_x] & WALL_SOUTH && frac_y > 0.9) {
-                    hit = 1;
-                    wall_type = 2;
-                } else if (maze->cells[map_y][map_x] & WALL_WEST && frac_x < 0.1) {
-                    hit = 1;
-                    wall_type = 3;
-                } else if (maze->cells[map_y][map_x] & WALL_EAST && frac_x > 0.9) {
-                    hit = 1;
-                    wall_type = 1;
-                }
-            }
-            
-            double wall_height = (vis->height / wall_distances[ray]) * 0.5;
+            double wall_height = (vis->height / dist) * 0.5;
             if (wall_height > vis->height * 2) wall_height = vis->height * 2;
             
             int top_y = (int)(half_height - wall_height / 2);
             int center_y = (int)half_height;
             int height = (int)wall_height;
             
+            // Use hit position for consistent texture coordinate
+            double texture_u = 0;
+            
+            if (wall_type == 0 || wall_type == 2) { // North or South walls
+                texture_u = fmod(hit_x, 1.0);
+                if (texture_u < 0) texture_u += 1.0;
+            } else { // East or West walls
+                texture_u = fmod(hit_y, 1.0);
+                if (texture_u < 0) texture_u += 1.0;
+            }
+            
             // Draw multi-colored bars on SOUTH walls (wall_type == 2)
             if (wall_type == 2) {
-                int bar_idx = (int)((ray / (double)num_rays) * num_wall_bars) % num_wall_bars;
+                int bar_idx = (int)(texture_u * num_wall_bars) % num_wall_bars;
                 double bar_intensity = vis->frequency_bands[bar_idx];
                 
                 double bar_extend = bar_intensity * (wall_height * 0.35);
@@ -499,7 +485,7 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
             
             // Draw oscilloscope on EAST walls (wall_type == 1)
             else if (wall_type == 1) {
-                int sample_idx = (int)((ray / (double)num_rays) * VIS_SAMPLES) % VIS_SAMPLES;
+                int sample_idx = (int)(texture_u * VIS_SAMPLES) % VIS_SAMPLES;
                 double sample = vis->audio_samples[sample_idx];
                 
                 double wave_y = center_y + sample * (wall_height * 0.4);
@@ -512,7 +498,7 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
                     cairo_stroke(cr);
                 }
                 
-                // Draw waveform line - FIXED: proper cairo_move_to + cairo_line_to
+                // Draw waveform line
                 cairo_set_source_rgba(cr, 0.2, 1.0, 0.8, 0.8);
                 cairo_set_line_width(cr, 1.5);
                 cairo_move_to(cr, ray, wave_y);
@@ -527,7 +513,7 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
             
             // Draw vertical bars on WEST walls (wall_type == 3)
             else if (wall_type == 3) {
-                int bar_idx = (int)((ray / (double)num_rays) * num_wall_bars) % num_wall_bars;
+                int bar_idx = (int)(texture_u * num_wall_bars) % num_wall_bars;
                 double bar_intensity = vis->frequency_bands[bar_idx];
                 
                 // Draw tall vertical bars across the wall
@@ -561,8 +547,8 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
             
             // Draw waveform on NORTH walls (wall_type == 0)
             else if (wall_type == 0) {
-                // Map ray to audio sample index
-                int sample_idx = (int)((ray / (double)num_rays) * VIS_SAMPLES) % VIS_SAMPLES;
+                // Map texture coordinate to audio sample index
+                int sample_idx = (int)(texture_u * VIS_SAMPLES) % VIS_SAMPLES;
                 double sample = vis->audio_samples[sample_idx];
                 
                 // Draw dark background
@@ -570,7 +556,7 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
                 cairo_rectangle(cr, ray, top_y, 1, height);
                 cairo_fill(cr);
                 
-                // Draw centered waveform line - FIXED: proper cairo_move_to + cairo_line_to
+                // Draw centered waveform line
                 double wave_y = center_y + sample * (height * 0.35);
                 
                 // Draw white waveform with proper path
@@ -605,8 +591,9 @@ void draw_maze3d(Visualizer *vis, cairo_t *cr) {
         }
     }
     
-    // Free the z-buffer
+    // Free the z-buffer and ray hits
     free(wall_distances);
+    free(ray_hits);
     
     // Draw minimap
     double minimap_size = 200;

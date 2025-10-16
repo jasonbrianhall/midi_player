@@ -4,6 +4,8 @@
 #define MAZE_WIDTH 16
 #define MAZE_HEIGHT 16
 #define MAX_PATH_LENGTH 256
+#define MAX_RATS 8
+#define MAX_ELEPHANTS 2
 
 typedef enum {
     WALL_NORTH = 1,
@@ -35,6 +37,14 @@ typedef struct {
 } Penguin;
 
 typedef struct {
+    double x, y;           // Position
+    double angle;          // Direction facing
+    double speed;          // Movement speed
+    double bob_offset;     // Animation offset
+    gboolean active;       // Is this entity active?
+} Creature;
+
+typedef struct {
     unsigned char cells[MAZE_HEIGHT][MAZE_WIDTH];  // Wall flags for each cell
     Point path[MAX_PATH_LENGTH];   // Solution path
     int path_length;               // Length of solution path
@@ -43,6 +53,8 @@ typedef struct {
     
     Player player;
     Penguin penguin;
+    Creature rats[MAX_RATS];       // Rats wandering the maze
+    Creature elephants[MAX_ELEPHANTS];  // Elephants wandering the maze
     
     double maze_time;              // Time spent in current maze
     double audio_pulse;            // Audio-reactive pulse effect
