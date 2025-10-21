@@ -317,7 +317,7 @@ static void create_player_controls(AudioPlayer *player) {
     player->speed_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.1, 4.0, 0.5);
     gtk_range_set_value(GTK_RANGE(player->speed_scale), 1.0);
     gtk_scale_set_digits(GTK_SCALE(player->speed_scale), 1);
-    gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.5x to 4.0x)");
+    gtk_widget_set_tooltip_text(player->speed_scale, "Playback speed (0.1x to 4.0x)");
     gtk_widget_set_can_focus(player->speed_scale, TRUE);
 
     gtk_widget_set_size_request(player->volume_scale, 200, -1);
