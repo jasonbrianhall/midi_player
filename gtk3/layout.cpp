@@ -310,7 +310,7 @@ static void create_player_controls(AudioPlayer *player) {
     GtkWidget *volume_label = gtk_label_new("Volume:");
     player->volume_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 5.0, 0.1);
     gtk_range_set_value(GTK_RANGE(player->volume_scale), (double)globalVolume / 100.0);
-    gtk_widget_set_tooltip_text(player->volume_scale, "Volume (↑/↓ arrows)");
+    gtk_widget_set_tooltip_text(player->volume_scale, "App volume (↑/↓ arrows) - independent of system volume");
     gtk_widget_set_can_focus(player->volume_scale, TRUE);
 
     GtkWidget *speed_label = gtk_label_new("Speed:");
@@ -413,12 +413,13 @@ static void create_icon_section(AudioPlayer *player) {
 static void create_queue_display(AudioPlayer *player) {
     player->layout.queue_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     
-    // CRITICAL: Set fixed size on queue_vbox BEFORE packing
+    // Set a SMALLER default width (what it starts at)
+    // Full width would be ~950px, but start at config.queue_width for compact view
     gtk_widget_set_size_request(player->layout.queue_vbox, 
                                player->layout.config.queue_width, -1);
     
-    // Pack with FALSE, FALSE to prevent it from expanding and squeezing the left side
-    gtk_box_pack_end(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, FALSE, FALSE, 0);
+    // Pack with TRUE, TRUE so it can expand larger if user resizes
+    gtk_box_pack_end(GTK_BOX(player->layout.main_hbox), player->layout.queue_vbox, TRUE, TRUE, 0);
 
     GtkWidget *queue_label = gtk_label_new("Queue:");
     gtk_widget_set_halign(queue_label, GTK_ALIGN_START);
@@ -579,10 +580,10 @@ void create_main_window(AudioPlayer *player) {
     player->layout.main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_container_add(GTK_CONTAINER(player->window), player->layout.main_hbox);
     
-    // Player controls vbox (left side)
+    // Player controls vbox (left side) - use TRUE, TRUE to allow expansion
     player->layout.player_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_widget_set_size_request(player->layout.player_vbox, player->layout.config.player_width, -1);
-    gtk_box_pack_start(GTK_BOX(player->layout.main_hbox), player->layout.player_vbox, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(player->layout.main_hbox), player->layout.player_vbox, TRUE, TRUE, 0);
     
     // Create menu bar
     create_menu_bar(player);
