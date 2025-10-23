@@ -346,7 +346,10 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
             break;
        case VIS_TRIPPY_BARS:
             draw_trippy(vis, cr);
-            break;                                         
+            break;
+       case VIS_RADIAL_BARS:
+           draw_radial_bars_bouncing(vis, cr);
+           break;                                       
         case VIS_CIRCLE:
             draw_circle(vis, cr);
             break;
@@ -508,6 +511,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_TRIPPY_BARS:
                 update_trippy(vis, dt); // 33ms = ~30 FPS
                 break;
+            case VIS_RADIAL_BARS:
+                update_radial_bars_bouncing(vis, dt); // 33ms = ~30 FPS
+                break;
+
             case VIS_FIREWORKS:
                 update_fireworks(vis, dt); // 33ms = ~30 FPS
                 break;
@@ -645,6 +652,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Oscilloscope");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bars");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Trippy Bars");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Radial Bars");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Circle");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Volume Meter");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Bubbles");

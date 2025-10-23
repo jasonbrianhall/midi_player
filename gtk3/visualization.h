@@ -27,6 +27,7 @@
 #include "beatchess.h"
 #include "beatcheckers.h"
 #include "maze3d.h"
+#include "drawradialbars.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -37,6 +38,7 @@ typedef enum {
     VIS_OSCILLOSCOPE,
     VIS_BARS,
     VIS_TRIPPY_BARS,
+    VIS_RADIAL_BARS,
     VIS_CIRCLE,
     VIS_VOLUME_METER,
     VIS_BUBBLES,
@@ -307,6 +309,8 @@ typedef struct {
 
     // Maze 3D
     Maze3D maze3d;
+ 
+    RadialBarsSystem  radial_bars_system;
 
 } Visualizer;
 
@@ -596,6 +600,10 @@ void update_maze3d(Visualizer *vis, double dt);
 void draw_maze3d(Visualizer *vis, cairo_t *cr);
 void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale, 
                      double rotation, double bob_offset, gboolean found, double pulse);
+
+// Radial Bars
+void draw_radial_bars_bouncing(Visualizer *vis, cairo_t *cr);
+void update_radial_bars_bouncing(Visualizer *vis, double dt);
 
 #endif
 
