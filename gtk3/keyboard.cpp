@@ -149,6 +149,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             
         case GDK_KEY_Delete:
         case GDK_KEY_d:
+        case GDK_KEY_D:
             // Try to delete the selected queue item, or current if none selected
             if (player->queue.count > 0) {
                 int index_to_delete = player->queue.current_index;
@@ -186,13 +187,15 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             return TRUE;
             
+        case GDK_KEY_N:
         case GDK_KEY_n:
             if (!ctrl_pressed) {
                 next_song_filtered(player);
                 return TRUE;
             }
             break;
-            
+
+        case GDK_KEY_P:
         case GDK_KEY_p:
             if (!ctrl_pressed) {
                 previous_song_filtered(player);
@@ -200,6 +203,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
             }
             break;
             
+        case GDK_KEY_S:
         case GDK_KEY_s:
             if (!ctrl_pressed) {
                 stop_playback(player);
@@ -207,7 +211,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                 return TRUE;
             }
             break;
-            
+        case GDK_KEY_R:
         case GDK_KEY_r:
             if (!ctrl_pressed) {
                 player->queue.repeat_queue = !player->queue.repeat_queue;
@@ -275,7 +279,7 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                 return TRUE;
             }
             break;
-            
+        case GDK_KEY_C:
         case GDK_KEY_c:
             if (ctrl_pressed) {
                 on_clear_queue_clicked(NULL, player);
@@ -373,7 +377,7 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             }
             update_gui_state(player);
             return TRUE;
-            
+        case GDK_KEY_N:
         case GDK_KEY_n:
             if (!ctrl_pressed) {
                 next_song_filtered(player);
@@ -381,13 +385,14 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
             }
             break;
             
+        case GDK_KEY_P:
         case GDK_KEY_p:
             if (!ctrl_pressed) {
                 previous_song_filtered(player);
                 return TRUE;
             }
             break;
-            
+        case GDK_KEY_S:
         case GDK_KEY_s:
             if (!ctrl_pressed) {
                 stop_playback(player);
@@ -395,7 +400,7 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
                 return TRUE;
             }
             break;
-            
+        case GDK_KEY_R:
         case GDK_KEY_r:
             if (!ctrl_pressed) {
                 player->queue.repeat_queue = !player->queue.repeat_queue;
