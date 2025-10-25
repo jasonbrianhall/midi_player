@@ -49,7 +49,8 @@ Visualizer* visualizer_new(void) {
         printf("Restored last visualization type: %d\n", last_vis_type);
     }    
     
-    
+    vis->showing_error=false;
+    vis->error_display_time=0.0;
     vis->sensitivity = 1.0;
     vis->decay_rate = 0.95;
     vis->enabled = TRUE;
@@ -332,6 +333,26 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
     // Clear background
     cairo_set_source_rgb(cr, vis->bg_r, vis->bg_g, vis->bg_b);
     cairo_paint(cr);
+
+    // Draw error message if showing (stop showing other visualizations)
+    if (vis->showing_error && vis->error_display_time > 0) {
+        cairo_set_source_rgb(cr, vis->bg_r, vis->bg_g, vis->bg_b);
+        cairo_rectangle(cr, 0, 0, vis->width, 100);
+        cairo_fill(cr);
+        
+        cairo_set_source_rgb(cr, 1, 0.2, 0.2);  // Red
+        cairo_set_font_size(cr, 24);
+        cairo_move_to(cr, 20, 50);
+        cairo_show_text(cr, vis->error_message);
+        
+        vis->error_display_time -= 0.016;  // Subtract one frame time
+        if (vis->error_display_time <= 0) {
+            vis->showing_error = false;
+        }
+        return FALSE;
+    }
+    
+
     
     // Draw visualization based on type
     switch (vis->type) {

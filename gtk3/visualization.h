@@ -75,6 +75,11 @@ typedef struct {
     GtkWidget *drawing_area;
     cairo_surface_t *surface;
     
+    // Error messages
+    char error_message[4096];
+    double error_display_time;
+    bool showing_error;
+
     // Audio analysis data
     double *audio_samples;
     double *frequency_bands;

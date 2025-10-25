@@ -809,7 +809,26 @@ bool load_file_from_queue(AudioPlayer *player) {
     const char *filename = get_current_queue_file(&player->queue);
     if (!filename) return false;
     
-    return load_file(player, filename);
+    if (!load_file(player, filename)) {
+        // File failed to load - show error in visualization
+        if (player->visualizer) {
+            snprintf(player->visualizer->error_message, sizeof(player->visualizer->error_message),
+                     "Can't open: %s", filename);
+            player->visualizer->showing_error = true;
+            player->visualizer->error_display_time = 1.0;  // Show for 1 second
+        }
+        
+        printf("Failed to load: %s\n", filename);
+        
+        // Silently skip to next file
+        if (advance_queue(&player->queue)) {
+            return load_file_from_queue(player);  // Try next file
+        }
+        
+        return false;
+    }
+    
+    return true;
 }
 
 void seek_to_position(AudioPlayer *player, double position_seconds) {
