@@ -26,6 +26,103 @@ static GtkTreeRowReference *drag_source_ref = NULL;
 static int pending_delete_index = -1;
 static char *pending_move_file = NULL;
 
+// Check if a file already exists in the queue by filename
+// Returns true if a file with the same basename already exists
+bool filename_exists_in_queue(PlayQueue *queue, const char *filepath) {
+    if (!queue || !filepath) {
+        return false;
+    }
+    
+    char *new_basename = g_path_get_basename(filepath);
+    
+    for (int i = 0; i < queue->count; i++) {
+        char *existing_basename = g_path_get_basename(queue->files[i]);
+        bool match = (strcmp(new_basename, existing_basename) == 0);
+        g_free(existing_basename);
+        
+        if (match) {
+            g_free(new_basename);
+            return true;
+        }
+    }
+    
+    g_free(new_basename);
+    return false;
+}
+
+// Remove all duplicate filenames from queue, keeping only the first occurrence
+// Returns the number of duplicates removed
+int deduplicate_queue(PlayQueue *queue) {
+    if (!queue || queue->count <= 1) {
+        return 0;
+    }
+    
+    int duplicates_removed = 0;
+    
+    // Use a GHashTable to track seen basenames
+    GHashTable *seen_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    
+    int write_index = 0;
+    
+    for (int read_index = 0; read_index < queue->count; read_index++) {
+        char *basename = g_path_get_basename(queue->files[read_index]);
+        
+        if (!g_hash_table_contains(seen_files, basename)) {
+            // First occurrence - keep this file
+            g_hash_table_insert(seen_files, g_strdup(basename), GINT_TO_POINTER(1));
+            queue->files[write_index] = queue->files[read_index];
+            write_index++;
+        } else {
+            // Duplicate found - skip it
+            g_free(queue->files[read_index]);
+            duplicates_removed++;
+            
+            // Adjust current_index if needed
+            if (read_index == queue->current_index) {
+                // Currently playing item is being removed
+                if (write_index < read_index) {
+                    queue->current_index = write_index > 0 ? write_index - 1 : 0;
+                }
+            } else if (read_index < queue->current_index) {
+                queue->current_index--;
+            }
+        }
+        
+        g_free(basename);
+    }
+    
+    queue->count = write_index;
+    g_hash_table_destroy(seen_files);
+    
+    return duplicates_removed;
+}
+
+// Count duplicate filenames in queue without removing them
+// Returns the count of duplicates that would be removed
+int count_queue_duplicates(PlayQueue *queue) {
+    if (!queue || queue->count <= 1) {
+        return 0;
+    }
+    
+    GHashTable *seen_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    int duplicate_count = 0;
+    
+    for (int i = 0; i < queue->count; i++) {
+        char *basename = g_path_get_basename(queue->files[i]);
+        
+        if (g_hash_table_contains(seen_files, basename)) {
+            duplicate_count++;
+        } else {
+            g_hash_table_insert(seen_files, g_strdup(basename), GINT_TO_POINTER(1));
+        }
+        
+        g_free(basename);
+    }
+    
+    g_hash_table_destroy(seen_files);
+    return duplicate_count;
+}
+
 void on_queue_model_row_deleted(GtkTreeModel *model, GtkTreePath *path, gpointer user_data) {
     (void)model;
     AudioPlayer *player = (AudioPlayer*)user_data;

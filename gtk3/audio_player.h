@@ -319,6 +319,7 @@ void cleanup_queue_filter(AudioPlayer *player);
 GtkWidget* create_queue_search_bar(AudioPlayer *player);
 void update_queue_display_with_filter(AudioPlayer *player);
 bool matches_filter(const char *text, const char *filter);
+bool filename_exists_in_queue(PlayQueue *queue, const char *filepath);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);

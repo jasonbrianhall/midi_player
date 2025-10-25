@@ -1570,7 +1570,9 @@ void on_add_to_queue_clicked(GtkButton *button, gpointer user_data) {
         
         for (GSList *iter = filenames; iter != NULL; iter = g_slist_next(iter)) {
             char *filename = (char*)iter->data;
-            add_to_queue(&player->queue, filename);
+            if (!filename_exists_in_queue(&player->queue, filename)) {
+                add_to_queue(&player->queue, filename);
+            }
             g_free(filename);
         }
         
@@ -1622,8 +1624,9 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     if (open_windows_file_dialog(filename, sizeof(filename))) {
         // Clear queue and add this single file
         clear_queue(&player->queue);
-        add_to_queue(&player->queue, filename);
-        
+        if (!filename_exists_in_queue(&player->queue, filename)) {
+            add_to_queue(&player->queue, filename);
+        }    
         if (load_file_from_queue(player)) {
             printf("Successfully loaded: %s\n", filename);
             update_queue_display_with_filter(player);
@@ -1727,7 +1730,9 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
         
         // Clear queue and add this single file
         clear_queue(&player->queue);
-        add_to_queue(&player->queue, filename);
+        if (!filename_exists_in_queue(&player->queue, filename)) {
+            add_to_queue(&player->queue, filename);
+        }
         
         if (load_file_from_queue(player)) {
             printf("Successfully loaded: %s\n", filename);
@@ -2654,7 +2659,9 @@ static void handle_dbus_method_call(GDBusConnection *connection,
         printf("Received file from another instance: %s\n", filepath);
         
         // Add to queue and play
-        add_to_queue(&player->queue, filepath);
+        if (!filename_exists_in_queue(&player->queue, filepath)) {
+            add_to_queue(&player->queue, filepath);
+        }
         player->queue.current_index = player->queue.count - 1;
         
         if (load_file_from_queue(player)) {
@@ -2815,8 +2822,10 @@ LRESULT CALLBACK window_proc_wrapper(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
                 printf("Received file from another instance: %s\n", filepath);
                 
                 // Add to queue and play
-                add_to_queue(&player->queue, filepath);
-                player->queue.current_index = player->queue.count - 1;
+                if (!filename_exists_in_queue(&player->queue, filepath)) {
+                    add_to_queue(&player->queue, filepath);
+                    player->queue.current_index = player->queue.count - 1;
+                }
                 
                 if (load_file_from_queue(player)) {
                     update_queue_display_with_filter(player);
@@ -3012,8 +3021,10 @@ int main(int argc, char *argv[]) {
                         if (player) {
                             printf("Received file from another instance: %s\n", filepath);
                             
-                            add_to_queue(&player->queue, filepath);
-                            player->queue.current_index = player->queue.count - 1;
+                            if (!filename_exists_in_queue(&player->queue, filepath)) {
+                                 add_to_queue(&player->queue, filepath);
+                                 player->queue.current_index = player->queue.count - 1;
+                            }
                             
                             if (load_file_from_queue(player)) {
                                 update_queue_display_with_filter(player);
@@ -3072,9 +3083,10 @@ int main(int argc, char *argv[]) {
                         g_variant_get(parameters, "(s)", &filepath);
                         
                         printf("Received file from another instance: %s\n", filepath);
-                        
-                        add_to_queue(&player->queue, filepath);
-                        player->queue.current_index = player->queue.count - 1;
+                        if (!filename_exists_in_queue(&player->queue, filepath)) {
+                            add_to_queue(&player->queue, filepath);
+                            player->queue.current_index = player->queue.count - 1;
+                        }
                         
                         if (load_file_from_queue(player)) {
                             update_queue_display_with_filter(player);
@@ -3174,7 +3186,9 @@ int main(int argc, char *argv[]) {
                     strncpy(abs_file_path, argv[i], sizeof(abs_file_path) - 1);
                 }
 #endif
-                add_to_queue(&player->queue, abs_file_path);
+                if (!filename_exists_in_queue(&player->queue, abs_file_path)) {
+                    add_to_queue(&player->queue, abs_file_path);
+                }
             }
             
             if (player->queue.count > 0 && load_file_from_queue(player)) {
@@ -3214,8 +3228,10 @@ int main(int argc, char *argv[]) {
                     }
                 } else {
                     printf("File not in queue, adding and playing it\n");
-                    add_to_queue(&player->queue, abs_file_path);
-                    player->queue.current_index = player->queue.count - 1;
+                    if (!filename_exists_in_queue(&player->queue, abs_file_path)) {
+                        add_to_queue(&player->queue, abs_file_path);
+                        player->queue.current_index = player->queue.count - 1;
+                    }
                     if (load_file_from_queue(player)) {
                         printf("Loaded and auto-starting new file\n");
                         update_queue_display_with_filter(player);
