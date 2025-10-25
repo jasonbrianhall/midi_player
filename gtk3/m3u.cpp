@@ -69,6 +69,11 @@ bool load_m3u_playlist(AudioPlayer *player, const char *m3u_path) {
         strcpy(m3u_dir, "./");
     }
     
+    char error_message[4096];
+    error_message[0] = '\0';
+    int error_buffer_pos = 0;
+    bool has_errors = false;
+    
     while (fgets(line, sizeof(line), file)) {
         // Remove newline
         line[strcspn(line, "\r\n")] = '\0';
@@ -97,12 +102,32 @@ bool load_m3u_playlist(AudioPlayer *player, const char *m3u_path) {
             }
         } else {
             printf("File not found, skipping: %s\n", full_path);
+            has_errors = true;
+            
+            if (!error_message[0]) {
+                error_buffer_pos = snprintf(error_message, sizeof(error_message), "Can't open: %s", full_path);
+            } else {
+                int remaining = sizeof(error_message) - error_buffer_pos - 1;
+                if (remaining > strlen(full_path) + 2) {
+                    error_buffer_pos += snprintf(error_message + error_buffer_pos, remaining, ", %s", full_path);
+                } else if (remaining > 3) {
+                    snprintf(error_message + error_buffer_pos, remaining, "...");
+                }
+            }
         }
     }
     
     fclose(file);
     
     printf("M3U loaded: %d files added\n", added_count);
+    
+    // Display accumulated errors
+    if (has_errors && player->visualizer) {
+        snprintf(player->visualizer->error_message, sizeof(player->visualizer->error_message),
+                 "%s", error_message);
+        player->visualizer->showing_error = true;
+        player->visualizer->error_display_time = 3.0;  // Show for 3 seconds since the error can be long
+    }
     
     // If queue was empty and we added files, load the first one
     if (was_empty_queue && player->queue.count > 0) {
