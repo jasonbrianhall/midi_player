@@ -217,7 +217,8 @@ void draw_rabbithare(Visualizer *vis, cairo_t *cr) {
     cairo_stroke(cr);
     
     // Dashed center line
-    cairo_set_dash(cr, (double[]){10, 10}, 2, 0);
+    double dashes[] = {10, 10};
+    cairo_set_dash(cr, dashes, 2, 0);
     cairo_move_to(cr, 0, ground_y - 40);
     cairo_line_to(cr, vis->width, ground_y - 40);
     cairo_stroke(cr);
