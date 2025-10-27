@@ -128,22 +128,22 @@ static void create_menu_bar(AudioPlayer *player) {
     
     // File menu
     GtkWidget *file_menu = gtk_menu_new();
-    GtkWidget *file_item = gtk_menu_item_new_with_label("File");
+    GtkWidget *file_item = gtk_menu_item_new_with_mnemonic("_File");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(file_item), file_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), file_item);
     
-    GtkWidget *open_item = gtk_menu_item_new_with_label("Open One File (Clears Queue)");
+    GtkWidget *open_item = gtk_menu_item_new_with_mnemonic("_Open One File (Clears Queue)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), open_item);
     g_signal_connect(open_item, "activate", G_CALLBACK(on_menu_open), player);
 
     GtkWidget *playlist_separator = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), playlist_separator);
 
-    GtkWidget *load_playlist_item = gtk_menu_item_new_with_label("Load Playlist...");
+    GtkWidget *load_playlist_item = gtk_menu_item_new_with_mnemonic("_Load Playlist...");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), load_playlist_item);
     g_signal_connect(load_playlist_item, "activate", G_CALLBACK(on_menu_load_playlist), player);
 
-    GtkWidget *save_playlist_item = gtk_menu_item_new_with_label("Save Playlist...");
+    GtkWidget *save_playlist_item = gtk_menu_item_new_with_mnemonic("_Save Playlist...");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), save_playlist_item);
     g_signal_connect(save_playlist_item, "activate", G_CALLBACK(on_menu_save_playlist), player);
 
@@ -151,7 +151,7 @@ static void create_menu_bar(AudioPlayer *player) {
     GtkWidget *recent_separator = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), recent_separator);
     
-    GtkWidget *recent_playlist_item = gtk_menu_item_new_with_label("Recent Playlists");
+    GtkWidget *recent_playlist_item = gtk_menu_item_new_with_mnemonic("_Recent Playlists");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), recent_playlist_item);
     
     // Create recent files submenu
@@ -177,17 +177,17 @@ static void create_menu_bar(AudioPlayer *player) {
     g_signal_connect(recent_submenu, "item-activated", 
                      G_CALLBACK(on_recent_playlist_activated), player);
 
-    GtkWidget *add_to_queue_playlist_item = gtk_menu_item_new_with_label("Add to Queue...");
+    GtkWidget *add_to_queue_playlist_item = gtk_menu_item_new_with_label("Add to Queue... (CTRL+A)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), add_to_queue_playlist_item);
     g_signal_connect(add_to_queue_playlist_item, "activate", G_CALLBACK(on_add_to_queue_clicked), player);
 
-    GtkWidget *clear_queue_playlist_item = gtk_menu_item_new_with_label("Clear Queue...");
+    GtkWidget *clear_queue_playlist_item = gtk_menu_item_new_with_label("Clear Queue... (CTRL+C)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), clear_queue_playlist_item);
     g_signal_connect(clear_queue_playlist_item, "activate", G_CALLBACK(on_clear_queue_clicked), player);
     
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), gtk_separator_menu_item_new());
     
-    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
+    GtkWidget *quit_item = gtk_menu_item_new_with_mnemonic("_Quit (CTRL+Q)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
     g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
     
@@ -787,7 +787,7 @@ void create_tray_icon(AudioPlayer *player) {
     GtkWidget *next_item = gtk_menu_item_new_with_label("►| Next");
     GtkWidget *sep = gtk_separator_menu_item_new();
     GtkWidget *show_item = gtk_menu_item_new_with_label("Show Window");
-    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit");
+    GtkWidget *quit_item = gtk_menu_item_new_with_label("Quit (CTRL+Q)");
     
     g_signal_connect(play_item, "activate", G_CALLBACK(on_play_clicked), player);
     g_signal_connect(pause_item, "activate", G_CALLBACK(on_pause_clicked), player);
