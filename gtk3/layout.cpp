@@ -193,7 +193,7 @@ static void create_menu_bar(AudioPlayer *player) {
     
     // View menu
     GtkWidget *view_menu = gtk_menu_new();
-    GtkWidget *view_item = gtk_menu_item_new_with_label("View");
+    GtkWidget *view_item = gtk_menu_item_new_with_mnemonic("_View");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(view_item), view_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), view_item);
 
@@ -222,7 +222,7 @@ static void create_menu_bar(AudioPlayer *player) {
 
     // Help menu
     GtkWidget *help_menu = gtk_menu_new();
-    GtkWidget *help_item = gtk_menu_item_new_with_label("Help");
+    GtkWidget *help_item = gtk_menu_item_new_with_mnemonic("_Help");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), help_item);
 
