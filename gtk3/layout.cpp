@@ -191,7 +191,36 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), quit_item);
     g_signal_connect(quit_item, "activate", G_CALLBACK(on_menu_quit), player);
     
-    // Help menu (unchanged)
+    // View menu
+    GtkWidget *view_menu = gtk_menu_new();
+    GtkWidget *view_item = gtk_menu_item_new_with_label("View");
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(view_item), view_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menubar), view_item);
+
+    // Toggle Queue Panel
+    GtkWidget *toggle_queue_item = gtk_check_menu_item_new_with_label("Show Queue Panel");
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(toggle_queue_item), TRUE);
+    gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), toggle_queue_item);
+    g_object_set_data(G_OBJECT(toggle_queue_item), "player", player);
+    g_signal_connect(toggle_queue_item, "activate", 
+                     G_CALLBACK(on_toggle_queue_panel), player);
+
+    GtkWidget *view_separator = gtk_separator_menu_item_new();
+    gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), view_separator);
+
+    // Toggle Fullscreen Visualization
+    GtkWidget *toggle_fullscreen_item = gtk_check_menu_item_new_with_label("Fullscreen Visualization");
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(toggle_fullscreen_item), FALSE);
+    gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), toggle_fullscreen_item);
+    g_object_set_data(G_OBJECT(toggle_fullscreen_item), "player", player);
+    g_signal_connect(toggle_fullscreen_item, "activate", 
+                     G_CALLBACK(on_toggle_fullscreen_visualization), player);
+
+    // Store references for later updates
+    player->layout.toggle_queue_menu_item = toggle_queue_item;
+    player->layout.toggle_fullscreen_menu_item = toggle_fullscreen_item;
+
+    // Help menu
     GtkWidget *help_menu = gtk_menu_new();
     GtkWidget *help_item = gtk_menu_item_new_with_label("Help");
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
@@ -819,3 +848,29 @@ gboolean on_window_state_event(GtkWidget *widget, GdkEventWindowState *event,
     
     return FALSE;
 }
+
+void on_toggle_queue_panel(GtkCheckMenuItem *check_item, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer *)user_data;
+    
+    gboolean show_queue = gtk_check_menu_item_get_active(check_item);
+    
+    if (show_queue) {
+        gtk_widget_show(player->layout.queue_vbox);
+        printf("Queue panel shown\n");
+    } else {
+        gtk_widget_hide(player->layout.queue_vbox);
+        printf("Queue panel hidden\n");
+    }
+}
+
+void on_toggle_fullscreen_visualization(GtkCheckMenuItem *check_item, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer *)user_data;
+    
+    gboolean fullscreen = gtk_check_menu_item_get_active(check_item);
+    
+    // This function is declared in main.cpp, so we just call it
+    extern void toggle_vis_fullscreen(AudioPlayer *player);
+    
+    toggle_vis_fullscreen(player);
+}
+
