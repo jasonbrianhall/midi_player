@@ -1009,10 +1009,10 @@ jobs:
           - **Zenamp-Portable.zip** - Portable version (no installation required)
           
           ### What's Inside
-          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS, M4A, WMA
+          - Multi-format playback: WAV, MP3, OGG, FLAC, MIDI, AIFF, OPUS, M4A, WMA, CD+G (.zip files with music and graphics)
           - OPL3 MIDI synthesis for authentic retro sound
           - Complete playback controls with queue management
-          - Volume control (10% to 300%) and speed control (0.5x to 4.0x)
+          - Volume control (10% to 500%) and speed control (0.1x to 4.0x)
           - Progress tracking with timestamps
           - GTK3 interface for modern desktop integration
           
