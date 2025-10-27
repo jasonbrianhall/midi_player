@@ -198,7 +198,7 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), view_item);
 
     // Toggle Queue Panel
-    GtkWidget *toggle_queue_item = gtk_check_menu_item_new_with_label("Show Queue Panel");
+    GtkWidget *toggle_queue_item = gtk_check_menu_item_new_with_label("Toggle Queue/Equalizer Panel (F10)");
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(toggle_queue_item), TRUE);
     gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), toggle_queue_item);
     g_object_set_data(G_OBJECT(toggle_queue_item), "player", player);
@@ -209,7 +209,7 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), view_separator);
 
     // Toggle Fullscreen Visualization
-    GtkWidget *toggle_fullscreen_item = gtk_check_menu_item_new_with_label("Fullscreen Visualization");
+    GtkWidget *toggle_fullscreen_item = gtk_check_menu_item_new_with_label("Fullscreen Visualization (F9)");
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(toggle_fullscreen_item), FALSE);
     gtk_menu_shell_append(GTK_MENU_SHELL(view_menu), toggle_fullscreen_item);
     g_object_set_data(G_OBJECT(toggle_fullscreen_item), "player", player);

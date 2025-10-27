@@ -65,7 +65,41 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                 return TRUE;
             }
             break;
-            
+        case GDK_KEY_F10:
+            {
+                gboolean is_visible = gtk_widget_get_visible(player->layout.queue_vbox);
+                
+                if (is_visible) {
+                    gtk_widget_hide(player->layout.queue_vbox);
+                    if (player->layout.toggle_queue_menu_item) {
+                        g_signal_handlers_block_by_func(
+                            player->layout.toggle_queue_menu_item,
+                            (void*)on_toggle_queue_panel, player);
+                        gtk_check_menu_item_set_active(
+                            GTK_CHECK_MENU_ITEM(player->layout.toggle_queue_menu_item), 
+                            FALSE);
+                        g_signal_handlers_unblock_by_func(
+                            player->layout.toggle_queue_menu_item,
+                            (void*)on_toggle_queue_panel, player);
+                    }
+                    printf("Queue panel hidden (F10)\n");
+                } else {
+                    gtk_widget_show(player->layout.queue_vbox);
+                    if (player->layout.toggle_queue_menu_item) {
+                        g_signal_handlers_block_by_func(
+                            player->layout.toggle_queue_menu_item,
+                            (void*)on_toggle_queue_panel, player);
+                        gtk_check_menu_item_set_active(
+                            GTK_CHECK_MENU_ITEM(player->layout.toggle_queue_menu_item), 
+                            TRUE);
+                        g_signal_handlers_unblock_by_func(
+                            player->layout.toggle_queue_menu_item,
+                            (void*)on_toggle_queue_panel, player);
+                    }
+                    printf("Queue panel shown (F10)\n");
+                }
+            }
+            return TRUE;            
         case GDK_KEY_x:
         case GDK_KEY_X:
             // X: Remove selected item if queue has focus
@@ -522,8 +556,10 @@ void show_keyboard_help(AudioPlayer *player) {
             "R - Toggle repeat    1-9 - Jump to #\n\n"
             "Ctrl+O - Open    Ctrl+A - Add queue\n"
             "Ctrl+C - Clear    Ctrl+Q - Quit\n"
-            "F1 - This help    F11 - Fullscreen\n"
-            "F9 - Visualization Fullscreen"
+            "F1  - This help    F11 - Fullscreen\n"
+            "F9  - Visualization Fullscreen"
+            "F10 - Toggle Queue"
+
         );
         
         gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
@@ -559,8 +595,9 @@ void show_keyboard_help(AudioPlayer *player) {
             "  Ctrl+Q\t- Quit\n\n"
             "Display:\n"
             "  F1\t\t- Show this help\n"
-            "  F11\t\t- Toggle fullscreen\n"
             "  F9\t\t- Toggle Visualization Fullscreen"
+            "  F10\t\t- Toggle Queue"
+            "  F11\t\t- Toggle fullscreen\n"
             
         );
         

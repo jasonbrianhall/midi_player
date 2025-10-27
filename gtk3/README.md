@@ -311,6 +311,8 @@ zenamp song.lrc
 | **Q** | Previous visualization |
 | **A** | Next visualization |
 | **F** or **F9** | Toggle visualization fullscreen |
+| **F9** | Toggle visualization fullscreen |
+| **F10** | Toggle Queue Display |
 | **F11** | Toggle window fullscreen |
 
 #### Queue Management
@@ -332,6 +334,8 @@ zenamp song.lrc
 | Key | Action |
 |-----|--------|
 | **F1** | Show keyboard shortcuts help |
+| **F9** | Toggle visualization display |
+| **F10** | Toggle Queue Display |
 | **F11** | Toggle fullscreen window |
 | **Esc** | Exit fullscreen (when in fullscreen) |
 
