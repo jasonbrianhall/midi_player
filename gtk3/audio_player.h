@@ -324,6 +324,7 @@ bool matches_filter(const char *text, const char *filter);
 bool filename_exists_in_queue(PlayQueue *queue, const char *filepath);
 void on_toggle_queue_panel(GtkCheckMenuItem *check_item, gpointer user_data);
 void on_toggle_fullscreen_visualization(GtkCheckMenuItem *check_item, gpointer user_data);
+void on_shortcuts_menu_clicked(GtkMenuItem *menuitem, gpointer user_data);
 
 // Settings
 bool save_player_settings(AudioPlayer *player);

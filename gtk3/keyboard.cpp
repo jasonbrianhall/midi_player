@@ -633,14 +633,7 @@ void setup_keyboard_shortcuts(AudioPlayer *player) {
                      G_CALLBACK(on_key_press_event), player);
 }
 
-static void on_shortcuts_menu_clicked(GtkMenuItem *menuitem, gpointer user_data) {
+void on_shortcuts_menu_clicked(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     show_keyboard_help((AudioPlayer*)user_data);
-}
-
-void add_keyboard_shortcuts_menu(AudioPlayer *player, GtkWidget *help_menu) {
-    GtkWidget *shortcuts_item = gtk_menu_item_new_with_label("Keyboard Shortcuts");
-    gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), shortcuts_item);
-    g_signal_connect(shortcuts_item, "activate", 
-                     G_CALLBACK(on_shortcuts_menu_clicked), player);
 }
