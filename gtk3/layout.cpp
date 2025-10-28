@@ -21,6 +21,9 @@
 #include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
+#include "icon.h"
+
+extern IconAnimationState *g_icon_animation;
 
 
 // Helper functions for layout management
@@ -412,25 +415,68 @@ static void create_queue_controls_regular(AudioPlayer *player) {
     gtk_box_pack_start(GTK_BOX(player->layout.regular.queue_button_box), player->repeat_queue_button, TRUE, TRUE, 0);
 }
 
+
 static void create_icon_section(AudioPlayer *player) {
     player->layout.bottom_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_box_pack_end(GTK_BOX(player->layout.content_vbox), player->layout.bottom_box, FALSE, FALSE, 0);
 
-    // Icon on the left
+    // ======== ANIMATED ICON WITH CLICK SUPPORT ========
+    
+    // Load icon and create image widget
     GdkPixbuf *small_icon = load_icon_from_base64();
     if (small_icon) {
-        GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(small_icon, 
-                                                        player->layout.config.icon_size, 
-                                                        player->layout.config.icon_size, 
-                                                        GDK_INTERP_BILINEAR);
+        GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(
+            small_icon, 
+            player->layout.config.icon_size, 
+            player->layout.config.icon_size, 
+            GDK_INTERP_BILINEAR
+        );
+        
         if (scaled_icon) {
+            // Create image widget for animation
             GtkWidget *icon_image = gtk_image_new_from_pixbuf(scaled_icon);
-            gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), icon_image, FALSE, FALSE, 0);
+            
+            // Initialize animation state
+            g_icon_animation = init_icon_animation(GTK_IMAGE(icon_image));
+            
+            if (g_icon_animation) {
+                // Create event box to receive click events
+                // (GtkImage doesn't have its own window, so we need event box)
+                GtkWidget *icon_event_box = gtk_event_box_new();
+                gtk_container_add(GTK_CONTAINER(icon_event_box), icon_image);
+                
+                // CRITICAL FIX: Enable button press events on the event box
+                // This is what was missing!
+                gtk_widget_add_events(icon_event_box, GDK_BUTTON_PRESS_MASK);
+                
+                // Connect click handler
+                g_signal_connect(icon_event_box, "button-press-event",
+                                G_CALLBACK(on_icon_button_press), player);
+                
+                // Make event box respond to clicks
+                gtk_event_box_set_above_child(GTK_EVENT_BOX(icon_event_box), TRUE);
+                
+                // Add to layout
+                gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), 
+                                  icon_event_box, FALSE, FALSE, 0);
+                
+                printf("✓ Animated icon initialized (click to play animation)\n");
+            } else {
+                // Fallback if animation initialization fails
+                GtkWidget *icon_image_fallback = gtk_image_new_from_pixbuf(scaled_icon);
+                gtk_box_pack_start(GTK_BOX(player->layout.bottom_box), 
+                                  icon_image_fallback, FALSE, FALSE, 0);
+                
+                g_warning("Animation initialization failed, using static icon");
+            }
+            
             g_object_unref(scaled_icon);
         }
         g_object_unref(small_icon);
     }
 
+    // ======== METADATA LABEL (unchanged) ========
+    
     // Metadata label beside the icon
     player->metadata_label = gtk_label_new("No track loaded");
     gtk_label_set_use_markup(GTK_LABEL(player->metadata_label), TRUE);
@@ -628,7 +674,7 @@ void create_main_window(AudioPlayer *player) {
     // Left side: visualization at top, controls below
     create_visualization_section(player);
     create_player_controls(player);
-    
+
     // Create shared equalizer widget FIRST (before queue display)
     player->layout.shared_equalizer = create_equalizer_controls(player);
     //create_shared_equalizer(player);
