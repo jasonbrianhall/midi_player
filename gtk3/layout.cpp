@@ -18,10 +18,15 @@
 #include "convertopustowav.h"
 #include "audio_player.h"
 #include "vfs.h"
-#include "icon.h"
+
+#ifdef _WIN32
+#include "icon_win.h"
+#else
+#include "icon_lin.h"
+#endif
+
 #include "aiff.h"
 #include "equalizer.h"
-#include "icon.h"
 
 extern IconAnimationState *g_icon_animation;
 

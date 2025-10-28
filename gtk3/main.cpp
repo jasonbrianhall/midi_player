@@ -27,7 +27,6 @@
 #include "convertopustowav.h"
 #include "audio_player.h"
 #include "vfs.h"
-#include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
 #include "zip_support.h"

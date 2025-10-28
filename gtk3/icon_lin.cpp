@@ -1,4 +1,4 @@
-#include "icon.h"
+#include "icon_lin.h"
 #include <glib.h>
 
 // Global animation state

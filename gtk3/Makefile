@@ -112,7 +112,7 @@ CFLAGS_WIN_DEBUG = $(CFLAGS_WIN) $(DEBUG_FLAGS)
 SOURCES_CPP_COMMON = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp \
 	instruments.cpp virtual_mixer.cpp wav_converter.cpp audioconverter.cpp \
 	convertmidi.cpp convertoggtowav.cpp convertopustowav.cpp convertmp3towav.cpp \
-	convertflactowav.cpp vfs.cpp cache.cpp icon.cpp aiff.cpp keyboard.cpp \
+	convertflactowav.cpp vfs.cpp cache.cpp aiff.cpp keyboard.cpp \
 	bubbles.cpp matrix.cpp fireworks.cpp dna.cpp dna2.cpp visualization.cpp \
 	equalizer.cpp m3u.cpp help.cpp layout.cpp sudoku.cpp generatepuzzle.cpp \
 	fourier.cpp ripples.cpp kaleidoscope.cpp bouncyball.cpp clock.cpp \
@@ -125,10 +125,10 @@ SOURCES_CPP_COMMON = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp \
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
-        convertm4atowavlin.cpp
+        convertm4atowavlin.cpp icon_lin.cpp 
 
 SOURCES_CPP_WIN = $(SOURCES_CPP_COMMON) \
-        convertm4atowavwin.cpp
+        convertm4atowavwin.cpp icon_win.cpp
 
 SOURCES_C = miniz.c miniz_tdef.c miniz_tinfl.c miniz_zip.c
 
