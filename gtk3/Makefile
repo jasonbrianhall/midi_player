@@ -121,14 +121,15 @@ SOURCES_CPP_COMMON = dbopl.cpp dbopl_wrapper.cpp main.cpp midiplayer.cpp \
 	cdg.cpp karaoke.cpp zip_support.cpp metadata.cpp parrot.cpp sauron.cpp \
 	hanoi.cpp beatchess.cpp beatcheckers.cpp queue.cpp drawfractalbloom.cpp \
 	drawsymmetrycascade.cpp lrc2cdg.cpp drawtrippy.cpp drawwormhole.cpp \
-	drawbd.cpp drawrabbithare.cpp audio_cache.cpp maze3d.cpp drawradialbars.cpp
+	drawbd.cpp drawrabbithare.cpp audio_cache.cpp maze3d.cpp drawradialbars.cpp \
+	icon.cpp
 
 # Platform-specific source files
 SOURCES_CPP_LINUX = $(SOURCES_CPP_COMMON) \
-        convertm4atowavlin.cpp icon_lin.cpp 
+        convertm4atowavlin.cpp
 
 SOURCES_CPP_WIN = $(SOURCES_CPP_COMMON) \
-        convertm4atowavwin.cpp icon_win.cpp
+        convertm4atowavwin.cpp
 
 SOURCES_C = miniz.c miniz_tdef.c miniz_tinfl.c miniz_zip.c
 

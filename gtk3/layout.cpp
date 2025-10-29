@@ -18,13 +18,7 @@
 #include "convertopustowav.h"
 #include "audio_player.h"
 #include "vfs.h"
-
-#ifdef _WIN32
-#include "icon_win.h"
-#else
-#include "icon_lin.h"
-#endif
-
+#include "icon.h"
 #include "aiff.h"
 #include "equalizer.h"
 

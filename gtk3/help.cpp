@@ -2,12 +2,7 @@
 #define HELPMENU_H
 
 #include "audio_player.h"
-
-#ifdef _WIN32
-#include "icon_win.h"
-#else
-#include "icon_lin.h"
-#endif
+#include "icon.h"
 
 // Define fallback version if not provided by Makefile
 #ifndef VERSION
