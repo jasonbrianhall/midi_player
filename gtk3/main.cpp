@@ -1208,7 +1208,54 @@ void next_song(AudioPlayer *player) {
     
     stop_playback(player);
     
-    // Check if we should use sorted order
+    // Check if a filter is active - if so, use filter-aware navigation
+    const char *filter = player->queue_filter_text;
+    bool has_filter = (filter && filter[0] != '\0');
+    
+    if (has_filter) {
+        // When filtering, find next matching song
+        int start_index = player->queue.current_index + 1;
+        int search_count = 0;
+        
+        while (search_count < player->queue.count) {
+            int check_index = (start_index + search_count) % player->queue.count;
+            
+            // Extract metadata for this file
+            char *metadata = extract_metadata(player->queue.files[check_index]);
+            char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+            parse_metadata(metadata, title, artist, album, genre);
+            g_free(metadata);
+            
+            char *basename = g_path_get_basename(player->queue.files[check_index]);
+            
+            // Check if matches filter
+            bool matches = matches_filter(basename, filter) ||
+                          matches_filter(title, filter) ||
+                          matches_filter(artist, filter) ||
+                          matches_filter(album, filter) ||
+                          matches_filter(genre, filter);
+            
+            g_free(basename);
+            
+            if (matches) {
+                player->queue.current_index = check_index;
+                if (load_file_from_queue(player)) {
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                    start_playback(player);
+                }
+                return;
+            }
+            
+            search_count++;
+        }
+        
+        // No matching song found, stay on current
+        start_playback(player);
+        return;
+    }
+    
+    // No filter active, check for sorted display order
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
     if (model && GTK_IS_TREE_MODEL(model)) {
         GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
@@ -1287,7 +1334,57 @@ void previous_song(AudioPlayer *player) {
     
     stop_playback(player);
     
-    // Check if we should use sorted order
+    // Check if a filter is active - if so, use filter-aware navigation
+    const char *filter = player->queue_filter_text;
+    bool has_filter = (filter && filter[0] != '\0');
+    
+    if (has_filter) {
+        // When filtering, find previous matching song
+        int start_index = player->queue.current_index - 1;
+        int search_count = 0;
+        
+        while (search_count < player->queue.count) {
+            int check_index = start_index - search_count;
+            if (check_index < 0) {
+                check_index = player->queue.count + check_index;
+            }
+            
+            // Extract metadata for this file
+            char *metadata = extract_metadata(player->queue.files[check_index]);
+            char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+            parse_metadata(metadata, title, artist, album, genre);
+            g_free(metadata);
+            
+            char *basename = g_path_get_basename(player->queue.files[check_index]);
+            
+            // Check if matches filter
+            bool matches = matches_filter(basename, filter) ||
+                          matches_filter(title, filter) ||
+                          matches_filter(artist, filter) ||
+                          matches_filter(album, filter) ||
+                          matches_filter(genre, filter);
+            
+            g_free(basename);
+            
+            if (matches) {
+                player->queue.current_index = check_index;
+                if (load_file_from_queue(player)) {
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                    start_playback(player);
+                }
+                return;
+            }
+            
+            search_count++;
+        }
+        
+        // No matching song found, stay on current
+        start_playback(player);
+        return;
+    }
+    
+    // No filter active, check for sorted display order
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
     if (model && GTK_IS_TREE_MODEL(model)) {
         GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
