@@ -1484,6 +1484,7 @@ void next_song_filtered(AudioPlayer *player) {
     // Find the next visible (non-filtered) song
     int start_index = player->queue.current_index + 1;
     int search_count = 0;
+
     
     while (search_count < player->queue.count) {
         int check_index = (start_index + search_count) % player->queue.count;
@@ -1492,6 +1493,9 @@ void next_song_filtered(AudioPlayer *player) {
         char *metadata = extract_metadata(player->queue.files[check_index]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         parse_metadata(metadata, title, artist, album, genre);
+        
+        show_track_info_overlay(player->visualizer, title, artist, album,
+                               get_file_duration(player->queue.files[player->queue.current_index]));
         g_free(metadata);
         
         char *basename = g_path_get_basename(player->queue.files[check_index]);

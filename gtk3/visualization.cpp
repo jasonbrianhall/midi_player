@@ -89,6 +89,13 @@ Visualizer* visualizer_new(void) {
     init_beat_chess_system(vis);
     init_beat_checkers_system(vis);
     init_maze3d_system(vis);
+
+    vis->track_info_display_time = 0.0;
+    vis->track_info_fade_alpha = 1.0;
+    memset(vis->track_info_title, 0, sizeof(vis->track_info_title));
+    memset(vis->track_info_artist, 0, sizeof(vis->track_info_artist));
+    memset(vis->track_info_album, 0, sizeof(vis->track_info_album));
+    vis->track_info_duration = 0;
     
     // Auto-cleanup when widget is destroyed
     g_object_set_data_full(G_OBJECT(vis->drawing_area), "visualizer", vis, (GDestroyNotify)visualizer_free);
@@ -465,6 +472,7 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
           break;          
 
     }
+    draw_track_info_overlay(vis, cr);
     
     return FALSE;
 }
@@ -610,7 +618,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             default:
                 // No update function needed for other visualization types
                 break;
+                
         }
+       update_track_info_overlay(vis, dt);
+
     }
     
     return TRUE; // Continue timer
@@ -830,4 +841,114 @@ bool load_last_visualization(VisualizationType *vis_type) {
     *vis_type = (VisualizationType)type_int;
     printf("Loaded last visualization: %d\n", type_int);
     return true;
+}
+
+void draw_track_info_overlay(Visualizer *vis, cairo_t *cr) {
+    if (vis->track_info_fade_alpha <= 0.0) {
+        return;  // Don't draw if fully transparent
+    }
+    
+    int width = vis->width;
+    int height = vis->height;
+    
+    // Semi-transparent black background
+    cairo_set_source_rgba(cr, 0, 0, 0, 0.6 * vis->track_info_fade_alpha);
+    cairo_rectangle(cr, 0, height * 0.35, width, height * 0.30);
+    cairo_fill(cr);
+    
+    // Border
+    cairo_set_source_rgba(cr, 0.3, 0.7, 1.0, vis->track_info_fade_alpha);
+    cairo_set_line_width(cr, 2.0);
+    cairo_rectangle(cr, 0, height * 0.35, width, height * 0.30);
+    cairo_stroke(cr);
+    
+    // Setup font
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+    
+    double y_offset = height * 0.42;
+    double x_center = width / 2.0;
+    
+    // Title "Now Playing" label
+    cairo_set_font_size(cr, 12.0);
+    cairo_set_source_rgba(cr, 0.5, 0.8, 1.0, vis->track_info_fade_alpha);
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, "Now Playing", &extents);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_show_text(cr, "Now Playing");
+    
+    y_offset += 24.0;
+    
+    // Song title
+    cairo_set_font_size(cr, 18.0);
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, vis->track_info_fade_alpha);
+    cairo_text_extents(cr, vis->track_info_title, &extents);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_show_text(cr, vis->track_info_title);
+    
+    y_offset += 40.0;
+    
+    // Artist and Album
+    cairo_set_font_size(cr, 13.0);
+    cairo_set_source_rgba(cr, 0.8, 0.8, 0.8, vis->track_info_fade_alpha);
+    
+    char artist_album[512];
+    snprintf(artist_album, sizeof(artist_album), "%s%s%s",
+             vis->track_info_artist,
+             (vis->track_info_artist[0] && vis->track_info_album[0]) ? " - " : "",
+             vis->track_info_album);
+    
+    cairo_text_extents(cr, artist_album, &extents);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_show_text(cr, artist_album);
+    
+    y_offset += 20.0;
+    
+    // Duration
+    char duration_str[32];
+    snprintf(duration_str, sizeof(duration_str), "(%d:%02d)",
+             vis->track_info_duration / 60,
+             vis->track_info_duration % 60);
+    
+    cairo_set_font_size(cr, 12.0);
+    cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, vis->track_info_fade_alpha);
+    cairo_text_extents(cr, duration_str, &extents);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_show_text(cr, duration_str);
+}
+
+void update_track_info_overlay(Visualizer *vis, double dt) {
+    if (vis->track_info_display_time > 0) {
+        vis->track_info_display_time -= dt;
+        
+        // Calculate fade (starts at 1.0, fades to 0.0)
+        double fade_duration = 1.0;  // 1 second to fade out
+        if (vis->track_info_display_time < fade_duration) {
+            // In fade-out phase
+            vis->track_info_fade_alpha = vis->track_info_display_time / fade_duration;
+        } else {
+            // Fully visible
+            vis->track_info_fade_alpha = 1.0;
+        }
+    } else {
+        vis->track_info_fade_alpha = 0.0;
+    }
+}
+
+void show_track_info_overlay(Visualizer *vis, const char *title, 
+                             const char *artist, const char *album, 
+                             int duration_seconds) {
+    if (!vis) return;
+    
+    strncpy(vis->track_info_title, title ? title : "", 
+            sizeof(vis->track_info_title) - 1);
+    strncpy(vis->track_info_artist, artist ? artist : "", 
+            sizeof(vis->track_info_artist) - 1);
+    strncpy(vis->track_info_album, album ? album : "", 
+            sizeof(vis->track_info_album) - 1);
+    
+    vis->track_info_duration = duration_seconds;
+    vis->track_info_display_time = 3.0;  // Show for 3 seconds
+    vis->track_info_fade_alpha = 1.0;    // Start fully visible
+    
+    printf("Track info overlay triggered: %s\n", title);
 }

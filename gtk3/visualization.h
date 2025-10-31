@@ -107,6 +107,14 @@ typedef struct {
     double bg_r, bg_g, bg_b;
     double fg_r, fg_g, fg_b;
     double accent_r, accent_g, accent_b;
+
+    // Track info overlay
+    double track_info_display_time;    // Seconds remaining to show
+    char track_info_title[256];        // Song title
+    char track_info_artist[256];       // Artist name
+    char track_info_album[256];        // Album name
+    int track_info_duration;           // Duration in seconds
+    double track_info_fade_alpha;      // Fade opacity (0.0 to 1.0)
     
     // Animation
     guint timer_id;
@@ -609,6 +617,11 @@ void draw_penguin_3d(cairo_t *cr, double screen_x, double distance, double scale
 // Radial Bars
 void draw_radial_bars_bouncing(Visualizer *vis, cairo_t *cr);
 void update_radial_bars_bouncing(Visualizer *vis, double dt);
+
+// Track Overlay
+void show_track_info_overlay(Visualizer *vis, const char *title, const char *artist, const char *album,  int duration_seconds);
+void update_track_info_overlay(Visualizer *vis, double dt);
+void draw_track_info_overlay(Visualizer *vis, cairo_t *cr);
 
 #endif
 
