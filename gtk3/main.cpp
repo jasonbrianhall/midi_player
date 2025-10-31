@@ -40,6 +40,45 @@ extern double playwait;
 
 AudioPlayer *player = NULL;
 
+// Custom sort function for duration column (convert MM:SS to seconds for numeric sorting)
+static gint duration_sort_func(GtkTreeModel *model, GtkTreeIter *a, GtkTreeIter *b, gpointer user_data) {
+    (void)user_data;  // unused
+    
+    char *duration_a = NULL;
+    char *duration_b = NULL;
+    
+    gtk_tree_model_get(model, a, COL_DURATION, &duration_a, -1);
+    gtk_tree_model_get(model, b, COL_DURATION, &duration_b, -1);
+    
+    int seconds_a = 0, seconds_b = 0;
+    
+    // Parse "MM:SS" format to total seconds
+    if (duration_a && sscanf(duration_a, "%d:%d", &seconds_a, &seconds_b) == 2) {
+        // First number is minutes, second is seconds
+        int temp = seconds_a * 60 + seconds_b;
+        seconds_a = temp;
+    } else {
+        seconds_a = 0;
+    }
+    
+    seconds_b = 0;
+    int dummy = 0;
+    if (duration_b && sscanf(duration_b, "%d:%d", &dummy, &seconds_b) == 2) {
+        // First number is minutes, second is seconds
+        int temp = dummy * 60 + seconds_b;
+        seconds_b = temp;
+    } else {
+        seconds_b = 0;
+    }
+    
+    g_free(duration_a);
+    g_free(duration_b);
+    
+    if (seconds_a < seconds_b) return -1;
+    if (seconds_a > seconds_b) return 1;
+    return 0;
+}
+
 static GtkWidget *vis_fullscreen_window = NULL;
 static bool is_vis_fullscreen = false;
 static GtkWidget *original_vis_parent = NULL;
@@ -1169,6 +1208,71 @@ void next_song(AudioPlayer *player) {
     
     stop_playback(player);
     
+    // Check if we should use sorted order
+    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
+    if (model && GTK_IS_TREE_MODEL(model)) {
+        GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
+        gint sort_column_id = -1;
+        GtkSortType sort_type = GTK_SORT_ASCENDING;
+        
+        // Check if a sort is active
+        if (gtk_tree_sortable_get_sort_column_id(sortable, &sort_column_id, &sort_type)) {
+            // A sort is active, follow the sorted order
+            GtkTreeIter iter;
+            gboolean found_current = FALSE;
+            gboolean found_next = FALSE;
+            
+            // Find current playing track in sorted order
+            if (gtk_tree_model_get_iter_first(model, &iter)) {
+                do {
+                    int queue_index = -1;
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &queue_index, -1);
+                    
+                    if (queue_index == player->queue.current_index) {
+                        found_current = TRUE;
+                        break;
+                    }
+                } while (gtk_tree_model_iter_next(model, &iter));
+            }
+            
+            // If we found current, try to move to next
+            if (found_current && gtk_tree_model_iter_next(model, &iter)) {
+                int next_queue_index = -1;
+                gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &next_queue_index, -1);
+                if (next_queue_index >= 0 && next_queue_index < player->queue.count) {
+                    player->queue.current_index = next_queue_index;
+                    found_next = TRUE;
+                }
+            }
+            
+            // If we couldn't find next (at end of sorted list)
+            if (!found_next) {
+                if (player->queue.repeat_queue) {
+                    // Go back to first in sorted order
+                    if (gtk_tree_model_get_iter_first(model, &iter)) {
+                        int first_queue_index = -1;
+                        gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &first_queue_index, -1);
+                        if (first_queue_index >= 0) {
+                            player->queue.current_index = first_queue_index;
+                            found_next = TRUE;
+                        }
+                    }
+                }
+            }
+            
+            // If we successfully found and set next track
+            if (found_next) {
+                if (load_file_from_queue(player)) {
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                    start_playback(player);
+                }
+                return;
+            }
+        }
+    }
+    
+    // Fall back to normal unsorted next
     if (advance_queue(&player->queue)) {
         if (load_file_from_queue(player)) {
             update_queue_display_with_filter(player);
@@ -1183,6 +1287,80 @@ void previous_song(AudioPlayer *player) {
     
     stop_playback(player);
     
+    // Check if we should use sorted order
+    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
+    if (model && GTK_IS_TREE_MODEL(model)) {
+        GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
+        gint sort_column_id = -1;
+        GtkSortType sort_type = GTK_SORT_ASCENDING;
+        
+        // Check if a sort is active
+        if (gtk_tree_sortable_get_sort_column_id(sortable, &sort_column_id, &sort_type)) {
+            // A sort is active, follow the sorted order
+            GtkTreeIter iter;
+            GtkTreeIter prev_iter;
+            gboolean found_current = FALSE;
+            gboolean found_prev = FALSE;
+            gboolean first_iter = TRUE;
+            
+            // Find current playing track in sorted order
+            if (gtk_tree_model_get_iter_first(model, &iter)) {
+                do {
+                    int queue_index = -1;
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &queue_index, -1);
+                    
+                    if (queue_index == player->queue.current_index) {
+                        found_current = TRUE;
+                        if (!first_iter) {
+                            // We have a previous iterator
+                            int prev_queue_index = -1;
+                            gtk_tree_model_get(model, &prev_iter, COL_QUEUE_INDEX, &prev_queue_index, -1);
+                            if (prev_queue_index >= 0 && prev_queue_index < player->queue.count) {
+                                player->queue.current_index = prev_queue_index;
+                                found_prev = TRUE;
+                            }
+                        }
+                        break;
+                    }
+                    
+                    prev_iter = iter;
+                    first_iter = FALSE;
+                } while (gtk_tree_model_iter_next(model, &iter));
+            }
+            
+            // If we couldn't find previous (at beginning of sorted list)
+            if (!found_prev && found_current) {
+                if (player->queue.repeat_queue) {
+                    // Go to last in sorted order
+                    GtkTreeIter last_iter;
+                    if (gtk_tree_model_get_iter_first(model, &iter)) {
+                        last_iter = iter;
+                        while (gtk_tree_model_iter_next(model, &iter)) {
+                            last_iter = iter;
+                        }
+                        int last_queue_index = -1;
+                        gtk_tree_model_get(model, &last_iter, COL_QUEUE_INDEX, &last_queue_index, -1);
+                        if (last_queue_index >= 0) {
+                            player->queue.current_index = last_queue_index;
+                            found_prev = TRUE;
+                        }
+                    }
+                }
+            }
+            
+            // If we successfully found and set previous track
+            if (found_prev) {
+                if (load_file_from_queue(player)) {
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                    start_playback(player);
+                }
+                return;
+            }
+        }
+    }
+    
+    // Fall back to normal unsorted previous
     if (previous_queue(&player->queue)) {
         if (load_file_from_queue(player)) {
             update_queue_display_with_filter(player);
@@ -2635,6 +2813,14 @@ void add_column(GtkWidget *tree_view, const char *title, int col_id,  int width,
     if (sortable) {
         gtk_tree_view_column_set_sort_column_id(column, col_id);
         gtk_tree_view_column_set_clickable(column, TRUE);
+        
+        // Use custom sort function for duration column
+        if (col_id == COL_DURATION) {
+            GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
+            GtkTreeSortable *sortable_model = GTK_TREE_SORTABLE(model);
+            gtk_tree_sortable_set_sort_func(sortable_model, COL_DURATION, 
+                                           duration_sort_func, NULL, NULL);
+        }
     }
     
     gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
