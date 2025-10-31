@@ -60,6 +60,13 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                         update_gui_state(player);
                         start_playback(player);
                         printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+                        char *metadata = extract_metadata(get_current_queue_file(&player->queue));
+                        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+                        parse_metadata(metadata, title, artist, album, genre);
+        
+                        show_track_info_overlay(player->visualizer, title, artist, album,
+                               get_file_duration(player->queue.files[player->queue.current_index]));
+                        g_free(metadata);
                     }
                 }
                 return TRUE;
@@ -523,6 +530,15 @@ gboolean on_vis_fullscreen_key_press(GtkWidget *widget, GdkEventKey *event, gpoi
                         update_queue_display_with_filter(player);
                         update_gui_state(player);
                         start_playback(player);
+                        printf("Started playing: %s\n", get_current_queue_file(&player->queue));
+                        char *metadata = extract_metadata(get_current_queue_file(&player->queue));
+                        char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
+                        parse_metadata(metadata, title, artist, album, genre);
+        
+                        show_track_info_overlay(player->visualizer, title, artist, album,
+                               get_file_duration(player->queue.files[player->queue.current_index]));
+                        g_free(metadata);
+                        
                     }
                 }
             }
