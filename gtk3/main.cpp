@@ -1475,11 +1475,11 @@ void next_song_filtered(AudioPlayer *player) {
     const char *filter = player->queue_filter_text;
     bool has_filter = (filter && filter[0] != '\0');
     
-    if (!has_filter) {
+    /*if (!has_filter) {
         // No filter active, use normal next_song
         next_song(player);
         return;
-    }
+    }*/
     
     // Find the next visible (non-filtered) song
     int start_index = player->queue.current_index + 1;
@@ -1539,11 +1539,11 @@ void previous_song_filtered(AudioPlayer *player) {
     const char *filter = player->queue_filter_text;
     bool has_filter = (filter && filter[0] != '\0');
     
-    if (!has_filter) {
+    /*if (!has_filter) {
         // No filter active, use normal previous_song
         previous_song(player);
         return;
-    }
+    }*/
     
     // Find the previous visible (non-filtered) song
     int start_index = player->queue.current_index - 1;
@@ -1563,6 +1563,8 @@ void previous_song_filtered(AudioPlayer *player) {
         char *metadata = extract_metadata(player->queue.files[check_index]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         parse_metadata(metadata, title, artist, album, genre);
+        show_track_info_overlay(player->visualizer, title, artist, album,
+                               get_file_duration(player->queue.files[player->queue.current_index]));
         g_free(metadata);
         
         char *basename = g_path_get_basename(player->queue.files[check_index]);

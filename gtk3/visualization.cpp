@@ -850,46 +850,52 @@ void draw_track_info_overlay(Visualizer *vis, cairo_t *cr) {
     
     int width = vis->width;
     int height = vis->height;
+    double alpha = vis->track_info_fade_alpha;
     
-    // Semi-transparent black background
-    cairo_set_source_rgba(cr, 0, 0, 0, 0.6 * vis->track_info_fade_alpha);
+    // Background and border
+    cairo_set_source_rgba(cr, 0, 0, 0, 0.6 * alpha);
     cairo_rectangle(cr, 0, height * 0.35, width, height * 0.30);
     cairo_fill(cr);
     
-    // Border
-    cairo_set_source_rgba(cr, 0.3, 0.7, 1.0, vis->track_info_fade_alpha);
+    cairo_set_source_rgba(cr, 0.3, 0.7, 1.0, alpha);
     cairo_set_line_width(cr, 2.0);
     cairo_rectangle(cr, 0, height * 0.35, width, height * 0.30);
     cairo_stroke(cr);
     
-    // Setup font
-    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    
-    double y_offset = height * 0.42;
+    // Setup
     double x_center = width / 2.0;
+    double y_start = height * 0.42;  // Starting point
+    double y_current = y_start;
     
-    // Title "Now Playing" label
-    cairo_set_font_size(cr, 12.0);
-    cairo_set_source_rgba(cr, 0.5, 0.8, 1.0, vis->track_info_fade_alpha);
     cairo_text_extents_t extents;
-    cairo_text_extents(cr, "Now Playing", &extents);
-    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
-    cairo_show_text(cr, "Now Playing");
     
-    y_offset += 24.0;
+    // ===== "Now Playing" Label =====
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+    cairo_set_font_size(cr, 12.0);
+    cairo_set_source_rgba(cr, 0.5, 0.8, 1.0, alpha);
     
-    // Song title
+    cairo_text_extents(cr, "* Now Playing *", &extents);
+    // Center text horizontally
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_current - extents.y_bearing);
+    cairo_show_text(cr, "* Now Playing *");
+    
+    // Move down by actual text height + margin
+    y_current += -extents.y_bearing + extents.height + 8.0;  // 8px margin
+    
+    // ===== Song Title =====
     cairo_set_font_size(cr, 18.0);
-    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, vis->track_info_fade_alpha);
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha);
+    
     cairo_text_extents(cr, vis->track_info_title, &extents);
-    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_current - extents.y_bearing);
     cairo_show_text(cr, vis->track_info_title);
     
-    y_offset += 40.0;
+    // Move down by actual text height + margin
+    y_current += -extents.y_bearing + extents.height + 12.0;  // 12px margin
     
-    // Artist and Album
+    // ===== Artist and Album =====
     cairo_set_font_size(cr, 13.0);
-    cairo_set_source_rgba(cr, 0.8, 0.8, 0.8, vis->track_info_fade_alpha);
+    cairo_set_source_rgba(cr, 0.8, 0.8, 0.8, alpha);
     
     char artist_album[512];
     snprintf(artist_album, sizeof(artist_album), "%s%s%s",
@@ -898,21 +904,23 @@ void draw_track_info_overlay(Visualizer *vis, cairo_t *cr) {
              vis->track_info_album);
     
     cairo_text_extents(cr, artist_album, &extents);
-    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_current - extents.y_bearing);
     cairo_show_text(cr, artist_album);
     
-    y_offset += 20.0;
+    // Move down by actual text height + margin
+    y_current += -extents.y_bearing + extents.height + 8.0;  // 8px margin
     
-    // Duration
+    // ===== Duration =====
+    cairo_set_font_size(cr, 12.0);
+    cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, alpha);
+    
     char duration_str[32];
     snprintf(duration_str, sizeof(duration_str), "(%d:%02d)",
              vis->track_info_duration / 60,
              vis->track_info_duration % 60);
     
-    cairo_set_font_size(cr, 12.0);
-    cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, vis->track_info_fade_alpha);
     cairo_text_extents(cr, duration_str, &extents);
-    cairo_move_to(cr, x_center - extents.width / 2.0, y_offset);
+    cairo_move_to(cr, x_center - extents.width / 2.0, y_current - extents.y_bearing);
     cairo_show_text(cr, duration_str);
 }
 
