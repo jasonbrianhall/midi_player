@@ -40,6 +40,17 @@ extern double playwait;
 
 AudioPlayer *player = NULL;
 
+bool ends_with_zip(const char *filename) {
+    size_t len = strlen(filename);
+    if (len < 4) return false;
+
+    const char *ext = filename + len - 4;
+    return tolower(ext[0]) == '.' &&
+           tolower(ext[1]) == 'z' &&
+           tolower(ext[2]) == 'i' &&
+           tolower(ext[3]) == 'p';
+}
+
 // Custom sort function for duration column (convert MM:SS to seconds for numeric sorting)
 static gint duration_sort_func(GtkTreeModel *model, GtkTreeIter *a, GtkTreeIter *b, gpointer user_data) {
     (void)user_data;  // unused
@@ -1493,9 +1504,10 @@ void next_song_filtered(AudioPlayer *player) {
         char *metadata = extract_metadata(player->queue.files[check_index]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         parse_metadata(metadata, title, artist, album, genre);
-        show_track_info_overlay(player->visualizer, title, artist, album,
-            get_file_duration(player->queue.files[player->queue.current_index]));
- 
+        if (!ends_with_zip(player->queue.files[check_index])) {
+            show_track_info_overlay(player->visualizer, title, artist, album,
+                get_file_duration(player->queue.files[player->queue.current_index]));
+        }
         g_free(metadata);
         
         char *basename = g_path_get_basename(player->queue.files[check_index]);
@@ -1563,8 +1575,10 @@ void previous_song_filtered(AudioPlayer *player) {
         char *metadata = extract_metadata(player->queue.files[check_index]);
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         parse_metadata(metadata, title, artist, album, genre);
-        show_track_info_overlay(player->visualizer, title, artist, album,
-                               get_file_duration(player->queue.files[player->queue.current_index]));
+        if (!ends_with_zip(player->queue.files[check_index])) {
+            show_track_info_overlay(player->visualizer, title, artist, album,
+                get_file_duration(player->queue.files[player->queue.current_index]));
+        }
         g_free(metadata);
         
         char *basename = g_path_get_basename(player->queue.files[check_index]);
@@ -2060,7 +2074,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
         base_vis_height = 80;  // Much smaller visualization
         base_queue_width = 100;
         base_queue_height = 100;
-        printf("Using very small screen base sizes\n");
+        //printf("Using very small screen base sizes\n");
     } else if (screen_width < 1200 || screen_height < 900) {
         // Medium screens (1024x768, etc.) - moderately smaller visualization
         base_window_width = 800;
@@ -2070,7 +2084,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
         base_vis_height = 120; // Smaller visualization
         base_queue_width = 250;
         base_queue_height = 350;
-        printf("Using medium-screen base sizes\n");
+        //printf("Using medium-screen base sizes\n");
     } else {
         // Large screens (1920x1080+) - keep current size
         base_window_width = 900;
@@ -2080,7 +2094,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
         base_vis_height = 200;
         base_queue_width = 300;
         base_queue_height = 400;
-        printf("Using large-screen base sizes\n");
+        //printf("Using large-screen base sizes\n");
     }
 
     // Use a more appropriate reference resolution based on screen category
@@ -2136,8 +2150,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
         queue_height = fmax(queue_height, 300);
     }
 
-    printf("Final sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n",
-           window_width, window_height, player_width, vis_width, vis_height, queue_width, queue_height);
+    //printf("Final sizes: window=%dx%d, player=%d, vis=%dx%d, queue=%dx%d\n", window_width, window_height, player_width, vis_width, vis_height, queue_width, queue_height);
 
     // Resize window
     //gtk_window_resize(GTK_WINDOW(widget), window_width, window_height);
@@ -2158,7 +2171,7 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
     // Adjust visualizer size
     if (player->visualizer && player->visualizer->drawing_area) {
         gtk_widget_set_size_request(player->visualizer->drawing_area, vis_width, vis_height);
-        printf("Set visualizer size to: %dx%d\n", vis_width, vis_height);
+        //printf("Set visualizer size to: %dx%d\n", vis_width, vis_height);
     }
 
     // Adjust queue scrolled window

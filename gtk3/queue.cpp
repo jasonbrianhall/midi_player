@@ -435,9 +435,11 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
         char *metadata = extract_metadata(get_current_queue_file(&player->queue));
         char title[256] = "", artist[256] = "", album[256] = "", genre[256] = "";
         parse_metadata(metadata, title, artist, album, genre);
-        
-        show_track_info_overlay(player->visualizer, title, artist, album,
-                               get_file_duration(player->queue.files[player->queue.current_index]));
+        if (!ends_with_zip(get_current_queue_file(&player->queue))) {
+            show_track_info_overlay(player->visualizer, title, artist, album,
+                get_file_duration(player->queue.files[player->queue.current_index]));
+        }
+        //printf("\n\n\nMy Queue %s %i\n\n\n", get_current_queue_file(&player->queue), !ends_with_zip(get_current_queue_file(&player->queue)));
         g_free(metadata);
 
 
