@@ -46,37 +46,51 @@ static void signal_handler(int sig) {
     if (sig == SIGINT || sig == SIGTERM) {
         printf("\nReceived signal %d, initiating graceful shutdown...\n", sig);
         
-        // Stop playback if playing
-        if (player && isPlaying) {
-            stop_playback(player);
-        }
-        
-        // Save player state before exiting
         if (player) {
+            // Save current queue before exit
+            save_current_queue_on_exit(player);
             save_player_settings(player);
             
-            // Save current queue state (index and playback position)
-            char position_path[1024];
-#ifdef _WIN32
-            char app_data[MAX_PATH];
-            if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) == S_OK) {
-                snprintf(position_path, sizeof(position_path), "%s\\Zenamp\\temp_queue_state.txt", app_data);
-#else
-            const char *home = getenv("HOME");
-            if (home) {
-                snprintf(position_path, sizeof(position_path), "%s/.zenamp/temp_queue_state.txt", home);
-#endif
-                FILE *f = fopen(position_path, "w");
-                if (f) {
-                    fprintf(f, "%d\n%.2f\n", player->queue.current_index, playTime);
-                    fclose(f);
-                    printf("Saved queue state before shutdown\n");
-                }
+            // Stop playback if playing
+            if (isPlaying) {
+                stop_playback(player);
             }
+            
+            // Cleanup all resources in the same order as on_window_delete_event
+            clear_queue(&player->queue);
+            cleanup_queue_filter(player);
+            cleanup_conversion_cache(&player->conversion_cache);
+            cleanup_audio_cache(&player->audio_cache); 
+            cleanup_virtual_filesystem();
+            
+            printf("Cleaning up Audio\n");
+            if (player->audio_buffer.data) free(player->audio_buffer.data);
+
+            if (player->cdg_display) {
+                cdg_display_free(player->cdg_display);
+            }    
+
+            printf("Closing SDL audio device\n");
+            if (player->audio_device) SDL_CloseAudioDevice(player->audio_device);
+
+            printf("Cleaning Equalizer\n");
+            if (player->equalizer) {
+                equalizer_free(player->equalizer);
+            }
+            
+            printf("Destroying audio mutex\n");
+            pthread_mutex_destroy(&player->audio_mutex);
+
+            printf("Freeing player\n");
+            g_free(player);
+            player = NULL;
         }
+
+        printf("Closing SDL\n");
+        SDL_Quit();
         
-        // Exit GTK main loop
-        gtk_main_quit();
+        printf("Exiting application\n");
+        exit(0);
     }
 }
 
