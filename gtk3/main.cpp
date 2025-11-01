@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <SDL2/SDL.h>
+#include <signal.h>
 
 #ifndef _WIN32
 #include <sys/stat.h>
@@ -39,6 +40,45 @@ extern void processEvents(void);
 extern double playwait;
 
 AudioPlayer *player = NULL;
+
+// Signal handler for graceful shutdown
+static void signal_handler(int sig) {
+    if (sig == SIGINT || sig == SIGTERM) {
+        printf("\nReceived signal %d, initiating graceful shutdown...\n", sig);
+        
+        // Stop playback if playing
+        if (player && isPlaying) {
+            stop_playback(player);
+        }
+        
+        // Save player state before exiting
+        if (player) {
+            save_player_settings(player);
+            
+            // Save current queue state (index and playback position)
+            char position_path[1024];
+#ifdef _WIN32
+            char app_data[MAX_PATH];
+            if (SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, app_data) == S_OK) {
+                snprintf(position_path, sizeof(position_path), "%s\\Zenamp\\temp_queue_state.txt", app_data);
+#else
+            const char *home = getenv("HOME");
+            if (home) {
+                snprintf(position_path, sizeof(position_path), "%s/.zenamp/temp_queue_state.txt", home);
+#endif
+                FILE *f = fopen(position_path, "w");
+                if (f) {
+                    fprintf(f, "%d\n%.2f\n", player->queue.current_index, playTime);
+                    fclose(f);
+                    printf("Saved queue state before shutdown\n");
+                }
+            }
+        }
+        
+        // Exit GTK main loop
+        gtk_main_quit();
+    }
+}
 
 bool ends_with_zip(const char *filename) {
     size_t len = strlen(filename);
@@ -3557,6 +3597,10 @@ int main(int argc, char *argv[]) {
         update_queue_display_with_filter(player);
         update_gui_state(player);
     }
+    
+    // Setup signal handlers for graceful shutdown
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     
     gtk_main();
     
