@@ -2057,9 +2057,9 @@ void on_window_resize(GtkWidget *widget, gpointer user_data) {
     GdkScreen *screen = gtk_widget_get_screen(widget);
     int screen_width = gdk_screen_get_width(screen);
     int screen_height = gdk_screen_get_height(screen);
-    printf("Screen %i %i\n", screen_width, screen_height);
+    //printf("Screen %i %i\n", screen_width, screen_height);
 
-    printf("Screen resolution: %dx%d\n", screen_width, screen_height);
+    //printf("Screen resolution: %dx%d\n", screen_width, screen_height);
 
     // Adaptive base sizes based on screen resolution category
     int base_window_width, base_window_height, base_player_width;
