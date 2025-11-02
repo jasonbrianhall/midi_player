@@ -28,6 +28,7 @@
 #include "beatcheckers.h"
 #include "maze3d.h"
 #include "drawradialbars.h"
+#include "bouncingcircle.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -67,6 +68,7 @@ typedef enum {
     VIS_BIRTHDAY,
     VIS_RABBITHARE,
     VIS_MAZE_3D,
+    VIS_BOUNCING_CIRCLE,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -323,7 +325,11 @@ typedef struct {
     // Maze 3D
     Maze3D maze3d;
  
+    // Radial Bar
     RadialBarsSystem  radial_bars_system;
+
+    // Bouncing Circle
+    BouncingCircleState bouncing_circle_state;
 
 } Visualizer;
 
@@ -623,6 +629,11 @@ void update_radial_bars_bouncing(Visualizer *vis, double dt);
 void show_track_info_overlay(Visualizer *vis, const char *title, const char *artist, const char *album,  int duration_seconds);
 void update_track_info_overlay(Visualizer *vis, double dt);
 void draw_track_info_overlay(Visualizer *vis, cairo_t *cr);
+
+// Bouncing Circle
+void init_bouncing_circle_system(void *vis);
+void update_bouncing_circle(void *vis, BouncingCircleState *state, double width, double height, double dt);
+void draw_bouncing_circle(void *vis, cairo_t *cr, double width, double height, BouncingCircleState *state);
 
 #endif
 
