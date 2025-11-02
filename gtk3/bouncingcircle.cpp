@@ -119,11 +119,23 @@ void update_bouncing_circle(void *vis_ptr, double dt) {
         // Grow the ball using beat-responsive growth rate
         state->radius += state->current_growth_rate;
         
+        // Subtle velocity boost as ball gets bigger to prevent exponential growth
+        // Just enough to keep it bouncing instead of sitting on the bottom
+        double size_factor = 1.0 + (state->radius / (container_radius * 0.95)) * 0.08;
+        state->vel_x *= size_factor;
+        state->vel_y *= size_factor;
+        
         // Reset if ball reaches container size
         if (state->radius >= container_radius * 0.95) {
             state->radius = INITIAL_BALL_RADIUS;
             state->bounce_counter = 0;
             state->hue_offset = fmod(state->hue_offset + 0.3, 1.0);
+            
+            // Complete clean reset - put ball back in center with fresh velocity
+            state->pos_x = center_x;
+            state->pos_y = center_y;
+            state->vel_x = 300.0;
+            state->vel_y = 200.0;
         }
     }
     
