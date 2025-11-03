@@ -17,6 +17,7 @@
 #else
 #include <shlobj.h>
 #include <gdk/gdkwin32.h>
+#include <windows.h>
 #endif
 
 #include "visualization.h"
@@ -92,6 +93,20 @@ static void signal_handler(int sig) {
         printf("Exiting application\n");
         exit(0);
     }
+}
+
+// Prevent Windows from sleeping during playback
+static void prevent_system_sleep(void) {
+    #ifdef _WIN32
+    SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+    #endif
+}
+
+// Allow Windows to sleep normally
+static void allow_system_sleep(void) {
+    #ifdef _WIN32
+    SetThreadExecutionState(ES_CONTINUOUS);
+    #endif
 }
 
 bool ends_with_zip(const char *filename) {
@@ -978,6 +993,9 @@ void start_playback(AudioPlayer *player) {
     player->is_paused = false;
     pthread_mutex_unlock(&player->audio_mutex);
     
+    // Prevent system sleep during playback
+    prevent_system_sleep();
+    
     SDL_PauseAudioDevice(player->audio_device, 0);
     
     if (player->update_timer_id == 0) {
@@ -1229,6 +1247,9 @@ void stop_playback(AudioPlayer *player) {
     player->audio_buffer.position = 0;
     playTime = 0;
     pthread_mutex_unlock(&player->audio_mutex);
+    
+    // Allow system to sleep when playback stops
+    allow_system_sleep();
     
     SDL_PauseAudioDevice(player->audio_device, 1);
     
