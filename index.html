@@ -6,544 +6,21 @@
     <meta name="description" content="Zenamp - A feature-rich audio player combining modern format support with nostalgic MIDI synthesis, karaoke capabilities, and 30+ visualizations.">
     <meta name="theme-color" content="#1a1a2e">
     <title>Zenamp - The Ultimate Audio Player</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #e0e0e0;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* Animated background */
-        @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-
-        /* Header */
-        header {
-            background: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(233, 69, 96, 0.3);
-            padding: 1.5rem 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 2rem;
-        }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .logo {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #e94560 0%, #f39c12 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: white;
-            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
-            animation: logoFloat 3s ease-in-out infinite;
-        }
-
-        @keyframes logoFloat {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-5px); }
-        }
-
-        .logo-text {
-            font-size: 1.8rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #e94560 0%, #f39c12 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        nav {
-            display: flex;
-            gap: 2rem;
-        }
-
-        nav a {
-            color: #e0e0e0;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.3s ease;
-            position: relative;
-        }
-
-        nav a::after {
-            content: '';
-            position: absolute;
-            bottom: -3px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: linear-gradient(90deg, #e94560, #f39c12);
-            transition: width 0.3s ease;
-        }
-
-        nav a:hover::after {
-            width: 100%;
-        }
-
-        nav a:hover {
-            color: #f39c12;
-        }
-
-        /* Main Content */
-        main {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        /* Hero Section */
-        .hero {
-            padding: 6rem 0;
-            text-align: center;
-            animation: slideInDown 0.8s ease;
-        }
-
-        @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .hero h1 {
-            font-size: clamp(2.5rem, 5vw, 4rem);
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, #e94560, #f39c12, #e94560);
-            background-size: 200% 200%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: gradientShift 4s ease infinite;
-        }
-
-        .hero-subtitle {
-            font-size: 1.3rem;
-            color: #b0b0b0;
-            margin-bottom: 2rem;
-            line-height: 1.8;
-        }
-
-        .cta-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 2.5rem;
-        }
-
-        .btn {
-            padding: 0.875rem 2rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #e94560, #f39c12);
-            color: white;
-            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: #e94560;
-            border: 2px solid #e94560;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(233, 69, 96, 0.1);
-            transform: translateY(-2px);
-        }
-
-        /* Features Section */
-        .features {
-            padding: 5rem 0;
-            animation: fadeInUp 0.8s ease 0.2s both;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .section-title {
-            font-size: 2.5rem;
-            text-align: center;
-            margin-bottom: 3rem;
-            color: #fff;
-            position: relative;
-        }
-
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: -15px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 4px;
-            background: linear-gradient(90deg, #e94560, #f39c12);
-            border-radius: 2px;
-        }
-
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .feature-card {
-            background: rgba(22, 33, 62, 0.6);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(233, 69, 96, 0.2);
-            border-radius: 12px;
-            padding: 2rem;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-8px);
-            background: rgba(22, 33, 62, 0.8);
-            border-color: rgba(233, 69, 96, 0.5);
-            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.2);
-        }
-
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.4rem;
-            margin-bottom: 0.8rem;
-            color: #f39c12;
-        }
-
-        .feature-card p {
-            color: #b0b0b0;
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        /* Visualizations Showcase */
-        .visualizations {
-            padding: 5rem 0;
-            animation: fadeInUp 0.8s ease 0.4s both;
-        }
-
-        .vis-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1.5rem;
-            margin-top: 3rem;
-        }
-
-        .vis-item {
-            background: rgba(22, 33, 62, 0.5);
-            border: 1px solid rgba(233, 69, 96, 0.2);
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-            color: #b0b0b0;
-        }
-
-        .vis-item:hover {
-            background: rgba(233, 69, 96, 0.1);
-            border-color: rgba(233, 69, 96, 0.5);
-            transform: scale(1.05);
-        }
-
-        /* Specs Section */
-        .specs {
-            padding: 5rem 0;
-            animation: fadeInUp 0.8s ease 0.6s both;
-        }
-
-        .specs-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .spec-box {
-            background: rgba(15, 52, 96, 0.6);
-            border-left: 4px solid #e94560;
-            padding: 2rem;
-            border-radius: 8px;
-        }
-
-        .spec-box h4 {
-            color: #f39c12;
-            margin-bottom: 1rem;
-            font-size: 1.2rem;
-        }
-
-        .spec-box ul {
-            list-style: none;
-            padding-left: 1rem;
-        }
-
-        .spec-box li {
-            color: #b0b0b0;
-            margin-bottom: 0.5rem;
-            position: relative;
-            padding-left: 1.5rem;
-        }
-
-        .spec-box li::before {
-            content: '▸';
-            position: absolute;
-            left: 0;
-            color: #e94560;
-        }
-
-        /* Format Support */
-        .formats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-
-        .format-badge {
-            background: rgba(233, 69, 96, 0.1);
-            border: 1px solid rgba(233, 69, 96, 0.3);
-            padding: 0.7rem 1rem;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #f39c12;
-            transition: all 0.3s ease;
-        }
-
-        .format-badge:hover {
-            background: rgba(233, 69, 96, 0.2);
-            border-color: rgba(233, 69, 96, 0.6);
-        }
-
-        /* Footer */
-        footer {
-            background: rgba(26, 26, 46, 0.95);
-            border-top: 1px solid rgba(233, 69, 96, 0.3);
-            padding: 3rem 2rem;
-            margin-top: 5rem;
-        }
-
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .footer-section h4 {
-            color: #f39c12;
-            margin-bottom: 1rem;
-        }
-
-        .footer-section p, .footer-section a {
-            color: #b0b0b0;
-            text-decoration: none;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        .footer-section a:hover {
-            color: #e94560;
-        }
-
-        .footer-bottom {
-            text-align: center;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(233, 69, 96, 0.2);
-            color: #707070;
-            font-size: 0.9rem;
-        }
-
-        .social-links {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-
-        .social-links a {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: rgba(233, 69, 96, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            font-size: 1.1rem;
-        }
-
-        .social-links a:hover {
-            background: rgba(233, 69, 96, 0.3);
-            transform: translateY(-3px);
-        }
-
-        /* Smooth Scroll */
-        html {
-            scroll-behavior: smooth;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            nav {
-                flex-direction: column;
-                gap: 1rem;
-                justify-content: center;
-            }
-
-            .hero {
-                padding: 3rem 0;
-            }
-
-            .hero h1 {
-                font-size: 2rem;
-            }
-
-            .cta-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .btn {
-                width: 100%;
-                max-width: 300px;
-            }
-
-            .feature-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .vis-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 480px) {
-            main {
-                padding: 0 1rem;
-            }
-
-            .header-content {
-                padding: 0 1rem;
-            }
-
-            .section-title {
-                font-size: 1.8rem;
-            }
-
-            .vis-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Loading Animation */
-        .pulse {
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        /* Scroll Reveal */
-        .reveal {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        .reveal.active {
-            opacity: 1;
-            transform: translateY(0);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <!-- Header -->
     <header>
         <div class="header-content">
             <div class="logo-section">
-                <div class="logo" title="Zenamp Audio Player"><img src="gtk3/icon.png" alt="Zenamp Logo" style="width: 50px; height: 50px;"></div>
-                <span class="logo-text">Zenamp</span>
+                <div class="logo">♪</div>
+                <div class="logo-text">Zenamp</div>
             </div>
             <nav>
                 <a href="#features">Features</a>
                 <a href="#visualizations">Visualizations</a>
+                <a href="#specs">Specifications</a>
                 <a href="#download">Download</a>
-                <a href="https://github.com/jasonbrianhall/zenamp" target="_blank" rel="noopener noreferrer">GitHub</a>
             </nav>
         </div>
     </header>
@@ -554,71 +31,53 @@
         <section class="hero">
             <h1>The Ultimate Audio Player</h1>
             <p class="hero-subtitle">
-                Zenamp brings together modern convenience and retro authenticity.<br>
-                30+ visualizations, karaoke support, MIDI synthesis, and comprehensive format support.
+                Experience music like never before with 30+ mesmerizing visualizations, MIDI synthesis, 
+                karaoke support, and format support for everything from WAV to MIDI.
             </p>
             <div class="cta-buttons">
-                <a href="#download" class="btn btn-primary">Download Now</a>
-                <a href="https://github.com/jasonbrianhall/zenamp" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">View Source</a>
+                <a href="https://github.com/jasonbrianhall/zenamp/releases" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                    Download Now
+                </a>
+                <a href="https://github.com/jasonbrianhall/zenamp" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
+                    View on GitHub
+                </a>
             </div>
         </section>
 
         <!-- Features Section -->
-        <section id="features" class="features">
-            <h2 class="section-title">Core Features</h2>
-            <div class="feature-grid">
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🎧</div>
-                    <h3>Complete Playback Control</h3>
-                    <p>Play, pause, stop, rewind/fast-forward with 5-second jumps. Adjust speed from 0.1x to 4.0x and volume up to 500%.</p>
+        <section id="features" class="features reveal">
+            <h2 class="section-title">Why Choose Zenamp?</h2>
+            <div class="features-grid">
+                <div class="feature-box">
+                    <h3>🎨 30+ Visualizations</h3>
+                    <p>From classic waveforms to trippy fractals, mind-bending kaleidoscopes to interactive games. Each visualization responds dynamically to your music, creating a unique visual experience every time.</p>
                 </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">📜</div>
-                    <h3>Advanced Queue Management</h3>
-                    <p>Visual queue display with powerful filtering, sortable columns, and smart navigation. Support for M3U/M3U8 playlists.</p>
+                <div class="feature-box">
+                    <h3>🎛️ Universal Format Support</h3>
+                    <p>Play everything: WAV, FLAC, MP3, OGG, Opus, M4A, AAC, WMA, AIFF, MIDI files, CD+G karaoke tracks, and LRC lyrics. Powered by libavcodec for maximum compatibility.</p>
                 </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🎤</div>
-                    <h3>Karaoke Support</h3>
-                    <p>CD+G graphics and LRC lyrics with real-time synchronization. Two visualization modes: Classic and Starburst.</p>
+                <div class="feature-box">
+                    <h3>🎹 MIDI & Synthesis</h3>
+                    <p>Relive the golden age of computer music with authentic OPL3 FM synthesis. Play MIDI files with full support for real-time synthesis and frame-accurate playback synchronization.</p>
                 </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🎨</div>
-                    <h3>30+ Audio Visualizations</h3>
-                    <p>From classic waveforms to interactive games like Chess, Checkers, and Sudoku. Fully audio-reactive.</p>
+                <div class="feature-box">
+                    <h3>🎤 Karaoke Mode</h3>
+                    <p>Enjoy karaoke with CD+G disc support and synchronized LRC lyrics display. Perfect for sing-alongs and building your personal karaoke collection.</p>
                 </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🎚️</div>
-                    <h3>10-Band Equalizer</h3>
-                    <p>Professional-grade equalization with ±12dB per band. Real-time adjustment and preset saving.</p>
+                <div class="feature-box">
+                    <h3>⚡ Lightweight & Fast</h3>
+                    <p>Uses only 30-150 MB of RAM during playback with under 1% idle CPU usage. Minimize the window and overhead drops to just 3%. Built in C++ with SDL2 and GTK3.</p>
                 </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🎹</div>
-                    <h3>OPL3 MIDI Synthesis</h3>
-                    <p>Authentic Yamaha OPL3 emulation for classic 1990s DOS game sound. Real-time synthesis with period-correct instruments.</p>
-                </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">💾</div>
-                    <h3>Format Versatility</h3>
-                    <p>WAV, AIFF, FLAC, MP3, OGG, Opus, M4A, AAC, WMA, MIDI, CD+G, LRC, and more via libavcodec.</p>
-                </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">💫</div>
-                    <h3>Smart Features</h3>
-                    <p>Conversion caching, DPI awareness, responsive layout, system tray integration, and persistent settings.</p>
-                </div>
-                <div class="feature-card reveal">
-                    <div class="feature-icon">🔒</div>
-                    <h3>Privacy First</h3>
-                    <p>No cloud, no telemetry, no subscriptions. Your music, your computer, your control—truly free forever.</p>
+                <div class="feature-box">
+                    <h3>🔧 Open Source</h3>
+                    <p>Full MIT License. Active development on GitHub with community contributions welcome. Automated builds for both Linux and Windows via GitHub Actions.</p>
                 </div>
             </div>
         </section>
 
         <!-- Visualizations Section -->
-        <section id="visualizations" class="visualizations">
-            <h2 class="section-title">30+ Visualizations</h2>
-            <p style="text-align: center; color: #b0b0b0; margin-bottom: 1rem;">Audio-reactive visual effects that transform your music into art</p>
+        <section id="visualizations" class="visualizations reveal">
+            <h2 class="section-title">30+ Mind-Bending Visualizations</h2>
             <div class="vis-grid">
                 <div class="vis-item">🌊 Waveform</div>
                 <div class="vis-item">📡 Oscilloscope</div>
@@ -651,13 +110,13 @@
                 <div class="vis-item">🎂 Birthday Cake</div>
                 <div class="vis-item">🐰 Rabbit/Turtle</div>
             </div>
-            <p style="text-align: center; color: #707070; margin-top: 2rem; font-size: 0.9rem;">
+            <p class="vis-tips">
                 💡 Press F9 to toggle fullscreen • Q to cycle next • A to cycle previous • Adjust sensitivity slider for optimal response
             </p>
         </section>
 
         <!-- Specifications Section -->
-        <section id="specs" class="specs">
+        <section id="specs" class="specs reveal">
             <h2 class="section-title">Technical Specifications</h2>
             <div class="specs-grid">
                 <div class="spec-box">
@@ -706,7 +165,7 @@
                 </div>
             </div>
 
-            <h3 style="margin-top: 3rem; margin-bottom: 1rem; color: #f39c12;">Supported Audio Formats</h3>
+            <h3 class="format-title">Supported Audio Formats</h3>
             <div class="formats">
                 <span class="format-badge">WAV</span>
                 <span class="format-badge">FLAC</span>
@@ -723,9 +182,9 @@
         </section>
 
         <!-- Download Section -->
-        <section id="download" class="features" style="text-align: center;">
+        <section id="download" class="features reveal" style="text-align: center;">
             <h2 class="section-title">Get Started</h2>
-            <p style="color: #b0b0b0; font-size: 1.1rem; margin: 2rem 0;">
+            <p class="download-text">
                 Available for Linux and Windows. Builds automatically created via GitHub Actions.
             </p>
             <div class="cta-buttons">
@@ -736,8 +195,8 @@
                     GitHub Repository
                 </a>
             </div>
-            <p style="color: #707070; font-size: 0.9rem; margin-top: 2rem;">
-                💻 Quick Build (Linux): <code style="background: rgba(0,0,0,0.3); padding: 0.3rem 0.6rem; border-radius: 4px;">git clone && cd zenamp/gtk3 && make && ./build/linux/zenamp</code>
+            <p class="build-instruction">
+                💻 Quick Build (Linux): <code>git clone && cd zenamp/gtk3 && make && ./build/linux/zenamp</code>
             </p>
         </section>
     </main>
@@ -767,73 +226,10 @@
         </div>
         <div class="footer-bottom">
             <p>&copy; 2025 Zenamp • MIT License • Made with passion for audio enthusiasts</p>
-            <p>⭐ <a href="https://github.com/jasonbrianhall/zenamp" target="_blank" rel="noopener noreferrer" style="color: #e94560;">Star on GitHub</a></p>
+            <p>⭐ <a href="https://github.com/jasonbrianhall/zenamp" target="_blank" rel="noopener noreferrer">Star on GitHub</a></p>
         </div>
     </footer>
 
-    <script>
-        // Scroll reveal animation
-        function reveal() {
-            const reveals = document.querySelectorAll('.reveal');
-            reveals.forEach(element => {
-                const windowHeight = window.innerHeight;
-                const elementTop = element.getBoundingClientRect().top;
-                const elementVisible = 150;
-                
-                if (elementTop < windowHeight - elementVisible) {
-                    element.classList.add('active');
-                }
-            });
-        }
-
-        window.addEventListener('scroll', reveal);
-        reveal(); // Initial call
-
-        // Smooth scroll for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                const href = this.getAttribute('href');
-                if (href !== '#') {
-                    e.preventDefault();
-                    const target = document.querySelector(href);
-                    if (target) {
-                        target.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }
-            });
-        });
-
-        // Active nav link tracking
-        window.addEventListener('scroll', () => {
-            let current = '';
-            const sections = document.querySelectorAll('section');
-            
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                if (scrollY >= sectionTop - 200) {
-                    current = section.getAttribute('id');
-                }
-            });
-
-            document.querySelectorAll('nav a').forEach(link => {
-                link.style.color = '';
-                if (link.getAttribute('href') === `#${current}`) {
-                    link.style.color = '#f39c12';
-                }
-            });
-        });
-
-        // Animate gradient text on load
-        window.addEventListener('load', () => {
-            console.log('Zenamp index page loaded successfully! 🎵');
-        });
-
-        // Keyboard navigation (accessibility)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                // Could be used for modal/fullscreen mode in future
-            }
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
