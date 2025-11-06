@@ -8,8 +8,8 @@
 // ============================================================================
 
 /**
- * Handle animated APNG logo - only plays animation on click
- * The APNG starts paused and only plays from beginning when clicked
+ * Handle animated APNG logo - plays on click, returns to first frame after
+ * Uses animation-play-state to pause the animation after it completes
  */
 document.addEventListener('DOMContentLoaded', () => {
     const logoElement = document.getElementById('logoAnimated');
@@ -19,11 +19,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = this.querySelector('.logo-img');
             
             if (img) {
-                // Get the current src and add cache bust parameter
-                const src = img.src.split('?')[0]; // Remove existing query params
+                // Reset animation
+                img.style.animationPlayState = 'running';
                 
-                // Force browser to reload the image, restarting the animation
-                img.src = src + '?t=' + Date.now();
+                // Get animation duration from CSS (default to 1s if not found)
+                const computedStyle = window.getComputedStyle(img);
+                const animationDuration = parseFloat(computedStyle.animationDuration) || 1;
+                
+                // Pause animation after it completes
+                setTimeout(() => {
+                    img.style.animationPlayState = 'paused';
+                }, animationDuration * 1000);
             }
         });
     }
