@@ -31,6 +31,9 @@ Visualizer* visualizer_new(void) {
     
     // Initialize simple frequency band analysis
     init_frequency_bands(vis);
+
+    // Fractal
+    init_mandelbrot_system(vis);
     
     // Create drawing area with DPI awareness
     vis->drawing_area = gtk_drawing_area_new();
@@ -468,6 +471,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_BOUNCING_CIRCLE:
           draw_bouncing_circle(vis, cr);
           break;
+       case VIS_MANDELBROT:
+          draw_mandelbrot(vis, cr);
+          break;
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -613,7 +619,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_BOUNCING_CIRCLE:
                 update_bouncing_circle(vis, dt);
-                break;                                               
+                break;
+            case VIS_MANDELBROT:
+                update_mandelbrot(vis, dt);
+                break;                                                               
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -721,6 +730,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Rabbit/Turtle Race");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "3d Maze");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Circle Ball Visualization");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Mandelbrot Fractal");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 

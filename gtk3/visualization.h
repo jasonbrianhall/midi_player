@@ -29,6 +29,7 @@
 #include "maze3d.h"
 #include "drawradialbars.h"
 #include "bouncingcircle.h"
+#include "mandelbrot.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -69,6 +70,7 @@ typedef enum {
     VIS_RABBITHARE,
     VIS_MAZE_3D,
     VIS_BOUNCING_CIRCLE,
+    VIS_MANDELBROT,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -330,6 +332,9 @@ typedef struct {
 
     // Bouncing Circle
     BouncingCircleState bouncing_circle_state;
+
+    // Fractal
+    MandelbrotState mandelbrot;
 
 } Visualizer;
 
@@ -634,6 +639,23 @@ void draw_track_info_overlay(Visualizer *vis, cairo_t *cr);
 void init_bouncing_circle_system(void *vis);
 void update_bouncing_circle(void *vis, BouncingCircleState *state, double width, double height, double dt);
 void draw_bouncing_circle(void *vis, cairo_t *cr, double width, double height, BouncingCircleState *state);
+
+// Initialization and cleanup
+void init_mandelbrot_system(void *vis);
+
+// Update and render
+void update_mandelbrot(void *vis, double dt);
+void draw_mandelbrot(void *vis, cairo_t *cr);
+
+// Beat detection
+gboolean mandelbrot_detect_beat(void *vis);
+
+// Helper functions
+int mandelbrot_calculate_iterations(double real, double imag, double center_x, double center_y, 
+                                   double zoom, int max_iterations, int width, int height);
+void mandelbrot_get_color(int iterations, int max_iterations, double hue_offset, 
+                         double *r, double *g, double *b);
+void mandelbrot_recalculate_region(void *vis, int width, int height);
 
 #endif
 
