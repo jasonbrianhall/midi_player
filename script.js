@@ -8,8 +8,8 @@
 // ============================================================================
 
 /**
- * Handle animated WebP logo - restarts animation on click
- * The animated WebP will only play from the beginning when clicked
+ * Handle animated APNG logo - only plays animation on click
+ * The APNG starts paused and only plays from beginning when clicked
  */
 document.addEventListener('DOMContentLoaded', () => {
     const logoElement = document.getElementById('logoAnimated');
@@ -19,24 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = this.querySelector('.logo-img');
             
             if (img) {
-                // Restart the animation by cloning and replacing the image
-                const src = img.src;
-                const alt = img.alt;
+                // Get the current src and add cache bust parameter
+                const src = img.src.split('?')[0]; // Remove existing query params
                 
-                img.style.opacity = '0';
-                
-                setTimeout(() => {
-                    img.src = src + '?t=' + Date.now(); // Force reload with cache bust
-                    img.style.opacity = '1';
-                }, 50);
+                // Force browser to reload the image, restarting the animation
+                img.src = src + '?t=' + Date.now();
             }
-            
-            // Add spin animation to logo container
-            this.style.animation = 'none';
-            
-            // Trigger reflow to restart animation
-            void this.offsetWidth;
-            this.style.animation = 'logoSpin 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
         });
     }
 });
