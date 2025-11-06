@@ -49,11 +49,6 @@ body {
     }
 }
 
-@keyframes logoFloat {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-5px); }
-}
-
 /* ============================================================================
    Header Styles
    ============================================================================ */
@@ -97,7 +92,6 @@ header {
     font-weight: bold;
     color: white;
     box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
-    animation: logoFloat 3s ease-in-out infinite;
 }
 
 .logo-text {
