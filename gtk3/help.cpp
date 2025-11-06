@@ -142,7 +142,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     GtkWidget *author_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(author_label), 
         "<b>Author:</b> Jason Hall\n"
-        "<b>Website:</b> <a href=\"https://github.com/jasonbrianhall/midi_player/tree/main/gtk3\">"
+        "<b>Website:</b> <a href=\"https://jasonbrianhall.github.io/zenamp">"
         "GitHub Repository</a>");
     gtk_label_set_justify(GTK_LABEL(author_label), GTK_JUSTIFY_CENTER);
     gtk_box_pack_start(GTK_BOX(about_vbox), author_label, FALSE, FALSE, 0);
