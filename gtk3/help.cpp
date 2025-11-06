@@ -142,7 +142,7 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     GtkWidget *author_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(author_label), 
         "<b>Author:</b> Jason Hall\n"
-        "<b>Website:</b> <a href=\"https://jasonbrianhall.github.io/zenamp">"
+        "<b>Website:</b> <a href=\"https://jasonbrianhall.github.io/zenamp\">"
         "GitHub Repository</a>");
     gtk_label_set_justify(GTK_LABEL(author_label), GTK_JUSTIFY_CENTER);
     gtk_box_pack_start(GTK_BOX(about_vbox), author_label, FALSE, FALSE, 0);
@@ -238,6 +238,114 @@ void on_menu_about(GtkMenuItem *menuitem, gpointer user_data) {
     
     gtk_notebook_append_page(GTK_NOTEBOOK(notebook), privacy_scrolled, 
                             gtk_label_new("Privacy Policy"));
+    
+    // === SUPPORT TAB ===
+    GtkWidget *support_scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(support_scrolled),
+                                  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    
+    GtkWidget *support_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, use_compact_dialog ? 12 : 15);
+    gtk_container_set_border_width(GTK_CONTAINER(support_vbox), use_compact_dialog ? 15 : 25);
+    
+    // Support heading
+    GtkWidget *support_heading = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(support_heading), 
+        "<span size='x-large' weight='bold'>Support Zenamp</span>");
+    gtk_label_set_justify(GTK_LABEL(support_heading), GTK_JUSTIFY_CENTER);
+    gtk_box_pack_start(GTK_BOX(support_vbox), support_heading, FALSE, FALSE, 0);
+    
+    // Support message
+    GtkWidget *support_message = gtk_label_new(
+        "If you enjoy using Zenamp and would like to support "
+        "its development, consider buying the developer a coffee!");
+    gtk_label_set_justify(GTK_LABEL(support_message), GTK_JUSTIFY_CENTER);
+    gtk_label_set_line_wrap(GTK_LABEL(support_message), TRUE);
+    gtk_box_pack_start(GTK_BOX(support_vbox), support_message, FALSE, FALSE, 0);
+    
+    // Coffee emoji
+    GtkWidget *coffee_emoji = gtk_label_new("☕");
+    GtkWidget *emoji_align = gtk_alignment_new(0.5, 0.5, 0, 0);
+    gtk_container_add(GTK_CONTAINER(emoji_align), coffee_emoji);
+    gtk_box_pack_start(GTK_BOX(support_vbox), emoji_align, FALSE, FALSE, 0);
+    
+    // Buy Me a Coffee link
+    GtkWidget *bmac_link = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(bmac_link),
+        "<b>Buy Me a Coffee</b>\n\n"
+        "<a href=\"https://buymeacoffee.com/jasonbrianhall\">"
+        "https://buymeacoffee.com/jasonbrianhall</a>");
+    gtk_label_set_justify(GTK_LABEL(bmac_link), GTK_JUSTIFY_CENTER);
+    gtk_label_set_line_wrap(GTK_LABEL(bmac_link), TRUE);
+    gtk_box_pack_start(GTK_BOX(support_vbox), bmac_link, FALSE, FALSE, 0);
+    
+    // Disclaimer
+    GtkWidget *disclaimer = gtk_label_new(
+        "This is an independent donation platform.\n"
+        "Microsoft is not affiliated with or responsible for this donation link.");
+    gtk_label_set_justify(GTK_LABEL(disclaimer), GTK_JUSTIFY_CENTER);
+    gtk_label_set_line_wrap(GTK_LABEL(disclaimer), TRUE);
+    GtkWidget *disclaimer_event = gtk_event_box_new();
+    gtk_container_add(GTK_CONTAINER(disclaimer_event), disclaimer);
+    gtk_box_pack_start(GTK_BOX(support_vbox), disclaimer_event, FALSE, FALSE, use_compact_dialog ? 10 : 15);
+    
+    // Add spacer to push content to top
+    GtkWidget *spacer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_pack_start(GTK_BOX(support_vbox), spacer, TRUE, TRUE, 0);
+    
+    // Add vbox to scrolled window
+    gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(support_scrolled), support_vbox);
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), support_scrolled, 
+                            gtk_label_new("Support"));
+    
+    // === CONTRIBUTING TAB ===
+    GtkWidget *contrib_scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(contrib_scrolled),
+                                  GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    
+    if (use_compact_dialog) {
+        gtk_widget_set_size_request(contrib_scrolled, 450, 350);
+    } else {
+        gtk_widget_set_size_request(contrib_scrolled, 550, 400);
+    }
+    
+    GtkWidget *contrib_textview = gtk_text_view_new();
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(contrib_textview), FALSE);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(contrib_textview), FALSE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(contrib_textview), GTK_WRAP_WORD);
+    
+    GtkTextBuffer *contrib_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(contrib_textview));
+    const char *contributing_text = 
+        "Contributing to Zenamp\n\n"
+        "This is a community project and contributions are welcome!\n\n"
+        "Ways You Can Contribute:\n\n"
+        "🐛 Bug Fixes\n"
+        "Found a bug? Submit a pull request with a fix. Please include:\n"
+        "- Description of the bug\n"
+        "- Steps to reproduce\n"
+        "- System information (OS, GTK version)\n\n"
+        "🎨 New Visualizations\n"
+        "Create amazing new visualizations! This is a great way to contribute.\n"
+        "Documentation and examples are available in the source code.\n\n"
+        "🎵 Format Support\n"
+        "Help improve audio format support for various file types.\n\n"
+        "📚 Documentation\n"
+        "Improve README, add examples, or create tutorials.\n\n"
+        "🌍 Translation\n"
+        "Help translate Zenamp to other languages.\n\n"
+        "Reporting Issues:\n\n"
+        "1. Check existing issues on GitHub\n"
+        "2. Provide system info (OS, GTK version, audio backend)\n"
+        "3. Include console output if available\n"
+        "4. Describe steps to reproduce\n\n"
+        "Repository:\n"
+        "https://github.com/jasonbrianhall/zenamp\n\n"
+        "Thank you for making Zenamp better! ⭐";
+    
+    gtk_text_buffer_set_text(contrib_buffer, contributing_text, -1);
+    gtk_container_add(GTK_CONTAINER(contrib_scrolled), contrib_textview);
+    
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), contrib_scrolled, 
+                            gtk_label_new("Contributing"));
     
     // Show all widgets
     gtk_widget_show_all(dialog);
