@@ -4,6 +4,44 @@
  */
 
 // ============================================================================
+// Animated Logo Click Handler
+// ============================================================================
+
+/**
+ * Handle animated WebP logo - restarts animation on click
+ * The animated WebP will only play from the beginning when clicked
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const logoElement = document.getElementById('logoAnimated');
+    
+    if (logoElement) {
+        logoElement.addEventListener('click', function() {
+            const img = this.querySelector('.logo-img');
+            
+            if (img) {
+                // Restart the animation by cloning and replacing the image
+                const src = img.src;
+                const alt = img.alt;
+                
+                img.style.opacity = '0';
+                
+                setTimeout(() => {
+                    img.src = src + '?t=' + Date.now(); // Force reload with cache bust
+                    img.style.opacity = '1';
+                }, 50);
+            }
+            
+            // Add spin animation to logo container
+            this.style.animation = 'none';
+            
+            // Trigger reflow to restart animation
+            void this.offsetWidth;
+            this.style.animation = 'logoSpin 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        });
+    }
+});
+
+// ============================================================================
 // Scroll Reveal Animation
 // ============================================================================
 
