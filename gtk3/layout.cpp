@@ -134,7 +134,7 @@ static void create_menu_bar(AudioPlayer *player) {
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(file_item), file_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menubar), file_item);
     
-    GtkWidget *open_item = gtk_menu_item_new_with_mnemonic("_Open One File (Clears Queue)");
+    GtkWidget *open_item = gtk_menu_item_new_with_mnemonic("_Open File (Add & Play)");
     gtk_menu_shell_append(GTK_MENU_SHELL(file_menu), open_item);
     g_signal_connect(open_item, "activate", G_CALLBACK(on_menu_open), player);
 
@@ -920,4 +920,3 @@ void on_toggle_fullscreen_visualization(GtkCheckMenuItem *check_item, gpointer u
     
     toggle_vis_fullscreen(player);
 }
-

@@ -1991,15 +1991,42 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
 #ifdef _WIN32
     char filename[32768];
     if (open_windows_file_dialog(filename, sizeof(filename))) {
-        // Clear queue and add this single file
-        clear_queue(&player->queue);
-        if (!filename_exists_in_queue(&player->queue, filename)) {
+        bool was_empty_queue = (player->queue.count == 0);
+        int existing_index = find_file_in_queue(&player->queue, filename);
+        
+        // If file already exists in queue, jump to it
+        if (existing_index >= 0) {
+            printf("File already in queue at index %d, jumping to it\n", existing_index);
+            player->queue.current_index = existing_index;
+            if (load_file_from_queue(player)) {
+                printf("Jumped to: %s\n", filename);
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+            }
+        } else {
+            // File not in queue, add it
             add_to_queue(&player->queue, filename);
-        }    
-        if (load_file_from_queue(player)) {
-            printf("Successfully loaded: %s\n", filename);
-            update_queue_display_with_filter(player);
-            update_gui_state(player);
+            
+            // If queue was empty, set current index to the newly added file and load it
+            if (was_empty_queue && player->queue.count > 0) {
+                player->queue.current_index = player->queue.count - 1;
+                if (load_file_from_queue(player)) {
+                    printf("Successfully loaded: %s\n", filename);
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                }
+            } else if (!was_empty_queue) {
+                // Queue wasn't empty, just set to play this new file immediately
+                player->queue.current_index = player->queue.count - 1;
+                if (load_file_from_queue(player)) {
+                    printf("Successfully loaded: %s\n", filename);
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                }
+            } else {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+            }
         }
     }
 #else
@@ -2097,25 +2124,42 @@ void on_menu_open(GtkMenuItem *menuitem, gpointer user_data) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         
-        // Clear queue and add this single file
-        clear_queue(&player->queue);
-        if (!filename_exists_in_queue(&player->queue, filename)) {
-            add_to_queue(&player->queue, filename);
-        }
+        bool was_empty_queue = (player->queue.count == 0);
+        int existing_index = find_file_in_queue(&player->queue, filename);
         
-        if (load_file_from_queue(player)) {
-            printf("Successfully loaded: %s\n", filename);
-            update_queue_display_with_filter(player);
-            update_gui_state(player);
-            // load_file now auto-starts playback
+        // If file already exists in queue, jump to it
+        if (existing_index >= 0) {
+            printf("File already in queue at index %d, jumping to it\n", existing_index);
+            player->queue.current_index = existing_index;
+            if (load_file_from_queue(player)) {
+                printf("Jumped to: %s\n", filename);
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+            }
         } else {
-            GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(player->window),
-                                                             GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                             GTK_MESSAGE_ERROR,
-                                                             GTK_BUTTONS_CLOSE,
-                                                             "Failed to load file:\n%s", filename);
-            gtk_dialog_run(GTK_DIALOG(error_dialog));
-            gtk_widget_destroy(error_dialog);
+            // File not in queue, add it
+            add_to_queue(&player->queue, filename);
+            
+            // If queue was empty, set current index to the newly added file and load it
+            if (was_empty_queue && player->queue.count > 0) {
+                player->queue.current_index = player->queue.count - 1;
+                if (load_file_from_queue(player)) {
+                    printf("Successfully loaded: %s\n", filename);
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                }
+            } else if (!was_empty_queue) {
+                // Queue wasn't empty, just set to play this new file immediately
+                player->queue.current_index = player->queue.count - 1;
+                if (load_file_from_queue(player)) {
+                    printf("Successfully loaded: %s\n", filename);
+                    update_queue_display_with_filter(player);
+                    update_gui_state(player);
+                }
+            } else {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+            }
         }
         
         g_free(filename);

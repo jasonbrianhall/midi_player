@@ -50,6 +50,30 @@ bool filename_exists_in_queue(PlayQueue *queue, const char *filepath) {
     return false;
 }
 
+// Find the index of a file in the queue by full path
+// Returns the index if found, -1 if not found
+int find_file_in_queue(PlayQueue *queue, const char *filepath) {
+    if (!queue || !filepath) {
+        return -1;
+    }
+    
+    char *new_basename = g_path_get_basename(filepath);
+    
+    for (int i = 0; i < queue->count; i++) {
+        char *existing_basename = g_path_get_basename(queue->files[i]);
+        bool match = (strcmp(new_basename, existing_basename) == 0);
+        g_free(existing_basename);
+        
+        if (match) {
+            g_free(new_basename);
+            return i;  // Return the index of the matching file
+        }
+    }
+    
+    g_free(new_basename);
+    return -1;  // File not found in queue
+}
+
 // Remove all duplicate filenames from queue, keeping only the first occurrence
 // Returns the number of duplicates removed
 int deduplicate_queue(PlayQueue *queue) {
