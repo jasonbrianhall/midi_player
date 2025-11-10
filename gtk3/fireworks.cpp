@@ -104,6 +104,45 @@ void spawn_firework(Visualizer *vis, double intensity, int frequency_band) {
     vis->firework_count++;
 }
 
+// Spawn firework at specific click location
+void spawn_firework_at(Visualizer *vis, double intensity, int frequency_band, double click_x, double click_y) {
+    // Find an inactive firework slot
+    int slot = -1;
+    for (int i = 0; i < MAX_FIREWORKS; i++) {
+        if (!vis->fireworks[i].active) {
+            slot = i;
+            break;
+        }
+    }
+    
+    if (slot == -1) return; // No available slots
+    
+    Firework *fw = &vis->fireworks[slot];
+    
+    // Start at click location
+    fw->x = click_x;
+    fw->y = click_y;
+    
+    // Target slightly above click for upward motion
+    fw->target_x = click_x + (g_random_double() - 0.5) * 50.0;
+    fw->target_y = click_y - 80.0;
+    
+    // Calculate velocity
+    double time_to_target = 0.5;
+    fw->vx = (fw->target_x - fw->x) / time_to_target;
+    fw->vy = (fw->target_y - fw->y) / time_to_target - 0.5 * vis->gravity * time_to_target;
+    
+    fw->life = time_to_target;
+    fw->explosion_size = 40.0 + intensity * 120.0;
+    fw->hue = get_hue_for_frequency(frequency_band);
+    fw->particle_count = 15 + (int)(intensity * 40);
+    fw->frequency_band = frequency_band;
+    fw->exploded = FALSE;
+    fw->active = TRUE;
+    
+    vis->firework_count++;
+}
+
 // Spawn a particle
 void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy, 
                           double r, double g, double b, double life) {
@@ -191,6 +230,25 @@ void explode_firework(Visualizer *vis, Firework *firework) {
 
 // Update fireworks system
 void update_fireworks(Visualizer *vis, double dt) {
+    // Spawn fireworks on mouse clicks with random colors
+    if (vis->mouse_left_pressed) {
+        int random_band = rand() % VIS_FREQUENCY_BARS;
+        spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
+        vis->mouse_left_pressed = FALSE;
+    }
+    
+    if (vis->mouse_middle_pressed) {
+        int random_band = rand() % VIS_FREQUENCY_BARS;
+        spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
+        vis->mouse_middle_pressed = FALSE;
+    }
+    
+    if (vis->mouse_right_pressed) {
+        int random_band = rand() % VIS_FREQUENCY_BARS;
+        spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
+        vis->mouse_right_pressed = FALSE;
+    }
+    
     // Update existing fireworks
     for (int i = 0; i < MAX_FIREWORKS; i++) {
         Firework *fw = &vis->fireworks[i];
