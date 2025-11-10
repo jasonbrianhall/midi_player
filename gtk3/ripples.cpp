@@ -1,5 +1,16 @@
 #include "visualization.h"
 
+// Mouse tracking structure (add to visualization.h struct)
+typedef struct {
+    double x;
+    double y;
+    gboolean in_window;
+    gboolean left_button_pressed;
+    gboolean right_button_pressed;
+    gboolean middle_button_pressed;
+    guint64 last_click_time;
+} MouseState;
+
 void init_ripple_system(Visualizer *vis) {
     vis->ripple_count = 0;
     vis->ripple_spawn_timer = 0.0;
@@ -9,6 +20,62 @@ void init_ripple_system(Visualizer *vis) {
     // Initialize all ripples as inactive
     for (int i = 0; i < MAX_RIPPLES; i++) {
         vis->ripples[i].active = FALSE;
+    }
+}
+
+// Mouse event handlers are managed by layout.cpp - ripples are spawned in update_ripples() instead
+
+
+// Create ripples at mouse position (spawn ripple on click)
+void spawn_ripple_at_mouse(Visualizer *vis, double mouse_x, double mouse_y, 
+                          double intensity, int frequency_band) {
+    // Find an inactive ripple slot
+    for (int i = 0; i < MAX_RIPPLES; i++) {
+        if (!vis->ripples[i].active) {
+            Ripple *ripple = &vis->ripples[i];
+            
+            ripple->center_x = mouse_x;
+            ripple->center_y = mouse_y;
+            ripple->radius = 5.0;
+            
+            // Scale max radius based on screen size and intensity
+            double screen_diagonal = sqrt(vis->width * vis->width + vis->height * vis->height);
+            ripple->max_radius = screen_diagonal * 0.6 * (0.3 + intensity);
+            
+            // Slower speed for better visibility
+            ripple->speed = 30.0 + intensity * 100.0 + frequency_band * 3.0;
+            
+            ripple->intensity = intensity;
+            ripple->life = 1.0;
+            
+            // FORCE BRIGHT COLOR VARIETY
+            double bright_hues[] = {
+                0.33,   // Bright green
+                0.75,   // Bright purple/violet
+                0.67,   // Bright blue
+                0.50,   // Bright cyan
+                0.83,   // Bright magenta
+                0.17,   // Bright yellow-green
+                0.92,   // Bright pink
+                0.58,   // Bright blue-cyan
+                0.08,   // Bright orange
+                0.42    // Bright teal
+            };
+            
+            int color_index;
+            if (frequency_band < 10) {
+                color_index = frequency_band % 10;
+            } else {
+                color_index = ((int)(vis->time_offset * 5) + i) % 10;
+            }
+            
+            ripple->hue = bright_hues[color_index];
+            ripple->thickness = 4.0 + intensity * 12.0;
+            ripple->frequency_band = frequency_band;
+            ripple->active = TRUE;
+            
+            break;
+        }
     }
 }
 
@@ -73,6 +140,22 @@ void spawn_ripple(Visualizer *vis, double x, double y, double intensity, int fre
 void update_ripples(Visualizer *vis, double dt) {
     // Spawn new ripples based on audio
     vis->ripple_spawn_timer += dt;
+    
+    // Spawn ripples on mouse clicks
+    if (vis->mouse_left_pressed) {
+        spawn_ripple_at_mouse(vis, vis->mouse_x, vis->mouse_y, 0.5, 0);
+        vis->mouse_left_pressed = FALSE;
+    }
+    
+    if (vis->mouse_middle_pressed) {
+        spawn_ripple_at_mouse(vis, vis->mouse_x, vis->mouse_y, 0.5, 0);
+        vis->mouse_middle_pressed = FALSE;
+    }
+    
+    if (vis->mouse_right_pressed) {
+        spawn_ripple_at_mouse(vis, vis->mouse_x, vis->mouse_y, 0.5, 0);
+        vis->mouse_right_pressed = FALSE;
+    }
     
     // Check for volume spikes (beats)
     double volume_diff = vis->volume_level - vis->last_ripple_volume;
@@ -205,4 +288,3 @@ void draw_ripples(Visualizer *vis, cairo_t *cr) {
         }
     }
 }
-
