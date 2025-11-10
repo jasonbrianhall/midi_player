@@ -21,6 +21,12 @@ void init_bubble_system(Visualizer *vis) {
 }
 
 void spawn_bubble(Visualizer *vis, double intensity) {
+    spawn_bubble_at(vis, intensity, 
+                   50 + (double)rand() / RAND_MAX * (vis->width - 100),
+                   50 + (double)rand() / RAND_MAX * (vis->height - 100));
+}
+
+void spawn_bubble_at(Visualizer *vis, double intensity, double x, double y) {
     if (vis->bubble_count >= MAX_BUBBLES) return;
     
     // Find inactive bubble slot
@@ -36,9 +42,9 @@ void spawn_bubble(Visualizer *vis, double intensity) {
     
     Bubble *bubble = &vis->bubbles[slot];
     
-    // Random spawn position (avoid edges)
-    bubble->x = 50 + (double)rand() / RAND_MAX * (vis->width - 100);
-    bubble->y = 50 + (double)rand() / RAND_MAX * (vis->height - 100);
+    // Spawn at specified position
+    bubble->x = x;
+    bubble->y = y;
     
     // Size based on audio intensity
     bubble->max_radius = 15 + intensity * 40;
@@ -86,6 +92,22 @@ void create_pop_effect(Visualizer *vis, Bubble *bubble) {
 void update_bubbles(Visualizer *vis, double dt) {
     // Update spawn timer
     vis->bubble_spawn_timer += dt;
+    
+    // Spawn bubbles at mouse clicks
+    if (vis->mouse_left_pressed) {
+        spawn_bubble_at(vis, 0.7, vis->mouse_x, vis->mouse_y);
+        vis->mouse_left_pressed = FALSE;
+    }
+    
+    if (vis->mouse_middle_pressed) {
+        spawn_bubble_at(vis, 0.7, vis->mouse_x, vis->mouse_y);
+        vis->mouse_middle_pressed = FALSE;
+    }
+    
+    if (vis->mouse_right_pressed) {
+        spawn_bubble_at(vis, 0.7, vis->mouse_x, vis->mouse_y);
+        vis->mouse_right_pressed = FALSE;
+    }
     
     // Spawn new bubbles based on audio peaks
     double current_peak = 0.0;

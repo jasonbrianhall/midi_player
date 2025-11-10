@@ -384,7 +384,7 @@ void init_bubble_system(Visualizer *vis);
 void spawn_bubble(Visualizer *vis, double intensity);
 void create_pop_effect(Visualizer *vis, Bubble *bubble);
 void update_bubbles(Visualizer *vis, double dt);
-
+void spawn_bubble_at(Visualizer *vis, double intensity, double x, double y);
 
 // Matrix
 void init_matrix_system(Visualizer *vis);
