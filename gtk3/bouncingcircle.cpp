@@ -21,7 +21,11 @@ void init_bouncing_circle_system(void *vis_ptr) {
     vis->bouncing_circle_state.pos_y = vis->height / 2.0;
     vis->bouncing_circle_state.vel_x = 300.0;  // Initial velocity
     vis->bouncing_circle_state.vel_y = 200.0;
-    vis->bouncing_circle_state.radius = INITIAL_BALL_RADIUS;
+    
+    // Calculate initial ball radius based on visualization dimensions
+    double container_radius = fmin(vis->width, vis->height) * 0.4;
+    vis->bouncing_circle_state.radius = container_radius * INITIAL_BALL_RADIUS_FACTOR;
+    
     vis->bouncing_circle_state.hue_offset = 0.0;
     vis->bouncing_circle_state.trail_count = 0;
     vis->bouncing_circle_state.bounce_counter = 0;
@@ -127,7 +131,7 @@ void update_bouncing_circle(void *vis_ptr, double dt) {
         
         // Reset if ball reaches container size
         if (state->radius >= container_radius * 0.95) {
-            state->radius = INITIAL_BALL_RADIUS;
+            state->radius = container_radius * INITIAL_BALL_RADIUS_FACTOR;
             state->bounce_counter = 0;
             state->hue_offset = fmod(state->hue_offset + 0.3, 1.0);
             

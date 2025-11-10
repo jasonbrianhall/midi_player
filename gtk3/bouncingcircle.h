@@ -4,7 +4,7 @@
 #include <cairo.h>
 
 #define MAX_TRAIL_POINTS 500
-#define INITIAL_BALL_RADIUS 8.0
+#define INITIAL_BALL_RADIUS_FACTOR 0.015  // Ball radius as fraction of container size
 #define CONTAINER_CIRCLE_RADIUS 150.0
 
 typedef struct {
