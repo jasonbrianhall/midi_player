@@ -7,6 +7,12 @@ static double turtle_x = 50;
 static double hare_x = 50;
 static double hare_sleep_timer = 0;
 static bool hare_sleeping = false;
+static double hare_boost_timer = 0;
+static bool hare_boosting = false;
+static double turtle_sleep_timer = 0;
+static bool turtle_sleeping = false;
+static double turtle_boost_timer = 0;
+static bool turtle_boosting = false;
 static double finish_line_x = 0;
 static bool race_finished = false;
 static int winner = 0; // 0=none, 1=turtle, 2=hare
@@ -15,6 +21,19 @@ static double cloud_x[8] = {0};
 static double cloud_y[8] = {0};
 static bool clouds_initialized = false;
 
+// Food system
+#define MAX_FOOD_ITEMS 50
+typedef struct {
+    double x, y;
+    int type; // 0=carrot, 1=lettuce
+    bool active;
+    double life; // How long before it disappears
+    double vy; // Vertical velocity for falling
+} FoodItem;
+
+static FoodItem food_items[MAX_FOOD_ITEMS];
+static int food_count = 0;
+
 void update_rabbithare(Visualizer *vis, double dt) {
     const double min_dt = 1.0 / 120.0;
     double speed_factor = dt / 0.033;
@@ -22,6 +41,64 @@ void update_rabbithare(Visualizer *vis, double dt) {
     if (dt < min_dt) {
         dt = min_dt;
         speed_factor = dt / 0.033;
+    }
+    
+    // Handle mouse clicks to drop food
+    if (vis->mouse_left_pressed) {
+        // Left click: drop carrot
+        if (food_count < MAX_FOOD_ITEMS) {
+            for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+                if (!food_items[i].active) {
+                    food_items[i].x = vis->mouse_x;
+                    food_items[i].y = vis->mouse_y;
+                    food_items[i].type = 0; // Carrot
+                    food_items[i].active = true;
+                    food_items[i].life = 8.0;
+                    food_items[i].vy = 0.0;
+                    food_count++;
+                    break;
+                }
+            }
+        }
+        vis->mouse_left_pressed = FALSE;
+    }
+    
+    if (vis->mouse_middle_pressed) {
+        // Middle click: drop random food
+        if (food_count < MAX_FOOD_ITEMS) {
+            for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+                if (!food_items[i].active) {
+                    food_items[i].x = vis->mouse_x;
+                    food_items[i].y = vis->mouse_y;
+                    food_items[i].type = rand() % 2;
+                    food_items[i].active = true;
+                    food_items[i].life = 8.0;
+                    food_items[i].vy = 0.0;
+                    food_count++;
+                    break;
+                }
+            }
+        }
+        vis->mouse_middle_pressed = FALSE;
+    }
+    
+    if (vis->mouse_right_pressed) {
+        // Right click: drop lettuce
+        if (food_count < MAX_FOOD_ITEMS) {
+            for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+                if (!food_items[i].active) {
+                    food_items[i].x = vis->mouse_x;
+                    food_items[i].y = vis->mouse_y;
+                    food_items[i].type = 1; // Lettuce
+                    food_items[i].active = true;
+                    food_items[i].life = 8.0;
+                    food_items[i].vy = 0.0;
+                    food_count++;
+                    break;
+                }
+            }
+        }
+        vis->mouse_right_pressed = FALSE;
     }
     
     time_offset += 0.05 * speed_factor;
@@ -61,8 +138,26 @@ void update_rabbithare(Visualizer *vis, double dt) {
         }
         avg_energy /= VIS_FREQUENCY_BARS;
         
-        // Turtle moves steadily, slightly faster with music (slower than before)
-        turtle_x += (1.8 + avg_energy * 0.6) * speed_factor * screen_speed_factor;
+        // Turtle movement with sleep and boost state
+        if (turtle_sleeping) {
+            turtle_sleep_timer -= dt;
+            if (turtle_sleep_timer <= 0) {
+                turtle_sleeping = false;
+            }
+            // Turtle doesn't move while sleeping
+        } else {
+            // Calculate boost multiplier
+            double boost_multiplier = 1.0;
+            if (turtle_boosting) {
+                turtle_boost_timer -= dt;
+                boost_multiplier = 2.0; // Double speed while boosted
+                if (turtle_boost_timer <= 0) {
+                    turtle_boosting = false;
+                }
+            }
+            // Turtle moves steadily, slightly faster with music (slower than before)
+            turtle_x += (1.8 + avg_energy * 0.6) * speed_factor * screen_speed_factor * boost_multiplier;
+        }
         
         // Hare behavior based on music energy
         if (hare_sleeping) {
@@ -87,12 +182,22 @@ void update_rabbithare(Visualizer *vis, double dt) {
                 hare_sleeping = false;
             }
         } else {
+            // Calculate boost multiplier for hare
+            double boost_multiplier = 1.0;
+            if (hare_boosting) {
+                hare_boost_timer -= dt;
+                boost_multiplier = 1.5; // 50% speed boost for rabbit
+                if (hare_boost_timer <= 0) {
+                    hare_boosting = false;
+                }
+            }
+            
             // Hare runs fast when music is energetic (faster than before)
             if (avg_energy > 0.35) {
-                hare_x += (6.0 + avg_energy * 3.0) * speed_factor * screen_speed_factor;
+                hare_x += (6.0 + avg_energy * 3.0) * speed_factor * screen_speed_factor * boost_multiplier;
             } else {
                 // Better minimum speed to stay competitive
-                hare_x += 2.5 * speed_factor * screen_speed_factor;
+                hare_x += 2.5 * speed_factor * screen_speed_factor * boost_multiplier;
             }
             
             // Calculate how far ahead the hare is
@@ -137,7 +242,87 @@ void update_rabbithare(Visualizer *vis, double dt) {
             }
         }
         
-        // Check for winner
+        // Update food items
+        double ground_y = vis->height * 0.7;
+        double track_y = ground_y - 30; // Center of the track
+        
+        for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+            if (!food_items[i].active) continue;
+            
+            // Food lands on the track (where racers are)
+            double ground_y_level = track_y;
+            
+            // Apply gravity
+            food_items[i].vy += 300.0 * dt; // Gravity acceleration
+            
+            // Update position
+            food_items[i].y += food_items[i].vy * dt;
+            
+            // Bounce off ground
+            if (food_items[i].y >= ground_y_level) {
+                food_items[i].y = ground_y_level;
+                food_items[i].vy *= -0.6; // Bounce with damping
+                
+                // Stop bouncing when velocity is very small
+                if (fabs(food_items[i].vy) < 10.0) {
+                    food_items[i].vy = 0.0;
+                }
+            }
+            
+            food_items[i].life -= dt;
+            if (food_items[i].life <= 0) {
+                food_items[i].active = false;
+                food_count--;
+            }
+        }
+        
+        // Check if hare eats lettuce or if turtle eats carrot
+        const double collision_distance = 30.0; // Increased from 20 for better detection
+        
+        for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+            if (!food_items[i].active) continue;
+            
+            // Check hare collision (hare is at ground_y - 50)
+            double hare_y = ground_y - 50;
+            double hare_dist = sqrt((hare_x - food_items[i].x) * (hare_x - food_items[i].x) + 
+                                   (hare_y - food_items[i].y) * (hare_y - food_items[i].y));
+            
+            if (hare_dist < collision_distance) {
+                if (food_items[i].type == 0) { // Carrot gives rabbit boost
+                    hare_boosting = true;
+                    hare_boost_timer = 2.5;
+                    food_items[i].active = false;
+                    food_count--;
+                } else if (food_items[i].type == 1) { // Lettuce makes rabbit sleep
+                    hare_sleeping = true;
+                    hare_sleep_timer = 3.0;
+                    food_items[i].active = false;
+                    food_count--;
+                }
+            }
+            
+            // Check turtle collision
+            if (!food_items[i].active) continue; // Food might have been eaten by hare
+            
+            double turtle_y = ground_y - 45;
+            double turtle_dist = sqrt((turtle_x - food_items[i].x) * (turtle_x - food_items[i].x) + 
+                                     (turtle_y - food_items[i].y) * (turtle_y - food_items[i].y));
+            
+            if (turtle_dist < collision_distance) {
+                if (food_items[i].type == 0) { // Carrot gives turtle boost
+                    turtle_boosting = true;
+                    turtle_boost_timer = 2.5;
+                    food_items[i].active = false;
+                    food_count--;
+                } else if (food_items[i].type == 1) { // Lettuce makes turtle sleep
+                    turtle_sleeping = true;
+                    turtle_sleep_timer = 3.0;
+                    food_items[i].active = false;
+                    food_count--;
+                }
+            }
+        }
+        
         if (turtle_x >= finish_line_x && winner == 0) {
             winner = 1;
             race_finished = true;
@@ -155,9 +340,21 @@ void update_rabbithare(Visualizer *vis, double dt) {
             hare_x = 50;
             hare_sleeping = false;
             hare_sleep_timer = 0;
+            hare_boosting = false;
+            hare_boost_timer = 0;
+            turtle_sleeping = false;
+            turtle_sleep_timer = 0;
+            turtle_boosting = false;
+            turtle_boost_timer = 0;
             race_finished = false;
             winner = 0;
             celebration_time = 0;
+            
+            // Clear food items
+            for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+                food_items[i].active = false;
+            }
+            food_count = 0;
         }
     }
 }
@@ -261,6 +458,61 @@ void draw_rabbithare(Visualizer *vis, cairo_t *cr) {
         cairo_fill(cr);
     }
     
+    // Draw food items
+    for (int i = 0; i < MAX_FOOD_ITEMS; i++) {
+        if (!food_items[i].active) continue;
+        
+        // Fade out as food expires
+        double alpha = food_items[i].life / 8.0;
+        
+        if (food_items[i].type == 0) {
+            // Draw carrot (orange)
+            cairo_set_source_rgba(cr, 1.0, 0.6, 0.0, alpha);
+            
+            // Carrot shape - triangle
+            cairo_move_to(cr, food_items[i].x, food_items[i].y - 8);
+            cairo_line_to(cr, food_items[i].x - 6, food_items[i].y + 6);
+            cairo_line_to(cr, food_items[i].x + 6, food_items[i].y + 6);
+            cairo_close_path(cr);
+            cairo_fill(cr);
+            
+            // Green top
+            cairo_set_source_rgba(cr, 0.0, 0.7, 0.0, alpha);
+            cairo_move_to(cr, food_items[i].x - 4, food_items[i].y - 8);
+            cairo_line_to(cr, food_items[i].x, food_items[i].y - 14);
+            cairo_line_to(cr, food_items[i].x + 4, food_items[i].y - 8);
+            cairo_close_path(cr);
+            cairo_fill(cr);
+        } else {
+            // Draw lettuce (green)
+            cairo_set_source_rgba(cr, 0.0, 0.8, 0.0, alpha);
+            
+            // Lettuce is a leaf shape
+            cairo_save(cr);
+            cairo_translate(cr, food_items[i].x, food_items[i].y);
+            
+            cairo_arc(cr, 0, 0, 8, 0, 6.28);
+            cairo_fill(cr);
+            
+            // Wavy edge
+            cairo_set_source_rgba(cr, 0.0, 0.6, 0.0, alpha);
+            cairo_set_line_width(cr, 1.5);
+            for (int j = 0; j < 8; j++) {
+                double angle = (double)j / 8.0 * 6.28;
+                double x1 = cos(angle) * 8;
+                double y1 = sin(angle) * 8;
+                double x2 = cos(angle + 0.2) * 8;
+                double y2 = sin(angle + 0.2) * 8;
+                
+                cairo_move_to(cr, x1, y1);
+                cairo_line_to(cr, x2, y2);
+                cairo_stroke(cr);
+            }
+            
+            cairo_restore(cr);
+        }
+    }
+    
     // Draw Turtle
     double turtle_y = ground_y - 45;
     cairo_save(cr);
@@ -281,27 +533,82 @@ void draw_rabbithare(Visualizer *vis, cairo_t *cr) {
         cairo_fill(cr);
     }
     
-    // Head (moving back and forth)
-    double head_bob = sin(time_offset * 3) * 2;
-    cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
-    cairo_arc(cr, 20 + head_bob, -5, 8, 0, 6.28);
-    cairo_fill(cr);
-    
-    // Eye
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_arc(cr, 23 + head_bob, -7, 2, 0, 6.28);
-    cairo_fill(cr);
-    
-    // Legs
-    cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
-    cairo_set_line_width(cr, 4);
-    double leg_swing = sin(time_offset * 4) * 3;
-    cairo_move_to(cr, -8, 12);
-    cairo_line_to(cr, -12, 18 + leg_swing);
-    cairo_stroke(cr);
-    cairo_move_to(cr, 8, 12);
-    cairo_line_to(cr, 12, 18 - leg_swing);
-    cairo_stroke(cr);
+    if (turtle_sleeping) {
+        // Sleeping turtle - head retracted
+        cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
+        cairo_arc(cr, 5, 5, 6, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Closed eyes
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_set_line_width(cr, 1.5);
+        cairo_move_to(cr, 3, 4);
+        cairo_line_to(cr, 7, 4);
+        cairo_stroke(cr);
+        
+        // ZZZ
+        cairo_set_source_rgba(cr, 0.3, 0.3, 0.5, 0.7);
+        cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+        cairo_set_font_size(cr, 16);
+        double z_bob = sin(time_offset * 2) * 4;
+        cairo_move_to(cr, 20, -10 + z_bob);
+        cairo_show_text(cr, "Z");
+        cairo_move_to(cr, 28, -18 + z_bob * 0.7);
+        cairo_show_text(cr, "Z");
+        cairo_move_to(cr, 36, -26 + z_bob * 0.5);
+        cairo_show_text(cr, "Z");
+    } else if (turtle_boosting) {
+        // Boosted turtle - speed lines and glow
+        
+        // Head (moving fast)
+        double head_bob = sin(time_offset * 6) * 3;
+        cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
+        cairo_arc(cr, 20 + head_bob, -5, 8, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Eye
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_arc(cr, 23 + head_bob, -7, 2, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Fast legs
+        cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
+        cairo_set_line_width(cr, 4);
+        double leg_swing = sin(time_offset * 8) * 4;
+        cairo_move_to(cr, -8, 12);
+        cairo_line_to(cr, -12, 18 + leg_swing);
+        cairo_stroke(cr);
+        cairo_move_to(cr, 8, 12);
+        cairo_line_to(cr, 12, 18 - leg_swing);
+        cairo_stroke(cr);
+        
+        // Boost glow
+        cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, 0.3);
+        cairo_arc(cr, 0, 0, 22, 0, 6.28);
+        cairo_fill(cr);
+    } else {
+        // Head (moving back and forth)
+        double head_bob = sin(time_offset * 3) * 2;
+        cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
+        cairo_arc(cr, 20 + head_bob, -5, 8, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Eye
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_arc(cr, 23 + head_bob, -7, 2, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Legs
+        cairo_set_source_rgb(cr, 0.5, 0.7, 0.4);
+        cairo_set_line_width(cr, 4);
+        double leg_swing = sin(time_offset * 4) * 3;
+        cairo_move_to(cr, -8, 12);
+        cairo_line_to(cr, -12, 18 + leg_swing);
+        cairo_stroke(cr);
+        cairo_move_to(cr, 8, 12);
+        cairo_line_to(cr, 12, 18 - leg_swing);
+        cairo_stroke(cr);
+    }
     
     cairo_restore(cr);
     
@@ -346,6 +653,56 @@ void draw_rabbithare(Visualizer *vis, cairo_t *cr) {
         cairo_show_text(cr, "Z");
         cairo_move_to(cr, 50, -35 + z_bob * 0.5);
         cairo_show_text(cr, "Z");
+    } else if (hare_boosting) {
+        // Boosted hare - speed lines and glow
+        cairo_set_source_rgb(cr, 0.7, 0.6, 0.5);
+        
+        // Body (stretched)
+        cairo_save(cr);
+        cairo_scale(cr, 1.4, 0.8);
+        cairo_arc(cr, 0, 0, 15, 0, 6.28);
+        cairo_fill(cr);
+        cairo_restore(cr);
+        
+        // Head
+        cairo_arc(cr, 18, -8, 10, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Ears (upright and alert)
+        cairo_arc(cr, 20, -18, 6, 0, 6.28);
+        cairo_fill(cr);
+        cairo_arc(cr, 28, -20, 5, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Eye
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_arc(cr, 22, -10, 2, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Fast running legs
+        cairo_set_source_rgb(cr, 0.7, 0.6, 0.5);
+        cairo_set_line_width(cr, 3);
+        double run_cycle = sin(time_offset * 12) * 10;
+        cairo_move_to(cr, -10, 8);
+        cairo_line_to(cr, -15, 18 + run_cycle);
+        cairo_stroke(cr);
+        cairo_move_to(cr, 5, 8);
+        cairo_line_to(cr, 8, 18 - run_cycle);
+        cairo_stroke(cr);
+        
+        // Boost glow
+        cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, 0.3);
+        cairo_arc(cr, 0, 0, 25, 0, 6.28);
+        cairo_fill(cr);
+        
+        // Speed lines
+        cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 0.4);
+        cairo_set_line_width(cr, 2);
+        for (int i = 0; i < 3; i++) {
+            cairo_move_to(cr, -25 - i * 8, -5 + i * 3);
+            cairo_line_to(cr, -35 - i * 8, -5 + i * 3);
+            cairo_stroke(cr);
+        }
     } else {
         // Running hare
         cairo_set_source_rgb(cr, 0.7, 0.6, 0.5);
