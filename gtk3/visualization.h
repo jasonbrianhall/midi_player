@@ -91,6 +91,19 @@ typedef struct {
     double *history[VIS_HISTORY_SIZE];
     int history_index;
     
+    // Mouse interaction
+    int mouse_x, mouse_y;
+    int mouse_last_x, mouse_last_y;
+    double mouse_velocity_x, mouse_velocity_y;
+    gboolean mouse_over;
+    gboolean mouse_left_pressed;
+    gboolean mouse_right_pressed;
+    gboolean mouse_middle_pressed;
+    double mouse_distance_from_center;
+    double mouse_influence_strength;
+    gboolean mouse_interactions_enabled;
+    double mouse_press_time;
+    
     // CDG
     CDGDisplay *cdg_display;
     cairo_surface_t *cdg_surface;
@@ -434,6 +447,7 @@ void init_ripple_system(Visualizer *vis);
 void spawn_ripple(Visualizer *vis, double x, double y, double intensity, int frequency_band);
 void update_ripples(Visualizer *vis, double dt);
 void draw_ripples(Visualizer *vis, cairo_t *cr);
+void spawn_ripple_at_mouse(Visualizer *vis, double mouse_x, double mouse_y, double intensity, int frequency_band);
 
 // Kaleidoscope
 void init_kaleidoscope_system(Visualizer *vis);
@@ -656,6 +670,11 @@ int mandelbrot_calculate_iterations(double real, double imag, double center_x, d
 void mandelbrot_get_color(int iterations, int max_iterations, double hue_offset, 
                          double *r, double *g, double *b);
 void mandelbrot_recalculate_region(void *vis, int width, int height);
+
+gboolean on_visualizer_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
+gboolean on_visualizer_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
+gboolean on_visualizer_button_release(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+gboolean on_visualizer_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data);
 
 #endif
 

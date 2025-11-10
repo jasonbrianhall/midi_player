@@ -267,14 +267,27 @@ static void create_visualization_section(AudioPlayer *player) {
     // Add visualization drawing area to event box
     gtk_container_add(GTK_CONTAINER(vis_event_box), player->visualizer->drawing_area);
     
-    // Set up double-click handling on BOTH event box and drawing area
-    gtk_widget_add_events(vis_event_box, GDK_BUTTON_PRESS_MASK | GDK_2BUTTON_PRESS);
-    gtk_widget_add_events(player->visualizer->drawing_area, GDK_BUTTON_PRESS_MASK | GDK_2BUTTON_PRESS);
-    
+    gtk_widget_add_events(vis_event_box, 
+        GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK |
+        GDK_2BUTTON_PRESS | GDK_POINTER_MOTION_MASK |
+        GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+    gtk_widget_add_events(player->visualizer->drawing_area, 
+        GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK |
+        GDK_2BUTTON_PRESS | GDK_POINTER_MOTION_MASK |
+        GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+
     g_signal_connect(vis_event_box, "button-press-event", 
                     G_CALLBACK(on_visualizer_button_press), player);
     g_signal_connect(player->visualizer->drawing_area, "button-press-event", 
                     G_CALLBACK(on_visualizer_button_press), player);
+    g_signal_connect(player->visualizer->drawing_area, "button-release-event",
+                    G_CALLBACK(on_visualizer_button_release), player);
+    g_signal_connect(player->visualizer->drawing_area, "motion-notify-event",
+                    G_CALLBACK(on_visualizer_motion), player);
+    g_signal_connect(player->visualizer->drawing_area, "enter-notify-event",
+                    G_CALLBACK(on_visualizer_enter), player);
+    g_signal_connect(player->visualizer->drawing_area, "leave-notify-event",
+                    G_CALLBACK(on_visualizer_leave), player);
     
     // Add event box (containing drawing area) to the layout
     gtk_box_pack_start(GTK_BOX(vis_vbox), vis_event_box, TRUE, TRUE, 0);
@@ -707,19 +720,6 @@ void create_shared_equalizer(AudioPlayer *player) {
     }
 }
 
-gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    AudioPlayer *player = (AudioPlayer*)user_data;
-    
-    // Check for double-click (type will be GDK_2BUTTON_PRESS for double-click)
-    if (event->type == GDK_2BUTTON_PRESS && event->button == 1) {
-        printf("Visualizer double-clicked - toggling fullscreen\n");
-        toggle_vis_fullscreen(player);
-        return TRUE; // Event handled
-    }
-    
-    return FALSE; // Let other handlers process single clicks, etc.
-}
-
 void add_to_recent_files(const char* filepath, const char* mime_type) {
     GtkRecentManager *recent_manager = gtk_recent_manager_get_default();
     gchar *uri = g_filename_to_uri(filepath, NULL, NULL);
@@ -920,3 +920,102 @@ void on_toggle_fullscreen_visualization(GtkCheckMenuItem *check_item, gpointer u
     
     toggle_vis_fullscreen(player);
 }
+
+gboolean on_visualizer_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    Visualizer *vis = player->visualizer;
+    
+    // Update mouse position
+    vis->mouse_x = (int)event->x;
+    vis->mouse_y = (int)event->y;
+    vis->mouse_press_time = g_get_monotonic_time() / 1000000.0;
+    
+    // Handle double-click for fullscreen toggle
+    if (event->type == GDK_2BUTTON_PRESS && event->button == 1) {
+        printf("Visualizer double-clicked - toggling fullscreen\n");
+        extern void toggle_vis_fullscreen(AudioPlayer *player);
+        toggle_vis_fullscreen(player);
+        return TRUE;
+    }
+    
+    // Track button state
+    switch (event->button) {
+        case 1:
+            vis->mouse_left_pressed = TRUE;
+            break;
+        case 2:
+            vis->mouse_middle_pressed = TRUE;
+            break;
+        case 3:
+            vis->mouse_right_pressed = TRUE;
+            break;
+    }
+    
+    return FALSE;
+}
+
+gboolean on_visualizer_button_release(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    Visualizer *vis = player->visualizer;
+
+    switch (event->button) {
+        case 1:
+            vis->mouse_left_pressed = FALSE;
+            break;
+        case 2:
+            vis->mouse_middle_pressed = FALSE;
+            break;
+        case 3:
+            vis->mouse_right_pressed = FALSE;
+            break;
+    }
+    
+    return FALSE;
+}
+
+gboolean on_visualizer_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    Visualizer *vis = player->visualizer;
+    
+    // Store previous position
+    vis->mouse_last_x = vis->mouse_x;
+    vis->mouse_last_y = vis->mouse_y;
+    
+    // Update current position
+    vis->mouse_x = (int)event->x;
+    vis->mouse_y = (int)event->y;
+    
+    // Calculate velocity
+    double dt = 0.016666;
+    vis->mouse_velocity_x = (vis->mouse_x - vis->mouse_last_x) / dt;
+    vis->mouse_velocity_y = (vis->mouse_y - vis->mouse_last_y) / dt;
+    
+    // Calculate distance from center
+    double center_x = vis->width / 2.0;
+    double center_y = vis->height / 2.0;
+    double dx = vis->mouse_x - center_x;
+    double dy = vis->mouse_y - center_y;
+    vis->mouse_distance_from_center = sqrt(dx*dx + dy*dy);
+    
+    return FALSE;
+}
+
+gboolean on_visualizer_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    Visualizer *vis = player->visualizer;
+    vis->mouse_over = TRUE;
+    return FALSE;
+}
+
+gboolean on_visualizer_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
+    AudioPlayer *player = (AudioPlayer*)user_data;
+    Visualizer *vis = player->visualizer;
+    vis->mouse_over = FALSE;
+    vis->mouse_left_pressed = FALSE;
+    vis->mouse_right_pressed = FALSE;
+    vis->mouse_middle_pressed = FALSE;
+    vis->mouse_velocity_x = 0;
+    vis->mouse_velocity_y = 0;
+    return FALSE;
+}
+
