@@ -1,6 +1,7 @@
 #define MAX_FIREWORKS 20
 #define MAX_PARTICLES_PER_FIREWORK 50
 #define MAX_TOTAL_PARTICLES 1000
+#define TRAIL_LENGTH 10
 
 typedef struct {
     double x, y;           // Position
@@ -12,8 +13,9 @@ typedef struct {
     double r, g, b;        // Color
     double brightness;     // Brightness multiplier
     gboolean active;       // Is particle alive
-    int trail_length;      // Length of particle trail
-    double trail_x[10], trail_y[10]; // Trail positions
+    int trail_index;       // Current position in circular trail buffer (OPTIMIZED)
+    double trail_x[TRAIL_LENGTH];  // Trail positions (circular buffer)
+    double trail_y[TRAIL_LENGTH];  // Trail positions (circular buffer)
 } FireworkParticle;
 
 typedef struct {
