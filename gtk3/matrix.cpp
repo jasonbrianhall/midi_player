@@ -3,6 +3,34 @@
 
 #include "visualization.h"
 
+// ============================================================================
+// Local Static Data - No Visualizer Struct Modifications Needed
+// ============================================================================
+#define MAX_TRAIL_PARTICLES 200
+#define MAX_INTERACTION_POINTS 3
+
+typedef struct {
+    double x, y;
+    double vx, vy;
+    double lifetime;
+    double max_lifetime;
+    double size;
+    double r, g, b;
+    double alpha;
+} MatrixTrailParticle;
+
+typedef struct {
+    double x, y;
+    double influence_radius;
+    gboolean active;
+    double intensity;
+} InteractionPoint;
+
+// Static local arrays - no dynamic allocation, no Visualizer modifications
+static MatrixTrailParticle trail_particles[MAX_TRAIL_PARTICLES];
+static int trail_particle_count = 0;
+static InteractionPoint interaction_points[MAX_INTERACTION_POINTS];
+
 // Enhanced ASCII character sets for more variety
 const char* get_random_matrix_char(void) {
     static const char* matrix_chars[] = {
@@ -23,7 +51,7 @@ const char* get_random_matrix_char(void) {
         "=", "+", "-", "_", "~", "`", ":", ";", ".", ",",
         // Extra digital/matrix-style characters
         "§", "±", "°", "µ", "π", "Σ", "Ω", "∞", "≈", "≠",
-        "≤", "≥", "÷", "×", "√", "∫", "∆", "∇", "∂", "∑"
+        "≤", "≥", "÷", "×", "√", "∫", "∆", "∇", "∂", "∋"
     };
     
     int num_chars = sizeof(matrix_chars) / sizeof(matrix_chars[0]);
@@ -34,7 +62,7 @@ const char* get_random_matrix_char(void) {
 // Get special "power" characters for intense moments
 static const char* get_power_matrix_char(void) {
     static const char* power_chars[] = {
-        "★", "※", "◆", "◇", "◈", "◉", "◎", "●", "○", "◐",
+        "★", "✦", "◆", "◇", "◈", "◉", "◎", "◍", "◎", "◆",
         "◑", "◒", "◓", "▲", "△", "▼", "▽", "◄", "►", "♦",
         "♠", "♣", "♥", "♪", "♫", "☆", "✦", "✧", "✩", "✪"
     };
@@ -42,6 +70,131 @@ static const char* get_power_matrix_char(void) {
     int num_chars = sizeof(power_chars) / sizeof(power_chars[0]);
     int index = rand() % num_chars;
     return power_chars[index];
+}
+
+// ============================================================================
+// Spawn Trail Particles from Character Positions
+// ============================================================================
+static void spawn_matrix_trail_particle(double x, double y, double intensity, 
+                                        double r, double g, double b) {
+    if (trail_particle_count >= MAX_TRAIL_PARTICLES) return;
+    
+    MatrixTrailParticle *p = &trail_particles[trail_particle_count];
+    
+    p->x = x + (rand() % 20 - 10);
+    p->y = y + (rand() % 20 - 10);
+    p->vx = (rand() % 200 - 100) / 100.0;
+    p->vy = (rand() % 200 - 100) / 100.0 - 50; // Bias upward
+    p->lifetime = 0.5 + (rand() / (double)RAND_MAX) * 0.5;
+    p->max_lifetime = p->lifetime;
+    p->size = 1.0 + (rand() / (double)RAND_MAX) * 2.0;
+    p->r = r;
+    p->g = g;
+    p->b = b;
+    p->alpha = intensity;
+    
+    trail_particle_count++;
+}
+
+// ============================================================================
+// Update Trail Particles
+// ============================================================================
+static void update_matrix_trail_particles(double dt) {
+    for (int i = 0; i < trail_particle_count; i++) {
+        MatrixTrailParticle *p = &trail_particles[i];
+        
+        // Physics
+        p->vx *= 0.98; // Air resistance
+        p->vy += 50 * dt; // Gravity
+        p->x += p->vx * dt;
+        p->y += p->vy * dt;
+        
+        // Lifetime
+        p->lifetime -= dt;
+        if (p->lifetime <= 0) {
+            // Remove particle
+            trail_particles[i] = trail_particles[trail_particle_count - 1];
+            trail_particle_count--;
+            i--;
+            continue;
+        }
+        
+        // Fade
+        p->alpha = (p->lifetime / p->max_lifetime) * p->alpha;
+        p->size *= 0.99;
+    }
+}
+
+// ============================================================================
+// Mouse-Based Interaction
+// ============================================================================
+static void update_matrix_interactions(Visualizer *vis) {
+    // Fixed repel radius (not based on sensitivity)
+    double radius = 150.0;
+    
+    // Update interaction point from current mouse position
+    if (vis->mouse_over) {
+        // Use the first slot for continuous mouse tracking (for repel)
+        interaction_points[0].x = vis->mouse_x;
+        interaction_points[0].y = vis->mouse_y;
+        interaction_points[0].influence_radius = radius;
+        interaction_points[0].intensity = 0.8;  // Fixed intensity
+        interaction_points[0].active = TRUE;
+        
+        // Different effects based on which button is pressed
+        if (vis->mouse_left_pressed) {
+            // Left click: Green burst (normal matrix particles)
+            for (int i = 0; i < 15; i++) {
+                spawn_matrix_trail_particle(vis->mouse_x, vis->mouse_y, 1.0, 0.0, 1.0, 0.0);
+            }
+        } else if (vis->mouse_middle_pressed) {
+            // Middle click: Blue burst (different color)
+            for (int i = 0; i < 20; i++) {
+                spawn_matrix_trail_particle(vis->mouse_x, vis->mouse_y, 1.0, 0.0, 0.5, 1.0);
+            }
+        } else if (vis->mouse_right_pressed) {
+            // Right click: Red burst (intensity effect)
+            for (int i = 0; i < 25; i++) {
+                spawn_matrix_trail_particle(vis->mouse_x, vis->mouse_y, 1.5, 1.0, 0.0, 0.0);
+            }
+        }
+    } else {
+        // Fade out when mouse leaves
+        interaction_points[0].intensity *= 0.9;
+        if (interaction_points[0].intensity < 0.05) {
+            interaction_points[0].active = FALSE;
+        }
+    }
+}
+
+// ============================================================================
+// Apply Interaction Distortion to Columns
+// ============================================================================
+static void apply_interaction_to_column(MatrixColumn *col) {
+    // Check distance to each interaction point
+    for (int i = 0; i < MAX_INTERACTION_POINTS; i++) {
+        if (!interaction_points[i].active) continue;
+        
+        InteractionPoint *ip = &interaction_points[i];
+        double dx = col->x - ip->x;
+        double dy = col->y - ip->y;
+        double dist = sqrt(dx*dx + dy*dy);
+        
+        if (dist < ip->influence_radius) {
+            // Influence intensity decreases with distance
+            double influence = (1.0 - dist / ip->influence_radius) * ip->intensity;
+            
+            // Repel the column - fixed repulsion force
+            if (dist > 0.1) {
+                double angle = atan2(dy, dx);
+                col->x += cos(angle) * influence * 2.0;
+                col->y += sin(angle) * influence * 2.0;
+            }
+            
+            // Increase character morphing near interaction
+            col->intensity = fmin(1.0, col->intensity + influence * 0.5);
+        }
+    }
 }
 
 void init_matrix_system(Visualizer *vis) {
@@ -58,6 +211,16 @@ void init_matrix_system(Visualizer *vis) {
         vis->matrix_columns[i].length = 0;
         vis->matrix_columns[i].intensity = 0;
         vis->matrix_columns[i].frequency_band = 0;
+    }
+    
+    // Initialize local static arrays (one-time only)
+    static gboolean initialized = FALSE;
+    if (!initialized) {
+        trail_particle_count = 0;
+        for (int i = 0; i < MAX_INTERACTION_POINTS; i++) {
+            interaction_points[i].active = FALSE;
+        }
+        initialized = TRUE;
     }
 }
 
@@ -88,8 +251,9 @@ void create_matrix_column_at_position(Visualizer *vis, int x_position) {
     // Start above screen
     col->y = -vis->matrix_char_size * (1 + rand() % 3);
     
-    // Random properties
-    col->speed = 50 + (rand() % 150);
+    // Random properties - speed affected by volume level for beat synchronization
+    double beat_speed_boost = 1.0 + (vis->volume_level * 2.0);
+    col->speed = (50 + (rand() % 150)) * beat_speed_boost;
     col->intensity = 0.4 + (rand() / (double)RAND_MAX) * 0.6;
     col->length = 8 + (rand() % 18);
     if (col->length > MAX_CHARS_PER_COLUMN) col->length = MAX_CHARS_PER_COLUMN;
@@ -111,6 +275,12 @@ void create_matrix_column_at_position(Visualizer *vis, int x_position) {
 void update_matrix(Visualizer *vis, double dt) {
     vis->matrix_spawn_timer += dt;
     
+    // Update interactions
+    update_matrix_interactions(vis);
+    
+    // Update trail particles
+    update_matrix_trail_particles(dt);
+    
     // Calculate audio energy
     double total_energy = 0.0;
     for (int i = 0; i < VIS_FREQUENCY_BARS; i++) {
@@ -122,10 +292,21 @@ void update_matrix(Visualizer *vis, double dt) {
     static int screen_section = 0;
     const int NUM_SECTIONS = 8; // Divide screen into sections for even distribution
     
-    if (vis->matrix_spawn_timer > 0.1) { // Spawn every 0.1 seconds
+    // Detect beat - significant increase in audio energy
+    static double last_total_energy = 0.0;
+    gboolean is_beat = (total_energy > last_total_energy * 1.5) && (total_energy > 0.3);
+    last_total_energy = total_energy * 0.9 + last_total_energy * 0.1; // Smooth average
+    
+    // Base spawn interval, but faster on beats
+    double spawn_interval = 0.15;
+    if (is_beat) {
+        spawn_interval = 0.05; // Much faster spawn rate on beat
+    }
+    
+    if (vis->matrix_spawn_timer > spawn_interval) {
         
-        // Always spawn at least 2-4 columns in different sections
-        int columns_to_spawn = 2 + (rand() % 3);
+        // More columns spawn on beats
+        int columns_to_spawn = is_beat ? (4 + rand() % 4) : (2 + (rand() % 3));
         
         for (int spawn = 0; spawn < columns_to_spawn; spawn++) {
             // Cycle through screen sections to ensure even distribution
@@ -162,6 +343,9 @@ void update_matrix(Visualizer *vis, double dt) {
         if (!vis->matrix_columns[i].active) continue;
         
         MatrixColumn *col = &vis->matrix_columns[i];
+        
+        // Apply mouse interactions
+        apply_interaction_to_column(col);
         
         // Update position
         col->y += col->speed * dt;
@@ -207,12 +391,22 @@ void draw_matrix(Visualizer *vis, cairo_t *cr) {
     
     update_matrix(vis, 0.033); // ~30 FPS
     
-    // Subtle background grid
-    cairo_set_source_rgba(cr, 0.0, 0.1, 0.0, 0.2);
+    // Animated Background Grid with Depth
+    cairo_set_source_rgba(cr, 0.0, 0.1, 0.0, 0.15);
     cairo_set_line_width(cr, 0.5);
-    for (int x = 0; x < vis->width; x += vis->matrix_char_size * 3) {
+    
+    double grid_offset = fmod(vis->time_offset * 20, vis->matrix_char_size * 3);
+    for (int x = -grid_offset; x < vis->width; x += vis->matrix_char_size * 3) {
         cairo_move_to(cr, x, 0);
         cairo_line_to(cr, x, vis->height);
+        cairo_stroke(cr);
+    }
+    
+    // Horizontal grid lines (animated)
+    double h_offset = fmod(vis->time_offset * 15, vis->matrix_char_size * 4);
+    for (int y = -h_offset; y < vis->height; y += vis->matrix_char_size * 4) {
+        cairo_move_to(cr, 0, y);
+        cairo_line_to(cr, vis->width, y);
         cairo_stroke(cr);
     }
     
@@ -220,7 +414,7 @@ void draw_matrix(Visualizer *vis, cairo_t *cr) {
     cairo_select_font_face(cr, "Monospace", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, vis->matrix_char_size);
     
-    // Draw all active columns
+    // Draw Columns with Enhanced Visual Effects
     for (int i = 0; i < MAX_MATRIX_COLUMNS; i++) {
         if (!vis->matrix_columns[i].active) continue;
         
@@ -236,57 +430,72 @@ void draw_matrix(Visualizer *vis, cairo_t *cr) {
             double brightness = col->char_ages[j] * col->intensity;
             if (brightness < 0.05) continue;
             
+            // Spawn trail particles on bright characters
+            if (brightness > 0.5 && rand() % 100 < 15) {
+                double r = 0.0, g = brightness, b = 0.0;
+                spawn_matrix_trail_particle(col->x, char_y, brightness * 0.7, r, g, b);
+            }
+            
             // Color based on position in column
             if (j == 0 && brightness > 0.7) {
-                // Bright head
-                cairo_set_source_rgba(cr, 0.9, 1.0, 0.9, brightness);
+                // Bright head with slight pulse
+                double pulse = 0.8 + 0.2 * sin(vis->time_offset * 5);
+                cairo_set_source_rgba(cr, 0.9 * pulse, 1.0, 0.9 * pulse, brightness);
             } else {
-                // Matrix green
-                cairo_set_source_rgba(cr, 0, brightness, 0, brightness);
+                // Matrix green with subtle gradient
+                double color_intensity = brightness * (0.7 + 0.3 * (1.0 - (double)j / col->length));
+                cairo_set_source_rgba(cr, 0, color_intensity, 0, brightness);
             }
             
             // Draw character
             cairo_move_to(cr, col->x, char_y);
             cairo_show_text(cr, col->chars[j]);
             
-            // Glow effect for bright characters
+            // Enhanced glow effect
             if (brightness > 0.6) {
-                cairo_set_source_rgba(cr, 0, brightness * 0.5, 0, brightness * 0.3);
-                cairo_move_to(cr, col->x - 1, char_y);
+                cairo_set_source_rgba(cr, 0, brightness * 0.6, 0, brightness * 0.4);
+                cairo_move_to(cr, col->x - 1.5, char_y);
                 cairo_show_text(cr, col->chars[j]);
-                cairo_move_to(cr, col->x + 1, char_y);
+                cairo_move_to(cr, col->x + 1.5, char_y);
+                cairo_show_text(cr, col->chars[j]);
+                cairo_move_to(cr, col->x, char_y - 1);
                 cairo_show_text(cr, col->chars[j]);
             }
         }
     }
     
-    // Audio-reactive particles
-    int particle_count = 20 + (int)(vis->volume_level * 40);
-    for (int i = 0; i < particle_count; i++) {
-        double x = fmod(vis->time_offset * 30 + i * 47, vis->width);
-        double y = fmod(vis->time_offset * 25 + i * 83, vis->height);
-        double alpha = (sin(vis->time_offset * 3 + i) + 1) * 0.1 + vis->volume_level * 0.2;
+    // Draw Trail Particles
+    for (int i = 0; i < trail_particle_count; i++) {
+        MatrixTrailParticle *p = &trail_particles[i];
         
-        cairo_set_source_rgba(cr, 0, 0.6, 0, alpha);
-        cairo_arc(cr, x, y, 1.0 + vis->volume_level * 2.0, 0, 2 * M_PI);
+        cairo_set_source_rgba(cr, p->r, p->g, p->b, p->alpha * 0.6);
+        cairo_arc(cr, p->x, p->y, p->size, 0, 2 * M_PI);
         cairo_fill(cr);
+        
+        // Outer glow
+        cairo_set_source_rgba(cr, p->r, p->g, p->b, p->alpha * 0.2);
+        cairo_arc(cr, p->x, p->y, p->size * 2.5, 0, 2 * M_PI);
+        cairo_stroke(cr);
     }
     
-    // Screen flash for intense audio
-    if (vis->volume_level > 0.4) {
-        double flash_alpha = (vis->volume_level - 0.4) * 0.1;
-        cairo_set_source_rgba(cr, 0, 1.0, 0.2, flash_alpha);
-        cairo_rectangle(cr, 0, 0, vis->width, vis->height);
-        cairo_fill(cr);
-    }
+
     
-    // Scanning line effect
+
+    
+    // Multi-Layer Scanning Line Effect
     static double scan_y = 0;
+    static double scan_y2 = 0;
     scan_y += vis->height * 0.008;
+    scan_y2 += vis->height * 0.012;
     if (scan_y > vis->height) scan_y = 0;
+    if (scan_y2 > vis->height) scan_y2 = 0;
     
-    cairo_set_source_rgba(cr, 0, 0.7, 0.3, 0.15);
+    cairo_set_source_rgba(cr, 0, 0.7, 0.3, 0.1);
     cairo_rectangle(cr, 0, scan_y, vis->width, 2);
+    cairo_fill(cr);
+    
+    cairo_set_source_rgba(cr, 0, 0.5, 0.2, 0.08);
+    cairo_rectangle(cr, 0, scan_y2, vis->width, 3);
     cairo_fill(cr);
 }
 
