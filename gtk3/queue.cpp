@@ -443,10 +443,23 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
     
     printf("Queue row activated: original queue index %d\n", queue_index);
     
-    if (queue_index == player->queue.current_index && player->is_playing) {
-        printf("Already playing this song\n");
+    // Get the filepath from the model to verify what file is actually being clicked
+    char *filepath = NULL;
+    gtk_tree_model_get(model, &iter, COL_FILEPATH, &filepath, -1);
+    
+    if (!filepath) {
         return;
     }
+    
+    // Check if already playing this exact file
+    if (queue_index == player->queue.current_index && player->is_playing) {
+        printf("Already playing this song\n");
+        g_free(filepath);
+        return;
+    }
+    
+    // Only set current_index after we've verified it matches the filepath
+    printf("Setting current_index to %d for file: %s\n", queue_index, filepath);
     
     stop_playback(player);
     player->queue.current_index = queue_index;
@@ -468,6 +481,8 @@ void on_queue_row_activated(GtkTreeView *tree_view, GtkTreePath *path,
 
 
     }
+    
+    g_free(filepath);
 }
 
 void update_queue_display(AudioPlayer *player) {
