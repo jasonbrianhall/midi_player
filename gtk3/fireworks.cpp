@@ -3,6 +3,10 @@
 
 #include "visualization.h"
 
+// Track last mouse spawn time to prevent spam
+static double last_mouse_spawn_time = 0.0;
+#define MOUSE_SPAWN_RATE 0.1  // Minimum 0.1 seconds between spawns
+
 void init_fireworks_system(Visualizer *vis) {
     vis->firework_count = 0;
     vis->particle_count = 0;
@@ -20,6 +24,7 @@ void init_fireworks_system(Visualizer *vis) {
     // Initialize all particles as inactive
     for (int i = 0; i < MAX_TOTAL_PARTICLES; i++) {
         vis->particles[i].active = FALSE;
+        vis->particles[i].trail_index = 0;  // OPTIMIZED: Initialize circular buffer index
     }
 }
 
@@ -173,7 +178,7 @@ void spawn_particle(Visualizer *vis, double x, double y, double vx, double vy,
     p->b = b;
     p->brightness = 1.0;
     p->active = TRUE;
-    p->trail_length = 0;
+    p->trail_index = 0;  // OPTIMIZED: Reset circular buffer index
     
     vis->particle_count++;
 }
@@ -207,10 +212,10 @@ void explode_firework(Visualizer *vis, Firework *firework) {
         spawn_particle(vis, firework->target_x, firework->target_y, vx, vy, r, g, b, life);
     }
     
-    // Special effects for high intensity explosions
+    // Special effects for high intensity explosions - REDUCED for performance
     if (firework->explosion_size > 100.0) {
-        // Create a ring of particles
-        int ring_particles = 16;
+        // Create a ring of particles (reduced from 16 to 12)
+        int ring_particles = 12;
         for (int i = 0; i < ring_particles; i++) {
             double angle = (double)i / ring_particles * 2.0 * M_PI;
             double speed = 100.0;
@@ -230,36 +235,25 @@ void explode_firework(Visualizer *vis, Firework *firework) {
 
 // Update fireworks system
 void update_fireworks(Visualizer *vis, double dt) {
-    // Spawn fireworks on mouse clicks with random colors
-    if (vis->mouse_left_pressed) {
+    // OPTIMIZED: Rate limit mouse spawning to prevent spam
+    gboolean mouse_clicked = vis->mouse_left_pressed || vis->mouse_right_pressed || vis->mouse_middle_pressed;
+    if (mouse_clicked && (g_get_monotonic_time() / 1e6 - last_mouse_spawn_time) > MOUSE_SPAWN_RATE) {
         int random_band = rand() % VIS_FREQUENCY_BARS;
         spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
-        vis->mouse_left_pressed = FALSE;
+        last_mouse_spawn_time = g_get_monotonic_time() / 1e6;
     }
     
-    if (vis->mouse_middle_pressed) {
-        int random_band = rand() % VIS_FREQUENCY_BARS;
-        spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
-        vis->mouse_middle_pressed = FALSE;
-    }
-    
-    if (vis->mouse_right_pressed) {
-        int random_band = rand() % VIS_FREQUENCY_BARS;
-        spawn_firework_at(vis, 0.6, random_band, vis->mouse_x, vis->mouse_y);
-        vis->mouse_right_pressed = FALSE;
-    }
-    
-    // Update existing fireworks
+    // Update fireworks
     for (int i = 0; i < MAX_FIREWORKS; i++) {
         Firework *fw = &vis->fireworks[i];
         if (!fw->active) continue;
         
         if (!fw->exploded) {
-            // Update position
+            // Update position with physics (gravity)
+            fw->vy += vis->gravity * dt;
             fw->x += fw->vx * dt;
             fw->y += fw->vy * dt;
             
-            // Update life
             fw->life -= dt;
             
             // Check if it's time to explode
@@ -277,7 +271,7 @@ void update_fireworks(Visualizer *vis, double dt) {
         }
     }
     
-    // Update particles
+    // OPTIMIZED: Update particles with circular trail buffer
     for (int i = 0; i < MAX_TOTAL_PARTICLES; i++) {
         FireworkParticle *p = &vis->particles[i];
         if (!p->active) continue;
@@ -288,23 +282,17 @@ void update_fireworks(Visualizer *vis, double dt) {
         p->x += p->vx * dt;
         p->y += p->vy * dt;
         
-        // Update trail
-        if (p->trail_length < 10) {
-            p->trail_length++;
-        }
-        for (int j = p->trail_length - 1; j > 0; j--) {
-            p->trail_x[j] = p->trail_x[j-1];
-            p->trail_y[j] = p->trail_y[j-1];
-        }
-        p->trail_x[0] = p->x;
-        p->trail_y[0] = p->y;
+        // OPTIMIZED: Circular buffer trail update - O(1) instead of O(n)
+        p->trail_x[p->trail_index] = p->x;
+        p->trail_y[p->trail_index] = p->y;
+        p->trail_index = (p->trail_index + 1) % TRAIL_LENGTH;
         
         // Update life and brightness
         p->life -= dt;
         p->brightness = p->life / p->max_life;
         
         // Air resistance
-        p->vx *= 0.995; // Slightly less air resistance for better visuals
+        p->vx *= 0.995;
         p->vy *= 0.995;
         
         // Remove dead particles
@@ -423,75 +411,115 @@ void update_fireworks(Visualizer *vis, double dt) {
 }
 
 
-// Draw the fireworks visualization
+// OPTIMIZED: Draw the fireworks visualization - ADAPTIVE QUALITY
+// Automatically adjusts visual quality based on particle load
 void draw_fireworks(Visualizer *vis, cairo_t *cr) {
     if (vis->width <= 0 || vis->height <= 0) return;
     
-    // Draw a gradient background (night sky)
-    cairo_pattern_t *bg_gradient = cairo_pattern_create_linear(0, 0, 0, vis->height);
-    cairo_pattern_add_color_stop_rgba(bg_gradient, 0, 0.05, 0.05, 0.2, 1.0); // Dark blue at top
-    cairo_pattern_add_color_stop_rgba(bg_gradient, 1, 0.02, 0.02, 0.05, 1.0); // Almost black at bottom
-    
-    cairo_set_source(cr, bg_gradient);
+    // OPTIMIZED: Simple background fill instead of gradient pattern
+    cairo_set_source_rgb(cr, 0.02, 0.02, 0.05);
     cairo_paint(cr);
-    cairo_pattern_destroy(bg_gradient);
     
-    // Draw particles with trails
-    for (int i = 0; i < MAX_TOTAL_PARTICLES; i++) {
+    // ADAPTIVE QUALITY: Determine rendering quality based on particle count
+    // High quality (4 circles): < 300 particles - pristine fireworks
+    // Medium quality (3 circles): 300-600 - good balance
+    // Low quality (2 circles): 600+ - maximum performance
+    
+    int quality_level = 4;  // Default: highest quality
+    int draw_every_nth = 1;
+    
+    if (vis->particle_count > 800) {
+        quality_level = 2;  // Emergency mode: 2 circles
+        draw_every_nth = 3;  // Also skip 2/3 of particles
+    } else if (vis->particle_count > 600) {
+        quality_level = 2;  // Low quality: 2 circles
+        draw_every_nth = 2;  // Skip every other particle
+    } else if (vis->particle_count > 400) {
+        quality_level = 3;  // Medium quality: 3 circles
+        draw_every_nth = 1;  // Draw all particles
+    } else {
+        quality_level = 4;  // High quality: 4 circles (full beauty)
+        draw_every_nth = 1;  // Draw all particles
+    }
+    
+    // ADAPTIVE: Draw particles with quality based on load
+    for (int i = 0; i < MAX_TOTAL_PARTICLES; i += draw_every_nth) {
         FireworkParticle *p = &vis->particles[i];
         if (!p->active) continue;
         
-        // Draw particle trail
-        if (p->trail_length > 1) {
-            cairo_set_line_width(cr, 1.0);
-            for (int j = 1; j < p->trail_length; j++) {
-                double trail_alpha = p->brightness * (1.0 - (double)j / p->trail_length) * 0.5;
-                cairo_set_source_rgba(cr, p->r, p->g, p->b, trail_alpha);
-                cairo_move_to(cr, p->trail_x[j-1], p->trail_y[j-1]);
-                cairo_line_to(cr, p->trail_x[j], p->trail_y[j]);
-                cairo_stroke(cr);
-            }
-        }
-        
-        // Draw the particle itself
         double alpha = p->brightness;
-        cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha);
+        if (alpha <= 0.0) continue;  // Skip fully transparent particles
         
-        // Create a glowing effect
-        cairo_pattern_t *glow = cairo_pattern_create_radial(p->x, p->y, 0, p->x, p->y, p->size * 2);
-        cairo_pattern_add_color_stop_rgba(glow, 0, p->r, p->g, p->b, alpha);
-        cairo_pattern_add_color_stop_rgba(glow, 1, p->r, p->g, p->b, 0);
-        
-        cairo_set_source(cr, glow);
-        cairo_arc(cr, p->x, p->y, p->size * 2, 0, 2 * M_PI);
-        cairo_fill(cr);
-        cairo_pattern_destroy(glow);
-        
-        // Bright center
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha * 0.8);
-        cairo_arc(cr, p->x, p->y, p->size * 0.5, 0, 2 * M_PI);
-        cairo_fill(cr);
+        if (quality_level >= 4) {
+            // HIGHEST QUALITY (< 300 particles): Full 4-circle glow
+            // Large glow (very faint)
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.15);
+            cairo_arc(cr, p->x, p->y, p->size * 3.0, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Medium glow
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.3);
+            cairo_arc(cr, p->x, p->y, p->size * 2.0, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Core (solid particle)
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.8);
+            cairo_arc(cr, p->x, p->y, p->size, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Bright center (highlights)
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha);
+            cairo_arc(cr, p->x, p->y, p->size * 0.4, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+        } else if (quality_level == 3) {
+            // MEDIUM QUALITY (300-600 particles): 3-circle glow (no bright highlight)
+            // Medium glow
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.2);
+            cairo_arc(cr, p->x, p->y, p->size * 2.5, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Core (solid particle)
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.85);
+            cairo_arc(cr, p->x, p->y, p->size, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Subtle bright center
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, alpha * 0.5);
+            cairo_arc(cr, p->x, p->y, p->size * 0.5, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+        } else {
+            // LOW QUALITY (> 600 particles): 2-circle minimal glow
+            // Large glow (faint)
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.25);
+            cairo_arc(cr, p->x, p->y, p->size * 2.5, 0, 2 * M_PI);
+            cairo_fill(cr);
+            
+            // Core (solid particle)
+            cairo_set_source_rgba(cr, p->r, p->g, p->b, alpha * 0.9);
+            cairo_arc(cr, p->x, p->y, p->size, 0, 2 * M_PI);
+            cairo_fill(cr);
+        }
     }
     
-    // Draw launching fireworks
+    // OPTIMIZED: Draw launching fireworks (simple)
     for (int i = 0; i < MAX_FIREWORKS; i++) {
         Firework *fw = &vis->fireworks[i];
         if (!fw->active || fw->exploded) continue;
         
-        // Draw the rising firework
         double r, g, b;
         hsv_to_rgb(fw->hue, 0.8, 1.0, &r, &g, &b);
         
+        // Main firework body
         cairo_set_source_rgba(cr, r, g, b, 0.9);
         cairo_arc(cr, fw->x, fw->y, 3.0, 0, 2 * M_PI);
         cairo_fill(cr);
         
-        // Draw a small trail
-        cairo_set_source_rgba(cr, r, g, b, 0.4);
-        cairo_set_line_width(cr, 2.0);
-        cairo_move_to(cr, fw->x, fw->y);
-        cairo_line_to(cr, fw->x - fw->vx * 0.1, fw->y - fw->vy * 0.1);
-        cairo_stroke(cr);
+        // Glow around firework
+        cairo_set_source_rgba(cr, r, g, b, 0.3);
+        cairo_arc(cr, fw->x, fw->y, 6.0, 0, 2 * M_PI);
+        cairo_fill(cr);
     }
 }
 
