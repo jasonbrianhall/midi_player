@@ -203,8 +203,8 @@ typedef struct {
     bool is_playing;
     bool is_paused;
     bool seeking;
-    char current_file[512];
-    char temp_wav_file[512];
+    char current_file[1024];
+    char temp_wav_file[1024];
     double song_duration;
     guint update_timer_id;
     

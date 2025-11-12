@@ -359,6 +359,12 @@ void on_remove_from_queue_clicked(GtkButton *button, gpointer user_data) {
             if (load_file_from_queue(player)) {
                 update_gui_state(player);
                 start_playback(player);
+            } else {
+                // Failed to load next file - ensure consistent UI state
+                printf("Failed to load next track after removal\n");
+                player->is_loaded = false;
+                gtk_label_set_text(GTK_LABEL(player->file_label), "No file loaded");
+                update_gui_state(player);
             }
             if (player->cdg_display) {
                 cdg_reset(player->cdg_display);
@@ -748,7 +754,8 @@ bool load_file(AudioPlayer *player, const char *filename) {
 
                     if (success) {
                         printf("Loaded karaoke ZIP successfully\n");
-                        strcpy(player->current_file, zip_path.c_str());
+                        strncpy(player->current_file, zip_path.c_str(), 1023);
+                        player->current_file[1023] = '\0';
 
                         char *metadata = extract_metadata(zip_contents.audio_file);
                         gtk_label_set_markup(GTK_LABEL(player->metadata_label), metadata);
@@ -794,7 +801,8 @@ bool load_file(AudioPlayer *player, const char *filename) {
             
                 if (success) {
                     printf("Loaded karaoke ZIP successfully\n");
-                    strcpy(player->current_file, filename);
+                    strncpy(player->current_file, filename, 1023);
+                    player->current_file[1023] = '\0';
                     
                     // Extract metadata from the actual audio file inside the ZIP
                     char *metadata = extract_metadata(zip_contents.audio_file);
@@ -822,7 +830,8 @@ bool load_file(AudioPlayer *player, const char *filename) {
     }
     
     if (success && !is_zip_file) {
-        strcpy(player->current_file, filename);
+        strncpy(player->current_file, filename, 1023);
+        player->current_file[1023] = '\0';
         player->is_loaded = true;
         player->is_playing = false;
         player->is_paused = false;
@@ -1026,7 +1035,7 @@ void start_playback(AudioPlayer *player) {
             }
             
             // Update playback position if playing
-            if (currently_playing && p->audio_buffer.data && p->sample_rate > 0) {
+            if (currently_playing && p->audio_buffer.data && p->sample_rate > 0 && p->channels > 0) {
                 double samples_per_second = (double)(p->sample_rate * p->channels);
                 playTime = (double)p->audio_buffer.position / samples_per_second;
             }
@@ -1342,6 +1351,19 @@ void next_song(AudioPlayer *player) {
     }
     
     // No filter active, check for sorted display order
+    // Check if queue_tree_view exists first
+    if (!player->queue_tree_view) {
+        printf("No tree view in next_song, using simple next\n");
+        if (advance_queue(&player->queue)) {
+            if (load_file_from_queue(player)) {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+                start_playback(player);
+            }
+        }
+        return;
+    }
+    
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
     if (model && GTK_IS_TREE_MODEL(model)) {
         GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
@@ -1471,6 +1493,19 @@ void previous_song(AudioPlayer *player) {
     }
     
     // No filter active, check for sorted display order
+    // Check if queue_tree_view exists first
+    if (!player->queue_tree_view) {
+        printf("No tree view in previous_song, using simple previous\n");
+        if (previous_queue(&player->queue)) {
+            if (load_file_from_queue(player)) {
+                update_queue_display_with_filter(player);
+                update_gui_state(player);
+                start_playback(player);
+            }
+        }
+        return;
+    }
+    
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
     if (model && GTK_IS_TREE_MODEL(model)) {
         GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
@@ -2614,7 +2649,7 @@ void on_menu_save_playlist(GtkMenuItem *menuitem, gpointer user_data) {
     ofn.lpstrDefExt = "m3u";
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
     
-    strcpy(filename, "playlist.m3u");
+    snprintf(filename, sizeof(filename), "%s", "playlist.m3u");
     
     if (GetSaveFileName(&ofn)) {
         if (save_m3u_playlist(player, filename)) {
@@ -2947,12 +2982,13 @@ bool load_player_settings(AudioPlayer *player) {
 
 void parse_metadata(const char *metadata_str, char *title, char *artist, 
                    char *album, char *genre) {
-    // Initialize outputs
+    // Initialize with default values
     strcpy(title, "Unknown Title");
     strcpy(artist, "Unknown Artist");
     strcpy(album, "Unknown Album");
     strcpy(genre, "Unknown Genre");
     
+    // NULL check FIRST before processing user data
     if (!metadata_str) return;
     
     // Parse the markup text - extract_metadata returns markup like:
