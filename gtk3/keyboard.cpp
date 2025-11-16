@@ -230,7 +230,33 @@ gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user
                             start_playback(player);
                         }
                     }
-                    update_queue_display_with_filter(player);
+                    update_queue_display_with_filter(player, false);
+                    
+                    // Select the next item after deletion
+                    int next_index = (index_to_delete < player->queue.count) ? index_to_delete : index_to_delete - 1;
+                    if (next_index >= 0 && player->queue_tree_view) {
+                        GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+                        GtkTreeIter next_iter;
+                        gboolean valid = gtk_tree_model_get_iter_first(
+                            GTK_TREE_MODEL(player->queue_store), &next_iter);
+                        
+                        while (valid) {
+                            int queue_index = -1;
+                            gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &next_iter,
+                                               COL_QUEUE_INDEX, &queue_index, -1);
+                            
+                            if (queue_index == next_index) {
+                                GtkTreePath *next_path = gtk_tree_model_get_path(
+                                    GTK_TREE_MODEL(player->queue_store), &next_iter);
+                                gtk_tree_selection_select_path(selection, next_path);
+                                gtk_tree_path_free(next_path);
+                                break;
+                            }
+                            
+                            valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &next_iter);
+                        }
+                    }
+                    
                     update_gui_state(player);
                 }
             }

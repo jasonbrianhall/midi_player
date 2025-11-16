@@ -393,7 +393,7 @@ void on_queue_drag_data_received(GtkWidget *widget, GdkDragContext *context,
                 
                 // Perform the reorder
                 if (reorder_queue_item(&player->queue, source_index, dest_index)) {
-                    update_queue_display_with_filter(player);
+                    update_queue_display_with_filter(player, false);
                     update_gui_state(player);
                     printf("Queue reordered successfully\n");
                 }
@@ -602,10 +602,13 @@ void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
     GtkTreeIter iter;
     
     if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
-        gint *indices = gtk_tree_path_get_indices(path);
-        int index = indices[0];
-        gtk_tree_path_free(path);
+        // Get the actual queue index from COL_QUEUE_INDEX, not the visible row index
+        int index = -1;
+        gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &index, -1);
+        
+        if (index < 0 || index >= player->queue.count) {
+            return;
+        }
         
         printf("Removing item %d from queue\n", index);
         
@@ -630,7 +633,34 @@ void on_queue_delete_item(GtkMenuItem *menuitem, gpointer user_data) {
                 }
             }
             
-            update_queue_display_with_filter(player);
+            update_queue_display_with_filter(player, false);
+            
+            // Select the next item after deletion
+            // If we deleted item at index N, the next item is now at index N (if it exists)
+            // Otherwise select the previous item at index N-1
+            int next_index = (index < player->queue.count) ? index : index - 1;
+            if (next_index >= 0 && player->queue_tree_view) {
+                GtkTreeIter next_iter;
+                gboolean valid = gtk_tree_model_get_iter_first(
+                    GTK_TREE_MODEL(player->queue_store), &next_iter);
+                
+                while (valid) {
+                    int queue_index = -1;
+                    gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &next_iter,
+                                       COL_QUEUE_INDEX, &queue_index, -1);
+                    
+                    if (queue_index == next_index) {
+                        GtkTreePath *next_path = gtk_tree_model_get_path(
+                            GTK_TREE_MODEL(player->queue_store), &next_iter);
+                        gtk_tree_selection_select_path(selection, next_path);
+                        gtk_tree_path_free(next_path);
+                        break;
+                    }
+                    
+                    valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &next_iter);
+                }
+            }
+            
             update_gui_state(player);
         }
     }
@@ -645,9 +675,21 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
         if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(widget), 
                                          (gint)event->x, (gint)event->y, 
                                          &path, NULL, NULL, NULL)) {
-            gint *indices = gtk_tree_path_get_indices(path);
-            int index = indices[0];
+            GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(widget));
+            GtkTreeIter iter;
+            if (!gtk_tree_model_get_iter(model, &iter, path)) {
+                gtk_tree_path_free(path);
+                return FALSE;
+            }
+            
+            // Get the actual queue index, not the visible row index
+            int index = -1;
+            gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &index, -1);
             gtk_tree_path_free(path);
+            
+            if (index < 0 || index >= player->queue.count) {
+                return FALSE;
+            }
             
             printf("Removing item %d via middle-click\n", index);
             
@@ -672,7 +714,33 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
                     }
                 }
                 
-                update_queue_display_with_filter(player);
+                update_queue_display_with_filter(player, false);
+                
+                // Select the next item after deletion
+                int next_index = (index < player->queue.count) ? index : index - 1;
+                if (next_index >= 0 && player->queue_tree_view) {
+                    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(player->queue_tree_view));
+                    GtkTreeIter next_iter;
+                    gboolean valid = gtk_tree_model_get_iter_first(
+                        GTK_TREE_MODEL(player->queue_store), &next_iter);
+                    
+                    while (valid) {
+                        int queue_index = -1;
+                        gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &next_iter,
+                                           COL_QUEUE_INDEX, &queue_index, -1);
+                        
+                        if (queue_index == next_index) {
+                            GtkTreePath *next_path = gtk_tree_model_get_path(
+                                GTK_TREE_MODEL(player->queue_store), &next_iter);
+                            gtk_tree_selection_select_path(selection, next_path);
+                            gtk_tree_path_free(next_path);
+                            break;
+                        }
+                        
+                        valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &next_iter);
+                    }
+                }
+                
                 update_gui_state(player);
             }
             
@@ -689,9 +757,22 @@ gboolean on_queue_context_menu(GtkWidget *widget, GdkEventButton *event, gpointe
             GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(widget));
             gtk_tree_selection_select_path(selection, path);
             
-            gint *indices = gtk_tree_path_get_indices(path);
-            int index = indices[0];
+            GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(widget));
+            GtkTreeIter iter;
+            if (!gtk_tree_model_get_iter(model, &iter, path)) {
+                gtk_tree_path_free(path);
+                return FALSE;
+            }
+            
+            // Get the actual queue index, not the visible row index
+            int index = -1;
+            gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &index, -1);
+            
             gtk_tree_path_free(path);
+            
+            if (index < 0 || index >= player->queue.count) {
+                return FALSE;
+            }
             
             GtkWidget *menu = gtk_menu_new();
             
@@ -736,7 +817,7 @@ void move_queue_item_up(AudioPlayer *player, int index) {
         player->queue.current_index = index;
     }
     
-    update_queue_display_with_filter(player);
+    update_queue_display_with_filter(player, false);
     
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index - 1, -1);
@@ -762,7 +843,7 @@ void move_queue_item_down(AudioPlayer *player, int index) {
         player->queue.current_index = index;
     }
     
-    update_queue_display_with_filter(player);
+    update_queue_display_with_filter(player, false);
     
     if (player->queue_tree_view) {
         GtkTreePath *path = gtk_tree_path_new_from_indices(index + 1, -1);
@@ -936,7 +1017,36 @@ bool matches_filter(const char *text, const char *filter) {
     return matches;
 }
 
-void update_queue_display_with_filter(AudioPlayer *player) {
+void update_queue_display_with_filter(AudioPlayer *player, bool scroll_to_current) {
+    // Save current scroll position before clearing
+    int saved_queue_index = -1;
+    int saved_tree_row = -1;  // Also save the visual row position
+    
+    if (!scroll_to_current && player->queue_tree_view) {
+        // Get the first visible row in the current view
+        GtkTreePath *start_path = NULL;
+        GtkTreePath *end_path = NULL;
+        
+        if (gtk_tree_view_get_visible_range(GTK_TREE_VIEW(player->queue_tree_view), &start_path, &end_path)) {
+            if (start_path) {
+                GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(player->queue_tree_view));
+                GtkTreeIter iter;
+                if (gtk_tree_model_get_iter(model, &iter, start_path)) {
+                    // Get the queue index of the first visible item
+                    gtk_tree_model_get(model, &iter, COL_QUEUE_INDEX, &saved_queue_index, -1);
+                    
+                    // Also save the tree row index as fallback
+                    gint *indices = gtk_tree_path_get_indices(start_path);
+                    if (indices) {
+                        saved_tree_row = indices[0];
+                    }
+                }
+            }
+            if (start_path) gtk_tree_path_free(start_path);
+            if (end_path) gtk_tree_path_free(end_path);
+        }
+    }
+
     if (player->queue_store) {
         gtk_list_store_clear(player->queue_store);
     }
@@ -1017,9 +1127,9 @@ void update_queue_display_with_filter(AudioPlayer *player) {
         g_free(basename);
     }
 
-    printf("Queue filter: showing %d of %d items\n", visible_count, player->queue.count);
-
-    if (player->queue.current_index >= 0 && player->queue_tree_view) {
+    // Restore scroll position or scroll to current
+    if (scroll_to_current && player->queue.current_index >= 0 && player->queue_tree_view) {
+        // Scroll to currently playing item
         GtkTreeIter iter;
         gboolean valid = gtk_tree_model_get_iter_first(
             GTK_TREE_MODEL(player->queue_store), &iter);
@@ -1042,6 +1152,42 @@ void update_queue_display_with_filter(AudioPlayer *player) {
             }
 
             valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &iter);
+        }
+    } else if (!scroll_to_current && player->queue_tree_view) {
+        // Try to restore to saved queue index first
+        if (saved_queue_index >= 0) {
+            GtkTreeIter iter;
+            gboolean valid = gtk_tree_model_get_iter_first(
+                GTK_TREE_MODEL(player->queue_store), &iter);
+            int visible_row = 0;
+
+            while (valid) {
+                int queue_index = -1;
+                gtk_tree_model_get(GTK_TREE_MODEL(player->queue_store), &iter,
+                                   COL_QUEUE_INDEX, &queue_index, -1);
+
+                if (queue_index == saved_queue_index) {
+                    GtkTreePath *path = gtk_tree_model_get_path(
+                        GTK_TREE_MODEL(player->queue_store), &iter);
+                    gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view),
+                                                 path, NULL, FALSE, 0.0, 0.0);
+                    gtk_tree_path_free(path);
+                    return;  // SUCCESS - found and scrolled
+                }
+
+                valid = gtk_tree_model_iter_next(GTK_TREE_MODEL(player->queue_store), &iter);
+                visible_row++;
+            }
+        }
+        
+        // Fallback: if we couldn't find the saved queue index, scroll to the saved tree row
+        // This handles the case where the item was deleted
+        if (saved_tree_row >= 0 && visible_count > 0) {
+            GtkTreePath *fallback_path = gtk_tree_path_new_from_indices(
+                saved_tree_row < visible_count ? saved_tree_row : visible_count - 1, -1);
+            gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(player->queue_tree_view),
+                                         fallback_path, NULL, FALSE, 0.0, 0.0);
+            gtk_tree_path_free(fallback_path);
         }
     }
 }

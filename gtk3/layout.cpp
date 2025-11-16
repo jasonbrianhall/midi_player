@@ -1018,4 +1018,3 @@ gboolean on_visualizer_leave(GtkWidget *widget, GdkEventCrossing *event, gpointe
     vis->mouse_velocity_y = 0;
     return FALSE;
 }
-
