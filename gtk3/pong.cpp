@@ -321,11 +321,13 @@ void pong_update(void *vis_ptr, double dt) {
     // Scoring
     if (game->ball.x < -game->ball.size) {
         game->ai.score++;
-        // Check for win condition (first to 21)
-        if (game->ai.score >= 21) {
+        // Check for win condition (first to 10)
+        if (game->ai.score >= 10) {
             game->game_over = TRUE;
             game->winner = 1;  // AI wins
             game->game_over_display_time = 3.0;  // Show message for 3 seconds
+            game->player.score=0;
+            game->ai.score=0;            
         } else {
             // Reset ball for next round
             game->ball.x = game->width / 2.0;
@@ -338,11 +340,13 @@ void pong_update(void *vis_ptr, double dt) {
     }
     if (game->ball.x > game->width + game->ball.size) {
         game->player.score++;
-        // Check for win condition (first to 21)
-        if (game->player.score >= 21) {
+        // Check for win condition (first to 10)
+        if (game->player.score >= 10) {
             game->game_over = TRUE;
             game->winner = 0;  // Player wins
             game->game_over_display_time = 3.0;  // Show message for 3 seconds
+            game->player.score=0;
+            game->ai.score=0;            
         } else {
             // Reset ball for next round
             game->ball.x = game->width / 2.0;

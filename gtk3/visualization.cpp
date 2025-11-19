@@ -738,7 +738,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "3d Maze");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Circle Ball Visualization");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Mandelbrot Fractal");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Table Tennis (i)");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Pong (i)");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
