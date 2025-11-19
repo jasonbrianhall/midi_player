@@ -108,6 +108,13 @@ typedef struct {
     bool king_promotion_active;
     double king_promotion_glow;
     int king_promotion_row, king_promotion_col;
+    
+    // Reset button
+    double reset_button_x, reset_button_y;
+    double reset_button_width, reset_button_height;
+    bool reset_button_hovered;
+    double reset_button_glow;
+    bool reset_button_was_pressed;  // Track previous frame state for click detection
 } BeatCheckersVisualization;
 
 // Core game functions
@@ -128,5 +135,6 @@ void checkers_stop_thinking(CheckersThinkingState *ts);
 void init_beat_checkers_system(void *vis_ptr);
 void update_beat_checkers(void *vis_ptr, double dt);
 void draw_beat_checkers(void *vis_ptr, cairo_t *cr);
+void draw_checkers_reset_button(BeatCheckersVisualization *checkers, cairo_t *cr, int width, int height);
 
 #endif // BEATCHECKERS_H

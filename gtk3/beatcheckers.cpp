@@ -524,6 +524,11 @@ void init_beat_checkers_system(void *vis_ptr) {
     checkers->king_promotion_active = false;
     checkers->king_promotion_glow = 0;
     
+    // Reset button
+    checkers->reset_button_hovered = false;
+    checkers->reset_button_glow = 0;
+    checkers->reset_button_was_pressed = false;
+    
     printf("Beat checkers system initialized\n");
 }
 
@@ -555,6 +560,52 @@ void update_beat_checkers(void *vis_ptr, double dt) {
     
     checkers->time_since_last_move += dt;
     
+    // ===== CHECK RESET BUTTON INTERACTION =====
+    // Detect if mouse is over button (for hover effects)
+    bool is_over_reset = (vis->mouse_x >= checkers->reset_button_x && 
+                          vis->mouse_x <= checkers->reset_button_x + checkers->reset_button_width &&
+                          vis->mouse_y >= checkers->reset_button_y && 
+                          vis->mouse_y <= checkers->reset_button_y + checkers->reset_button_height);
+    
+    checkers->reset_button_hovered = is_over_reset;
+    
+    // Detect click: button was pressed last frame AND released this frame
+    bool reset_was_pressed = checkers->reset_button_was_pressed;
+    bool reset_is_pressed = vis->mouse_left_pressed;
+    bool reset_clicked = (reset_was_pressed && !reset_is_pressed && is_over_reset);
+    
+    // Update for next frame
+    checkers->reset_button_was_pressed = reset_is_pressed;
+    
+    // Handle the click if it happened
+    if (reset_clicked) {
+        // Reset the game
+        checkers_init_board(&checkers->game);
+        checkers->status = CHECKERS_PLAYING;
+        checkers->beats_since_game_over = 0;
+        checkers->waiting_for_restart = false;
+        checkers->move_count = 0;
+        checkers->time_thinking = 0;
+        checkers->captured_count = 0;
+        checkers->last_move_glow = 0;
+        checkers->animation_progress = 0;
+        checkers->is_animating = false;
+        checkers->last_from_row = -1;
+        checkers->king_promotion_active = false;
+        
+        strcpy(checkers->status_text, "Game Reset! Red to move");
+        checkers->status_flash_color[0] = 1.0;
+        checkers->status_flash_color[1] = 0.3;
+        checkers->status_flash_color[2] = 0.3;
+        checkers->status_flash_timer = 1.5;
+        
+        checkers->reset_button_glow = 1.0;
+        
+        // Start thinking for new game
+        checkers_start_thinking(&checkers->thinking_state, &checkers->game);
+    }
+    // ========================================
+    
     // Update glow effects
     if (checkers->last_move_glow > 0) {
         checkers->last_move_glow -= dt * 2.0;
@@ -572,6 +623,11 @@ void update_beat_checkers(void *vis_ptr, double dt) {
             checkers->king_promotion_glow = 0;
             checkers->king_promotion_active = false;
         }
+    }
+    
+    if (checkers->reset_button_glow > 0) {
+        checkers->reset_button_glow -= dt * 2.0;
+        if (checkers->reset_button_glow < 0) checkers->reset_button_glow = 0;
     }
     
     // Fade out captured pieces
@@ -852,6 +908,59 @@ void draw_checkers_piece(cairo_t *cr, CheckersColor color, bool is_king,
     }
 }
 
+void draw_checkers_reset_button(BeatCheckersVisualization *checkers, cairo_t *cr, int width, int height) {
+    // Button position and size - LEFT SIDE
+    double button_width = 120;
+    double button_height = 40;
+    double button_x = 20;  // LEFT side, 20px from edge
+    double button_y = 20;
+    
+    // Store button position for hit detection
+    checkers->reset_button_x = button_x;
+    checkers->reset_button_y = button_y;
+    checkers->reset_button_width = button_width;
+    checkers->reset_button_height = button_height;
+    
+    // Background
+    cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_fill(cr);
+    
+    // Glow effect if hovered
+    if (checkers->reset_button_hovered || checkers->reset_button_glow > 0) {
+        double glow_alpha = checkers->reset_button_glow * 0.5;
+        if (checkers->reset_button_hovered) glow_alpha = 0.4;
+        
+        cairo_set_source_rgba(cr, 1.0, 0.7, 0.2, glow_alpha);
+        cairo_rectangle(cr, button_x - 3, button_y - 3, button_width + 6, button_height + 6);
+        cairo_stroke(cr);
+    }
+    
+    // Border
+    cairo_set_source_rgb(cr, checkers->reset_button_hovered ? 1.0 : 0.7, 
+                         checkers->reset_button_hovered ? 0.7 : 0.5, 
+                         checkers->reset_button_hovered ? 0.2 : 0.3);
+    cairo_set_line_width(cr, 2);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_stroke(cr);
+    
+    // Text
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, 14);
+    
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, "RESET", &extents);
+    
+    double text_x = button_x + (button_width - extents.width) / 2;
+    double text_y = button_y + (button_height + extents.height) / 2;
+    
+    cairo_set_source_rgb(cr, checkers->reset_button_hovered ? 1.0 : 0.9, 
+                         checkers->reset_button_hovered ? 0.8 : 0.7, 
+                         checkers->reset_button_hovered ? 0.3 : 0.4);
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, "RESET");
+}
+
 void draw_beat_checkers(void *vis_ptr, cairo_t *cr) {
     Visualizer *vis = (Visualizer*)vis_ptr;
     BeatCheckersVisualization *checkers = &vis->beat_checkers;
@@ -1051,6 +1160,9 @@ void draw_beat_checkers(void *vis_ptr, cairo_t *cr) {
     cairo_text_extents(cr, count_text, &extents);
     cairo_move_to(cr, (width - extents.width) / 2, oy + cell * 8 + 35);
     cairo_show_text(cr, count_text);
+    
+    // Draw reset button
+    draw_checkers_reset_button(checkers, cr, width, height);
 }
 
 void checkers_cleanup_thinking_state(CheckersThinkingState *ts) {
