@@ -112,6 +112,19 @@ typedef struct {
     double reset_button_glow;
     bool reset_button_was_pressed;  // Track previous frame state for click detection
     
+    // PvsA toggle button
+    double pvsa_button_x, pvsa_button_y;
+    double pvsa_button_width, pvsa_button_height;
+    bool pvsa_button_hovered;
+    double pvsa_button_glow;
+    bool pvsa_button_was_pressed;
+    bool player_vs_ai;  // true = Player vs AI, false = AI vs AI
+    
+    // Player move tracking (for Player vs AI mode)
+    int selected_piece_row, selected_piece_col;  // Currently selected piece
+    bool has_selected_piece;
+    int selected_piece_was_pressed;  // Mouse state for selection
+    
 } BeatChessVisualization;
 
 #endif // BEATCHESS_H

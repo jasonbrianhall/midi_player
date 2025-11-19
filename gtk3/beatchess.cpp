@@ -647,7 +647,6 @@ ChessMove chess_get_best_move_now(ChessThinkingState *ts) {
     pthread_mutex_lock(&ts->lock);
     ChessMove move = ts->best_move;
     bool has_move = ts->has_move;
-    int depth = ts->current_depth;
     ts->thinking = false; // Stop thinking
     pthread_mutex_unlock(&ts->lock);
     
@@ -757,6 +756,18 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->reset_button_glow = 0;
     chess->reset_button_was_pressed = false;
     
+    // PvsA toggle button
+    chess->pvsa_button_hovered = false;
+    chess->pvsa_button_glow = 0;
+    chess->pvsa_button_was_pressed = false;
+    chess->player_vs_ai = true;  // Start with Player vs AI
+    
+    // Player move tracking
+    chess->selected_piece_row = -1;
+    chess->selected_piece_col = -1;
+    chess->has_selected_piece = false;
+    chess->selected_piece_was_pressed = false;
+    
     printf("Beat chess system initialized\n");
 }
 
@@ -791,25 +802,32 @@ void update_beat_chess(void *vis_ptr, double dt) {
     
     chess->time_since_last_move += dt;
     
+    // Calculate board layout early so player moves can use it
+    double available_width = vis->width * 0.8;
+    double available_height = vis->height * 0.8;
+    chess->cell_size = fmin(available_width / 8, available_height / 8);
+    chess->board_offset_x = (vis->width - chess->cell_size * 8) / 2;
+    chess->board_offset_y = (vis->height - chess->cell_size * 8) / 2;
+    
     // ===== CHECK RESET BUTTON INTERACTION =====
     // Detect if mouse is over button (for hover effects)
-    bool is_over_button = (vis->mouse_x >= chess->reset_button_x && 
+    bool is_over_reset = (vis->mouse_x >= chess->reset_button_x && 
                           vis->mouse_x <= chess->reset_button_x + chess->reset_button_width &&
                           vis->mouse_y >= chess->reset_button_y && 
                           vis->mouse_y <= chess->reset_button_y + chess->reset_button_height);
     
-    chess->reset_button_hovered = is_over_button;
+    chess->reset_button_hovered = is_over_reset;
     
     // Detect click: button was pressed last frame AND released this frame
-    bool was_pressed = chess->reset_button_was_pressed;
-    bool is_pressed = vis->mouse_left_pressed;
-    bool just_clicked = (was_pressed && !is_pressed && is_over_button);
+    bool reset_was_pressed = chess->reset_button_was_pressed;
+    bool reset_is_pressed = vis->mouse_left_pressed;
+    bool reset_clicked = (reset_was_pressed && !reset_is_pressed && is_over_reset);
     
     // Update for next frame
-    chess->reset_button_was_pressed = is_pressed;
+    chess->reset_button_was_pressed = reset_is_pressed;
     
     // Handle the click if it happened
-    if (just_clicked) {
+    if (reset_clicked) {
         // Reset the game
         chess_init_board(&chess->game);
         chess->status = CHESS_PLAYING;
@@ -837,6 +855,185 @@ void update_beat_chess(void *vis_ptr, double dt) {
     }
     // ========================================
     
+    // ===== CHECK PVSA TOGGLE BUTTON INTERACTION =====
+    // Detect if mouse is over button (for hover effects)
+    bool is_over_pvsa = (vis->mouse_x >= chess->pvsa_button_x && 
+                         vis->mouse_x <= chess->pvsa_button_x + chess->pvsa_button_width &&
+                         vis->mouse_y >= chess->pvsa_button_y && 
+                         vis->mouse_y <= chess->pvsa_button_y + chess->pvsa_button_height);
+    
+    chess->pvsa_button_hovered = is_over_pvsa;
+    
+    // Detect click: button was pressed last frame AND released this frame
+    bool pvsa_was_pressed = chess->pvsa_button_was_pressed;
+    bool pvsa_is_pressed = vis->mouse_left_pressed;
+    bool pvsa_clicked = (pvsa_was_pressed && !pvsa_is_pressed && is_over_pvsa);
+    
+    // Update for next frame
+    chess->pvsa_button_was_pressed = pvsa_is_pressed;
+    
+    // Handle the click if it happened
+    if (pvsa_clicked) {
+        // Toggle between Player vs AI and AI vs AI
+        chess->player_vs_ai = !chess->player_vs_ai;
+        
+        // Reset game when toggling
+        chess_init_board(&chess->game);
+        chess->status = CHESS_PLAYING;
+        chess->beats_since_game_over = 0;
+        chess->waiting_for_restart = false;
+        chess->move_count = 0;
+        chess->eval_bar_position = 0;
+        chess->eval_bar_target = 0;
+        chess->time_thinking = 0;
+        chess->last_move_glow = 0;
+        chess->animation_progress = 0;
+        chess->is_animating = false;
+        chess->last_from_row = -1;
+        
+        if (chess->player_vs_ai) {
+            strcpy(chess->status_text, "Player vs AI - White (player) to move");
+            chess->status_flash_color[0] = 0.2;
+            chess->status_flash_color[1] = 0.8;
+            chess->status_flash_color[2] = 1.0;
+        } else {
+            strcpy(chess->status_text, "AI vs AI - Game started!");
+            chess->status_flash_color[0] = 1.0;
+            chess->status_flash_color[1] = 0.65;
+            chess->status_flash_color[2] = 0.0;
+        }
+        chess->status_flash_timer = 2.0;
+        chess->pvsa_button_glow = 1.0;
+        
+        // Start thinking for new game
+        chess_start_thinking(&chess->thinking_state, &chess->game);
+    }
+    // ===============================================
+    
+    // ===== HANDLE PLAYER MOVES (in Player vs AI mode) =====
+    if (chess->player_vs_ai && chess->game.turn == WHITE) {
+        // Get which square the mouse is over
+        double cell = chess->cell_size;
+        double ox = chess->board_offset_x;
+        double oy = chess->board_offset_y;
+        
+        // Calculate which square (if any) mouse is over
+        int mouse_row = -1, mouse_col = -1;
+        if (vis->mouse_x >= ox && vis->mouse_x < ox + cell * 8 &&
+            vis->mouse_y >= oy && vis->mouse_y < oy + cell * 8) {
+            mouse_row = (int)((vis->mouse_y - oy) / cell);
+            mouse_col = (int)((vis->mouse_x - ox) / cell);
+        }
+        
+        // Detect single click (press then release)
+        bool is_pressed = vis->mouse_left_pressed;
+        bool was_pressed = chess->selected_piece_was_pressed;
+        bool just_clicked = (was_pressed && !is_pressed);  // Button released this frame
+        
+        // Update for next frame
+        chess->selected_piece_was_pressed = is_pressed;
+        
+        if (just_clicked && mouse_row >= 0 && mouse_col >= 0) {
+            // Handle click based on whether we have a piece selected
+            if (!chess->has_selected_piece) {
+                // First click: select a piece if it's white
+                ChessPiece piece = chess->game.board[mouse_row][mouse_col];
+                if (piece.type != EMPTY && piece.color == WHITE) {
+                    chess->selected_piece_row = mouse_row;
+                    chess->selected_piece_col = mouse_col;
+                    chess->has_selected_piece = true;
+                    strcpy(chess->status_text, "Piece selected - click destination");
+                }
+            } else {
+                // Second click: try to move to destination
+                int from_row = chess->selected_piece_row;
+                int from_col = chess->selected_piece_col;
+                int to_row = mouse_row;
+                int to_col = mouse_col;
+                
+                // Don't allow moving to same square
+                if (from_row == to_row && from_col == to_col) {
+                    // Same square - deselect piece
+                    chess->has_selected_piece = false;
+                    strcpy(chess->status_text, "Piece deselected");
+                } else {
+                    // Try to move
+                    if (chess_is_valid_move(&chess->game, from_row, from_col, to_row, to_col)) {
+                        // Check if move leaves king in check
+                        ChessGameState temp_game = chess->game;
+                        ChessMove test_move = {from_row, from_col, to_row, to_col, 0};
+                        chess_make_move(&temp_game, test_move);
+                        
+                        if (!chess_is_in_check(&temp_game, WHITE)) {
+                            // Valid move! Make it
+                            chess_make_move(&chess->game, test_move);
+                            
+                            // Update display
+                            chess->last_from_row = from_row;
+                            chess->last_from_col = from_col;
+                            chess->last_to_row = to_row;
+                            chess->last_to_col = to_col;
+                            chess->last_move_glow = 1.0;
+                            
+                            chess->animating_from_row = from_row;
+                            chess->animating_from_col = from_col;
+                            chess->animating_to_row = to_row;
+                            chess->animating_to_col = to_col;
+                            chess->animation_progress = 0;
+                            chess->is_animating = true;
+                            
+                            strcpy(chess->status_text, "Black thinking...");
+                            chess->move_count++;
+                            chess->time_since_last_move = 0;
+                            
+                            // Check game status
+                            chess->status = chess_check_game_status(&chess->game);
+                            if (chess->status != CHESS_PLAYING) {
+                                chess->waiting_for_restart = true;
+                                chess->beats_since_game_over = 0;
+                                
+                                if (chess->status == CHESS_CHECKMATE_WHITE) {
+                                    strcpy(chess->status_text, "Checkmate! Black wins!");
+                                    chess->status_flash_color[0] = 0.85;
+                                    chess->status_flash_color[1] = 0.65;
+                                    chess->status_flash_color[2] = 0.13;
+                                } else if (chess->status == CHESS_CHECKMATE_BLACK) {
+                                    strcpy(chess->status_text, "Checkmate! White wins!");
+                                    chess->status_flash_color[0] = 1.0;
+                                    chess->status_flash_color[1] = 1.0;
+                                    chess->status_flash_color[2] = 1.0;
+                                } else {
+                                    strcpy(chess->status_text, "Stalemate!");
+                                    chess->status_flash_color[0] = 0.7;
+                                    chess->status_flash_color[1] = 0.7;
+                                    chess->status_flash_color[2] = 0.7;
+                                }
+                                chess->status_flash_timer = 2.0;
+                            } else {
+                                // Start AI thinking for Black's move
+                                chess_start_thinking(&chess->thinking_state, &chess->game);
+                            }
+                            
+                            // Deselect piece after successful move
+                            chess->has_selected_piece = false;
+                            chess->selected_piece_row = -1;
+                            chess->selected_piece_col = -1;
+                        } else {
+                            // Move would leave king in check - invalid
+                            strcpy(chess->status_text, "Illegal move - king in check");
+                            chess->has_selected_piece = false;
+                        }
+                    } else {
+                        // Invalid move
+                        strcpy(chess->status_text, "Illegal move");
+                        chess->has_selected_piece = false;
+                    }
+                }
+            }
+        }
+    }
+    // ===================================================
+    
     // Update glow effects
     if (chess->last_move_glow > 0) {
         chess->last_move_glow -= dt * 2.0;
@@ -847,6 +1044,12 @@ void update_beat_chess(void *vis_ptr, double dt) {
     if (chess->reset_button_glow > 0) {
         chess->reset_button_glow -= dt * 2.0;
         if (chess->reset_button_glow < 0) chess->reset_button_glow = 0;
+    }
+    
+    // Update PvsA button hover glow
+    if (chess->pvsa_button_glow > 0) {
+        chess->pvsa_button_glow -= dt * 2.0;
+        if (chess->pvsa_button_glow < 0) chess->pvsa_button_glow = 0;
     }
     
     if (chess->status_flash_timer > 0) {
@@ -915,8 +1118,12 @@ void update_beat_chess(void *vis_ptr, double dt) {
     if (chess->auto_play_enabled && has_move && 
         chess->time_thinking >= chess->min_think_time) {
         
+        // In Player vs AI mode: don't autoplay if it's WHITE's turn (player's turn)
+        if (chess->player_vs_ai && chess->game.turn == WHITE) {
+            should_auto_play = false;
+        }
         // Force move after 4 seconds regardless of depth/evaluation
-        if (chess->time_thinking >= 4.0) {
+        else if (chess->time_thinking >= 4.0) {
             should_auto_play = true;
         }
         // Play if we've reached depth 3 or 4
@@ -938,7 +1145,15 @@ void update_beat_chess(void *vis_ptr, double dt) {
     // Detect beat OR auto-play trigger
     bool beat_detected = beat_chess_detect_beat(vis);
     
-    if (beat_detected || should_auto_play) {
+    // In Player vs AI mode: only AI (BLACK) makes moves, WHITE is player
+    // In AI vs AI mode: both sides make moves
+    bool should_make_move = beat_detected || should_auto_play;
+    if (chess->player_vs_ai && chess->game.turn == WHITE) {
+        // Player's turn - don't auto-make move
+        should_make_move = false;
+    }
+    
+    if (should_make_move) {
         // Get current evaluation
         int eval_before = chess_evaluate_position(&chess->game);
         
@@ -1328,6 +1543,25 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
     double ox = chess->board_offset_x;
     double oy = chess->board_offset_y;
     
+    // Draw selection highlight if a piece is selected
+    if (chess->has_selected_piece && chess->selected_piece_row >= 0) {
+        cairo_set_source_rgba(cr, 0.0, 1.0, 1.0, 0.3);  // Cyan highlight
+        cairo_rectangle(cr, 
+                       ox + chess->selected_piece_col * cell, 
+                       oy + chess->selected_piece_row * cell, 
+                       cell, cell);
+        cairo_fill(cr);
+        
+        // Border around selected piece
+        cairo_set_source_rgb(cr, 0.0, 1.0, 1.0);
+        cairo_set_line_width(cr, 3);
+        cairo_rectangle(cr, 
+                       ox + chess->selected_piece_col * cell, 
+                       oy + chess->selected_piece_row * cell, 
+                       cell, cell);
+        cairo_stroke(cr);
+    }
+    
     // Get volume level from the parent visualizer structure
     // We need to pass this through from draw_beat_chess
     Visualizer *vis = (Visualizer*)((char*)chess - offsetof(Visualizer, beat_chess));
@@ -1547,6 +1781,61 @@ void draw_chess_reset_button(BeatChessVisualization *chess, cairo_t *cr, int wid
     cairo_show_text(cr, "RESET");
 }
 
+void draw_chess_pvsa_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
+    // Button position and size - LEFT SIDE, below RESET button
+    double button_width = 120;
+    double button_height = 40;
+    double button_x = 20;  // LEFT side, same as RESET
+    double button_y = 70;  // Below RESET (20 + 40 + 10 spacing)
+    
+    // Store button position for hit detection
+    chess->pvsa_button_x = button_x;
+    chess->pvsa_button_y = button_y;
+    chess->pvsa_button_width = button_width;
+    chess->pvsa_button_height = button_height;
+    
+    // Background
+    cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_fill(cr);
+    
+    // Glow effect if hovered
+    if (chess->pvsa_button_hovered || chess->pvsa_button_glow > 0) {
+        double glow_alpha = chess->pvsa_button_glow * 0.5;
+        if (chess->pvsa_button_hovered) glow_alpha = 0.4;
+        
+        cairo_set_source_rgba(cr, 1.0, 0.7, 0.2, glow_alpha);
+        cairo_rectangle(cr, button_x - 3, button_y - 3, button_width + 6, button_height + 6);
+        cairo_stroke(cr);
+    }
+    
+    // Border
+    cairo_set_source_rgb(cr, chess->pvsa_button_hovered ? 1.0 : 0.7, 
+                         chess->pvsa_button_hovered ? 0.7 : 0.5, 
+                         chess->pvsa_button_hovered ? 0.2 : 0.3);
+    cairo_set_line_width(cr, 2);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_stroke(cr);
+    
+    // Text - show current mode
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, 12);
+    
+    const char *button_text = chess->player_vs_ai ? "P vs AI" : "AI vs AI";
+    
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, button_text, &extents);
+    
+    double text_x = button_x + (button_width - extents.width) / 2;
+    double text_y = button_y + (button_height + extents.height) / 2;
+    
+    cairo_set_source_rgb(cr, chess->pvsa_button_hovered ? 1.0 : 0.9, 
+                         chess->pvsa_button_hovered ? 0.8 : 0.7, 
+                         chess->pvsa_button_hovered ? 0.3 : 0.4);
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, button_text);
+}
+
 void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     Visualizer *vis = (Visualizer*)vis_ptr;
     BeatChessVisualization *chess = &vis->beat_chess;
@@ -1568,7 +1857,9 @@ void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     draw_chess_pieces(chess, cr);
     draw_chess_eval_bar(chess, cr, width, height);
     draw_chess_status(chess, cr, width, height);
+    // Draw buttons
     draw_chess_reset_button(chess, cr, width, height);
+    draw_chess_pvsa_button(chess, cr, width, height);
 }
 
 void chess_cleanup_thinking_state(ChessThinkingState *ts) {

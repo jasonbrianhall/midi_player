@@ -587,6 +587,7 @@ void draw_chess_last_move_highlight(BeatChessVisualization *chess, cairo_t *cr);
 void draw_chess_status(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
 void draw_chess_eval_bar(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
 void draw_chess_reset_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
+void draw_chess_pvsa_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height);
 void get_piece_symbol(PieceType type, ChessColor color, char *buffer);
 
 // Chess functions
