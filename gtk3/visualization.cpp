@@ -728,8 +728,8 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Dancing Parrot");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "The All Seeing Eye");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Tower of Hanoi");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Chess");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Checkers");    
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Chess (i)");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Beat Checkers (i)");    
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Fractal Bloom");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Symmetry Cascade");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Wormhole Simulation");

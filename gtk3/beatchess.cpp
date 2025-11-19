@@ -129,39 +129,62 @@ bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
                 if (piece.color == WHITE && game->white_king_moved) return false;
                 if (piece.color == BLACK && game->black_king_moved) return false;
                 
-                // Kingside castling
+                // Kingside castling (king moves to g file)
                 if (dc == 2) {
+                    // Rook must not have moved
                     if (piece.color == WHITE && game->white_rook_h_moved) return false;
                     if (piece.color == BLACK && game->black_rook_h_moved) return false;
                     
-                    // Check path is clear
-                    if (!chess_is_path_clear(game, fr, fc, tr, 7)) return false;
+                    // Rook must still be on starting square
+                    ChessPiece rook = game->board[fr][7];
+                    if (rook.type != ROOK || rook.color != piece.color) return false;
                     
-                    // Check king doesn't move through check
+                    // Check path is clear (f and g files)
+                    if (game->board[fr][5].type != EMPTY) return false;
+                    if (game->board[fr][6].type != EMPTY) return false;
+                    
+                    // Check king is not currently in check
                     if (chess_is_in_check(game, piece.color)) return false;
                     
+                    // Check king doesn't pass through check (intermediate square)
                     ChessGameState temp = *game;
-                    temp.board[fr][fc+1] = piece;
-                    temp.board[fr][fc].type = EMPTY;
+                    temp.board[fr][6] = piece;
+                    temp.board[fr][4].type = EMPTY;
+                    if (chess_is_in_check(&temp, piece.color)) return false;
+                    
+                    // Check king doesn't end in check (final square)
+                    temp.board[fr][6] = piece;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
                     return true;
                 }
                 
-                // Queenside castling
+                // Queenside castling (king moves to c file)
                 if (dc == -2) {
+                    // Rook must not have moved
                     if (piece.color == WHITE && game->white_rook_a_moved) return false;
                     if (piece.color == BLACK && game->black_rook_a_moved) return false;
                     
-                    // Check path is clear
-                    if (!chess_is_path_clear(game, fr, fc, tr, 0)) return false;
+                    // Rook must still be on starting square
+                    ChessPiece rook = game->board[fr][0];
+                    if (rook.type != ROOK || rook.color != piece.color) return false;
                     
-                    // Check king doesn't move through check
+                    // Check path is clear (a, b, c, d files)
+                    if (game->board[fr][1].type != EMPTY) return false;
+                    if (game->board[fr][2].type != EMPTY) return false;
+                    if (game->board[fr][3].type != EMPTY) return false;
+                    
+                    // Check king is not currently in check
                     if (chess_is_in_check(game, piece.color)) return false;
                     
+                    // Check king doesn't pass through check (intermediate square)
                     ChessGameState temp = *game;
-                    temp.board[fr][fc-1] = piece;
-                    temp.board[fr][fc].type = EMPTY;
+                    temp.board[fr][2] = piece;
+                    temp.board[fr][4].type = EMPTY;
+                    if (chess_is_in_check(&temp, piece.color)) return false;
+                    
+                    // Check king doesn't end in check (final square)
+                    temp.board[fr][2] = piece;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
                     return true;
@@ -278,6 +301,18 @@ void chess_make_move(ChessGameState *game, ChessMove move) {
         } else {
             if (move.from_col == 0) game->black_rook_a_moved = true;
             if (move.from_col == 7) game->black_rook_h_moved = true;
+        }
+    }
+    
+    // Also mark rook as moved if it's being captured
+    ChessPiece target = game->board[move.to_row][move.to_col];
+    if (target.type == ROOK) {
+        if (target.color == WHITE) {
+            if (move.to_col == 0) game->white_rook_a_moved = true;
+            if (move.to_col == 7) game->white_rook_h_moved = true;
+        } else {
+            if (move.to_col == 0) game->black_rook_a_moved = true;
+            if (move.to_col == 7) game->black_rook_h_moved = true;
         }
     }
     
