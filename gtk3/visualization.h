@@ -30,6 +30,7 @@
 #include "drawradialbars.h"
 #include "bouncingcircle.h"
 #include "mandelbrot.h"
+#include "pong.h"
 
 #define VIS_SAMPLES 512
 #define VIS_FREQUENCY_BARS 32
@@ -71,6 +72,7 @@ typedef enum {
     VIS_MAZE_3D,
     VIS_BOUNCING_CIRCLE,
     VIS_MANDELBROT,
+    VIS_PONG,
     VIS_KARAOKE,
     VIS_KARAOKE_EXCITING
 } VisualizationType;
@@ -348,6 +350,9 @@ typedef struct {
 
     // Fractal
     MandelbrotState mandelbrot;
+
+    // Pong
+    PongGame pong_game;
 
 } Visualizer;
 
@@ -675,6 +680,11 @@ gboolean on_visualizer_leave(GtkWidget *widget, GdkEventCrossing *event, gpointe
 gboolean on_visualizer_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data);
 gboolean on_visualizer_button_release(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 gboolean on_visualizer_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data);
+
+// Pong
+void pong_init(void *vis);
+void pong_update(void *vis, double dt);
+void pong_draw(void *vis, cairo_t *cr);
 
 #endif
 

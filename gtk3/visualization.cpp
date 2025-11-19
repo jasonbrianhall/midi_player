@@ -92,7 +92,8 @@ Visualizer* visualizer_new(void) {
     init_beat_chess_system(vis);
     init_beat_checkers_system(vis);
     init_maze3d_system(vis);
-
+    pong_init(vis);
+    
     vis->track_info_display_time = 0.0;
     vis->track_info_fade_alpha = 1.0;
     memset(vis->track_info_title, 0, sizeof(vis->track_info_title));
@@ -474,6 +475,9 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
        case VIS_MANDELBROT:
           draw_mandelbrot(vis, cr);
           break;
+       case VIS_PONG:
+          pong_draw(vis, cr);
+          break;    
        case VIS_KARAOKE:
           draw_karaoke_boring(vis, cr);
           break;          
@@ -622,7 +626,10 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 break;
             case VIS_MANDELBROT:
                 update_mandelbrot(vis, dt);
-                break;                                                               
+                break;
+            case VIS_PONG:
+                pong_update(vis, dt);
+                break;                                                                               
             case VIS_KARAOKE:
             case VIS_KARAOKE_EXCITING:
                 if (vis->cdg_display) {
@@ -731,6 +738,7 @@ GtkWidget* create_visualization_controls(Visualizer *vis) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "3d Maze");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Circle Ball Visualization");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Mandelbrot Fractal");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Table Tennis (i)");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Classic");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(type_combo), "Karaoke Starburst");
 
