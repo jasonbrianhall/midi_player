@@ -105,6 +105,13 @@ typedef struct {
     int good_move_threshold;       // Score threshold to auto-play (e.g., 200)
     bool auto_play_enabled;        // Whether to auto-play good moves
     
+    // Reset button
+    double reset_button_x, reset_button_y;
+    double reset_button_width, reset_button_height;
+    bool reset_button_hovered;
+    double reset_button_glow;
+    bool reset_button_was_pressed;  // Track previous frame state for click detection
+    
 } BeatChessVisualization;
 
 #endif // BEATCHESS_H

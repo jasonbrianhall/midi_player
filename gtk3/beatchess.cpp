@@ -752,6 +752,11 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->good_move_threshold = 150;   // Auto-play if advantage > 150 centipawns
     chess->auto_play_enabled = true;    // Enable auto-play
     
+    // Reset button
+    chess->reset_button_hovered = false;
+    chess->reset_button_glow = 0;
+    chess->reset_button_was_pressed = false;
+    
     printf("Beat chess system initialized\n");
 }
 
@@ -786,10 +791,62 @@ void update_beat_chess(void *vis_ptr, double dt) {
     
     chess->time_since_last_move += dt;
     
+    // ===== CHECK RESET BUTTON INTERACTION =====
+    // Detect if mouse is over button (for hover effects)
+    bool is_over_button = (vis->mouse_x >= chess->reset_button_x && 
+                          vis->mouse_x <= chess->reset_button_x + chess->reset_button_width &&
+                          vis->mouse_y >= chess->reset_button_y && 
+                          vis->mouse_y <= chess->reset_button_y + chess->reset_button_height);
+    
+    chess->reset_button_hovered = is_over_button;
+    
+    // Detect click: button was pressed last frame AND released this frame
+    bool was_pressed = chess->reset_button_was_pressed;
+    bool is_pressed = vis->mouse_left_pressed;
+    bool just_clicked = (was_pressed && !is_pressed && is_over_button);
+    
+    // Update for next frame
+    chess->reset_button_was_pressed = is_pressed;
+    
+    // Handle the click if it happened
+    if (just_clicked) {
+        // Reset the game
+        chess_init_board(&chess->game);
+        chess->status = CHESS_PLAYING;
+        chess->beats_since_game_over = 0;
+        chess->waiting_for_restart = false;
+        chess->move_count = 0;
+        chess->eval_bar_position = 0;
+        chess->eval_bar_target = 0;
+        chess->time_thinking = 0;
+        chess->last_move_glow = 0;
+        chess->animation_progress = 0;
+        chess->is_animating = false;
+        chess->last_from_row = -1;
+        
+        strcpy(chess->status_text, "Game Reset! White to move");
+        chess->status_flash_color[0] = 0.2;
+        chess->status_flash_color[1] = 0.8;
+        chess->status_flash_color[2] = 1.0;
+        chess->status_flash_timer = 1.5;
+        
+        chess->reset_button_glow = 1.0;
+        
+        // Start thinking for new game
+        chess_start_thinking(&chess->thinking_state, &chess->game);
+    }
+    // ========================================
+    
     // Update glow effects
     if (chess->last_move_glow > 0) {
         chess->last_move_glow -= dt * 2.0;
         if (chess->last_move_glow < 0) chess->last_move_glow = 0;
+    }
+    
+    // Update reset button hover glow
+    if (chess->reset_button_glow > 0) {
+        chess->reset_button_glow -= dt * 2.0;
+        if (chess->reset_button_glow < 0) chess->reset_button_glow = 0;
     }
     
     if (chess->status_flash_timer > 0) {
@@ -1437,6 +1494,59 @@ void draw_chess_status(BeatChessVisualization *chess, cairo_t *cr, int width, in
     cairo_show_text(cr, move_text);
 }
 
+void draw_chess_reset_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
+    // Button position and size - LEFT SIDE
+    double button_width = 120;
+    double button_height = 40;
+    double button_x = 20;  // LEFT side, 20px from edge
+    double button_y = 20;
+    
+    // Store button position for hit detection
+    chess->reset_button_x = button_x;
+    chess->reset_button_y = button_y;
+    chess->reset_button_width = button_width;
+    chess->reset_button_height = button_height;
+    
+    // Background
+    cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_fill(cr);
+    
+    // Glow effect if hovered
+    if (chess->reset_button_hovered || chess->reset_button_glow > 0) {
+        double glow_alpha = chess->reset_button_glow * 0.5;
+        if (chess->reset_button_hovered) glow_alpha = 0.4;
+        
+        cairo_set_source_rgba(cr, 1.0, 0.7, 0.2, glow_alpha);
+        cairo_rectangle(cr, button_x - 3, button_y - 3, button_width + 6, button_height + 6);
+        cairo_stroke(cr);
+    }
+    
+    // Border
+    cairo_set_source_rgb(cr, chess->reset_button_hovered ? 1.0 : 0.7, 
+                         chess->reset_button_hovered ? 0.7 : 0.5, 
+                         chess->reset_button_hovered ? 0.2 : 0.3);
+    cairo_set_line_width(cr, 2);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_stroke(cr);
+    
+    // Text
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, 14);
+    
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, "RESET", &extents);
+    
+    double text_x = button_x + (button_width - extents.width) / 2;
+    double text_y = button_y + (button_height + extents.height) / 2;
+    
+    cairo_set_source_rgb(cr, chess->reset_button_hovered ? 1.0 : 0.9, 
+                         chess->reset_button_hovered ? 0.8 : 0.7, 
+                         chess->reset_button_hovered ? 0.3 : 0.4);
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, "RESET");
+}
+
 void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     Visualizer *vis = (Visualizer*)vis_ptr;
     BeatChessVisualization *chess = &vis->beat_chess;
@@ -1458,6 +1568,7 @@ void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     draw_chess_pieces(chess, cr);
     draw_chess_eval_bar(chess, cr, width, height);
     draw_chess_status(chess, cr, width, height);
+    draw_chess_reset_button(chess, cr, width, height);
 }
 
 void chess_cleanup_thinking_state(ChessThinkingState *ts) {
