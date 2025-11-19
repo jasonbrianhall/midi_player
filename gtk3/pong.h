@@ -7,9 +7,9 @@
 #define PONG_PADDLE_WIDTH 15.0
 #define PONG_PADDLE_HEIGHT 120.0
 #define PONG_PADDLE_SPEED 400.0
-#define PONG_BALL_SPEED 350.0
+#define PONG_BALL_SPEED 600.0
 #define PONG_BALL_SPEED_INCREMENT 15.0  // Speed increase per paddle hit
-#define PONG_MAX_BALL_SPEED 600.0        // Cap ball speed
+#define PONG_MAX_BALL_SPEED 1200.0        // Cap ball speed
 
 typedef struct {
     double x, y;

@@ -196,8 +196,8 @@ void pong_update(void *vis_ptr, double dt) {
     }
     
     // Ball physics
-    game->ball.x += game->ball.vx * dt;
-    game->ball.y += game->ball.vy * dt;
+    game->ball.x += game->ball.vx * game->width/1024 * dt;
+    game->ball.y += game->ball.vy * game->width/1024 * dt;
     
     // Ball bounce off top/bottom
     if (game->ball.y - game->ball.size < 0) {
@@ -362,7 +362,6 @@ void pong_update(void *vis_ptr, double dt) {
 void pong_draw(void *vis_ptr, cairo_t *cr) {
     Visualizer *vis = (Visualizer *)vis_ptr;
     PongGame *game = &vis->pong_game;
-    
     // Background
     cairo_set_source_rgb(cr, 0.05, 0.08, 0.15);
     cairo_paint(cr);
