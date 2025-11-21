@@ -795,7 +795,7 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->pvsa_button_hovered = false;
     chess->pvsa_button_glow = 0;
     chess->pvsa_button_was_pressed = false;
-    chess->player_vs_ai = true;  // Start with Player vs AI
+    chess->player_vs_ai = false;  // Start with AI vs AI
     
     // Player move tracking
     chess->selected_piece_row = -1;
