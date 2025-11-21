@@ -146,14 +146,15 @@ bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
                     // Check king is not currently in check
                     if (chess_is_in_check(game, piece.color)) return false;
                     
-                    // Check king doesn't pass through check (intermediate square)
+                    // Check king doesn't pass through check (f file - intermediate square)
                     ChessGameState temp = *game;
-                    temp.board[fr][6] = piece;
+                    temp.board[fr][5] = piece;
                     temp.board[fr][4].type = EMPTY;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
-                    // Check king doesn't end in check (final square)
+                    // Check king doesn't end in check (g file - final square)
                     temp.board[fr][6] = piece;
+                    temp.board[fr][5].type = EMPTY;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
                     return true;
@@ -177,14 +178,15 @@ bool chess_is_valid_move(ChessGameState *game, int fr, int fc, int tr, int tc) {
                     // Check king is not currently in check
                     if (chess_is_in_check(game, piece.color)) return false;
                     
-                    // Check king doesn't pass through check (intermediate square)
+                    // Check king doesn't pass through check (d file - intermediate square)
                     ChessGameState temp = *game;
-                    temp.board[fr][2] = piece;
+                    temp.board[fr][3] = piece;
                     temp.board[fr][4].type = EMPTY;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
-                    // Check king doesn't end in check (final square)
+                    // Check king doesn't end in check (c file - final square)
                     temp.board[fr][2] = piece;
+                    temp.board[fr][3].type = EMPTY;
                     if (chess_is_in_check(&temp, piece.color)) return false;
                     
                     return true;
