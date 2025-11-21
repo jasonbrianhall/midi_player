@@ -58,11 +58,12 @@ Transform your music into visual art with real-time, audio-reactive visualizatio
 **Interactive Visualizations**
 - **Sudoku Solver**: Watch a real sudoku puzzle solve itself to the beat (it also generates the puzzles)
 - **Tower of Hanoi**: Classic puzzle solving in rhythm
-- **Beat Chess**: AI chess game synchronized with music
+- **Beat Chess**: AI chess game synchronized with music; fully playable as white
 - **Beat Checkers**: AI checkers match moving with the beat
 - **Bouncy Balls**: Physics simulation with audio-driven energy
 - **Block Stack**: Stack building with the beat
 - **Robot Chaser**: Animated robot following audio patterns in a maze
+- **Pong**: It's table tennis; it's not super interactive but you can play against AI
 
 **Themed Visualizations**
 - **Digital Clock**: Time display with audio-reactive swirls
