@@ -1164,7 +1164,11 @@ void update_beat_chess(void *vis_ptr, double dt) {
                             if (chess->status != CHESS_PLAYING) {
                                 chess->waiting_for_restart = true;
                                 chess->beats_since_game_over = 0;
-                                
+                                chess->white_total_time = 0.0;
+                                chess->black_total_time = 0.0;
+                                chess->current_move_start_time = 0.0;
+                                chess->last_move_end_time = 0.0;
+
                                 if (chess->status == CHESS_CHECKMATE_WHITE) {
                                     strcpy(chess->status_text, "Checkmate! Black wins!");
                                     chess->status_flash_color[0] = 0.85;
