@@ -75,7 +75,7 @@ Visualizer* visualizer_new(void) {
     g_signal_connect(vis->drawing_area, "draw", G_CALLBACK(on_visualizer_draw), vis);
     g_signal_connect(vis->drawing_area, "configure-event", G_CALLBACK(on_visualizer_configure), vis);
     
-    // Start animation timer
+    // Start animation timer for 30 FPS (33.33ms per frame)
     vis->timer_id = g_timeout_add(33, visualizer_timer_callback, vis);
     init_fireworks_system(vis);
     init_dna_system(vis);
@@ -169,6 +169,25 @@ void visualizer_free(Visualizer *vis) {
     chess_cleanup_thinking_state(&vis->beat_chess.thinking_state);
     checkers_cleanup_thinking_state(&vis->beat_checkers.thinking_state);
     g_free(vis);
+}
+
+// Check if a visualization type is an interactive game
+static gboolean is_interactive_game(VisualizationType type) {
+    switch (type) {
+        // Interactive games that should never stop and maintain 30 FPS
+        case VIS_BUBBLES:
+        case VIS_MATRIX:
+        case VIS_BEAT_CHESS:
+        case VIS_BEAT_CHECKERS:
+        case VIS_PONG:
+        case VIS_RIPPLES:
+        case VIS_RABBITHARE:
+        case VIS_FIREWORKS:
+        case VIS_BOUNCY_BALLS:
+            return TRUE;
+        default:
+            return FALSE;
+    }
 }
 
 void visualizer_set_type(Visualizer *vis, VisualizationType type) {
@@ -365,8 +384,6 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
         return FALSE;
     }
     
-
-    
     // Draw visualization based on type
     switch (vis->type) {
         case VIS_WAVEFORM:
@@ -397,6 +414,7 @@ gboolean on_visualizer_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) 
             draw_fireworks(vis, cr);
             break;            
         case VIS_MATRIX:
+            draw_matrix(vis, cr);
             draw_matrix(vis, cr);
             break;
         case VIS_DNA_HELIX:
@@ -518,23 +536,29 @@ gboolean visualizer_timer_callback(gpointer user_data) {
         
         // Check if window is visible on screen
         GdkWindow *gdk_window = gtk_widget_get_window(player->window);
+        bool is_minimized = gdk_window && (gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_ICONIFIED);
         bool is_visible = gtk_widget_get_visible(player->window) && 
                          gdk_window && 
-                         !(gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_ICONIFIED) &&
+                         !is_minimized &&
                          gdk_window_is_visible(gdk_window);
         
         bool is_playing = player && player->is_playing && !player->is_paused;
-        bool should_update = vis_type_changed || (is_playing && is_visible);
+        bool is_interactive_game_active = is_interactive_game(vis->type);
+        
+        // For interactive games: ALWAYS update when window is visible, never skip
+        // For other visualizations: only update during playback (or on vis type change)
+        bool should_update = vis_type_changed || is_interactive_game_active || is_playing;
+        bool should_render = is_visible || vis_type_changed;  // Skip rendering only if minimized
         
         if (!should_update) {
-            return TRUE; // Keep timer running but skip updates
+            return TRUE; // Keep timer running but skip updates when paused and not interactive
         }
         
         last_vis_type = vis->type;
         
         // Scale animation speed by playback speed, but cap at 120 FPS equivalent
         double speed_factor = player ? player->playback_speed : 1.0;
-        double dt = 0.033 * speed_factor;  // Scale the delta time
+        double dt = 0.033 * speed_factor;  // Scale the delta time (33ms = ~30 FPS)
         
         // Cap at ~120 FPS (minimum dt of 0.00833 seconds)
         const double min_dt = 1.0 / 120.0;
@@ -548,8 +572,13 @@ gboolean visualizer_timer_callback(gpointer user_data) {
         
         if (vis->rotation > 2.0 * M_PI) vis->rotation -= 2.0 * M_PI;
         
-        gtk_widget_queue_draw(vis->drawing_area);
+        // Only queue draw if window is visible (skip rendering for minimized windows)
+        if (should_render) {
+            gtk_widget_queue_draw(vis->drawing_area);
+        }
         
+        // UPDATE FUNCTIONS - These are called for both interactive and non-interactive visualizations
+        // Interactive games run continuously, others only during playback
         switch (vis->type) {
             case VIS_TRIPPY_BARS:
                 update_trippy(vis, dt); // 33ms = ~30 FPS
@@ -588,13 +617,18 @@ gboolean visualizer_timer_callback(gpointer user_data) {
             case VIS_ANALOG_CLOCK:
                 update_analog_clock(vis, dt);
                 break;
+            // ============================================================
+            // INTERACTIVE GAMES - These NEVER stop and always maintain 30 FPS
+            // ============================================================
             case VIS_ROBOT_CHASER:
+                // Game continues regardless of music playback
                 update_robot_chaser_visualization(vis, dt);
                 break;
             case VIS_RADIAL_WAVE:
                 update_radial_wave(vis, dt);
                 break;
             case VIS_BLOCK_STACK:
+                // Game continues regardless of music playback
                 update_blockstack(vis, dt);
                 break;
             case VIS_PARROT:
@@ -604,12 +638,15 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 update_eye_of_sauron(vis, dt);
                 break;
             case VIS_TOWER_OF_HANOI:
+                // Game continues regardless of music playback
                 update_hanoi(vis, dt);
                 break;
             case VIS_BEAT_CHESS:
+                // Game continues regardless of music playback
                 update_beat_chess(vis, dt);
                 break;
             case VIS_BEAT_CHECKERS:
+                // Game continues regardless of music playback
                 update_beat_checkers(vis, dt);
                 break;                                                
             case VIS_DRAW_WORMHOLE:
@@ -619,6 +656,7 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 update_rabbithare(vis, dt);
                 break;                                                
             case VIS_MAZE_3D:
+                // Game continues regardless of music playback
                 update_maze3d(vis, dt);
                 break;
             case VIS_BOUNCING_CIRCLE:
@@ -628,6 +666,7 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                 update_mandelbrot(vis, dt);
                 break;
             case VIS_PONG:
+                // Game continues regardless of music playback
                 pong_update(vis, dt);
                 break;                                                                               
             case VIS_KARAOKE:
@@ -636,18 +675,16 @@ gboolean visualizer_timer_callback(gpointer user_data) {
                     //printf("playtime %.3f\n", playTime);
                     cdg_update(vis->cdg_display, playTime);
                 }
-                
                 break;                                
             default:
                 // No update function needed for other visualization types
                 break;
-                
         }
-       update_track_info_overlay(vis, dt);
-
+        
+        update_track_info_overlay(vis, dt);
     }
     
-    return TRUE; // Continue timer
+    return TRUE; // Continue timer - NEVER stop the timer for interactive games
 }
 
 void on_visualizer_realize(GtkWidget *widget, gpointer user_data) {
