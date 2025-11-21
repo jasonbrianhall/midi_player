@@ -723,6 +723,89 @@ ChessGameStatus chess_check_game_status(ChessGameState *game) {
 }
 
 // ============================================================================
+// UNDO FUNCTIONALITY
+// ============================================================================
+
+void chess_save_move_history(BeatChessVisualization *chess, ChessMove move, double time_spent) {
+    if (chess->move_history_count < MAX_MOVE_HISTORY) {
+        chess->move_history[chess->move_history_count].game_state = chess->game;
+        chess->move_history[chess->move_history_count].move = move;
+        chess->move_history[chess->move_history_count].time_elapsed = time_spent;
+        chess->move_history_count++;
+    }
+}
+
+bool chess_can_undo(BeatChessVisualization *chess) {
+    // Can undo if:
+    // 1. In Player vs AI mode
+    // 2. It's the player's turn (WHITE)
+    // 3. There's at least one move in history (a move was just made by AI)
+    return chess->player_vs_ai && 
+           chess->game.turn == WHITE && 
+           chess->move_history_count > 0;
+}
+
+void chess_undo_last_move(BeatChessVisualization *chess) {
+    if (!chess_can_undo(chess)) return;
+    
+    // When player clicks undo, it's currently the player's (WHITE's) turn
+    // This means: Player move -> AI move -> [NOW]
+    // We want to undo the AI's move AND the player's move before it
+    // So we go back 2 moves in history
+    
+    if (chess->move_history_count >= 2) {
+        // Get the AI's move (most recent, at index count-1)
+        // Get the player's move before it (at index count-2)
+        MoveHistory *player_move = &chess->move_history[chess->move_history_count - 2];
+        MoveHistory *ai_move = &chess->move_history[chess->move_history_count - 1];
+        
+        // Restore to the state BEFORE the player's move
+        // We need to go back 3 moves worth: to before the previous AI move
+        if (chess->move_history_count >= 3) {
+            chess->game = chess->move_history[chess->move_history_count - 3].game_state;
+        } else {
+            // Only 2 moves in history - this was the first exchange
+            // Go back to starting position
+            chess_init_board(&chess->game);
+        }
+        
+        // Subtract times from totals
+        chess->white_total_time -= player_move->time_elapsed;
+        chess->black_total_time -= ai_move->time_elapsed;
+        if (chess->white_total_time < 0) chess->white_total_time = 0;
+        if (chess->black_total_time < 0) chess->black_total_time = 0;
+        
+        // Remove the 2 moves from history
+        chess->move_history_count -= 2;
+        
+        strcpy(chess->status_text, "Moves undone - your turn to play again");
+        chess->status_flash_color[0] = 0.2;
+        chess->status_flash_color[1] = 0.8;
+        chess->status_flash_color[2] = 1.0;
+    } else if (chess->move_history_count == 1) {
+        // Only player's opening move - undo it
+        chess_init_board(&chess->game);
+        
+        chess->white_total_time -= chess->move_history[0].time_elapsed;
+        if (chess->white_total_time < 0) chess->white_total_time = 0;
+        
+        chess->move_history_count = 0;
+        
+        strcpy(chess->status_text, "Opening move undone - try again");
+        chess->status_flash_color[0] = 0.2;
+        chess->status_flash_color[1] = 0.8;
+        chess->status_flash_color[2] = 1.0;
+    }
+    
+    chess->move_count = chess->move_history_count;
+    chess->last_move_glow = 0;
+    chess->animation_progress = 0;
+    chess->is_animating = false;
+    chess->undo_button_glow = 1.0;
+    chess->status_flash_timer = 1.5;
+}
+
+// ============================================================================
 // VISUALIZATION SYSTEM
 // ============================================================================
 
@@ -797,6 +880,20 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->pvsa_button_was_pressed = false;
     chess->player_vs_ai = false;  // Start with AI vs AI
     
+    // Undo button
+    chess->undo_button_hovered = false;
+    chess->undo_button_glow = 0;
+    chess->undo_button_was_pressed = false;
+    
+    // Move history
+    chess->move_history_count = 0;
+    
+    // Time tracking
+    chess->white_total_time = 0.0;
+    chess->black_total_time = 0.0;
+    chess->current_move_start_time = 0.0;
+    chess->last_move_end_time = 0.0;
+    
     // Player move tracking
     chess->selected_piece_row = -1;
     chess->selected_piece_col = -1;
@@ -836,6 +933,12 @@ void update_beat_chess(void *vis_ptr, double dt) {
     BeatChessVisualization *chess = &vis->beat_chess;
     
     chess->time_since_last_move += dt;
+    chess->time_thinking += dt;
+    
+    // Track current move time (in Player vs AI mode when it's player's or AI's turn)
+    if (chess->player_vs_ai && chess->status == CHESS_PLAYING) {
+        chess->current_move_start_time += dt;
+    }
     
     // Calculate board layout early so player moves can use it
     double available_width = vis->width * 0.8;
@@ -945,7 +1048,33 @@ void update_beat_chess(void *vis_ptr, double dt) {
     }
     // ===============================================
     
-    // ===== HANDLE PLAYER MOVES (in Player vs AI mode) =====
+    // ===== CHECK UNDO BUTTON INTERACTION =====
+    // Detect if mouse is over button (for hover effects)
+    bool is_over_undo = (vis->mouse_x >= chess->undo_button_x && 
+                         vis->mouse_x <= chess->undo_button_x + chess->undo_button_width &&
+                         vis->mouse_y >= chess->undo_button_y && 
+                         vis->mouse_y <= chess->undo_button_y + chess->undo_button_height);
+    
+    chess->undo_button_hovered = is_over_undo && chess_can_undo(chess);
+    
+    // Detect click: button was pressed last frame AND released this frame
+    bool undo_was_pressed = chess->undo_button_was_pressed;
+    bool undo_is_pressed = vis->mouse_left_pressed;
+    bool undo_clicked = (undo_was_pressed && !undo_is_pressed && is_over_undo && chess_can_undo(chess));
+    
+    // Update for next frame
+    chess->undo_button_was_pressed = undo_is_pressed;
+    
+    // Handle the click if it happened
+    if (undo_clicked) {
+        chess_undo_last_move(chess);
+    }
+    
+    // Decay glow effect
+    chess->reset_button_glow *= 0.95;
+    chess->pvsa_button_glow *= 0.95;
+    chess->undo_button_glow *= 0.95;
+    // =========================================
     if (chess->player_vs_ai && chess->game.turn == WHITE) {
         // Get which square the mouse is over
         double cell = chess->cell_size;
@@ -1003,6 +1132,13 @@ void update_beat_chess(void *vis_ptr, double dt) {
                             // Valid move! Make it
                             chess_make_move(&chess->game, test_move);
                             
+                            // Track time and save move history
+                            double time_on_move = chess->current_move_start_time;
+                            chess->white_total_time += time_on_move;
+                            chess->last_move_end_time = 0;  // Reset for AI's thinking
+                            
+                            chess_save_move_history(chess, test_move, time_on_move);
+                            
                             // Update display
                             chess->last_from_row = from_row;
                             chess->last_from_col = from_col;
@@ -1046,6 +1182,7 @@ void update_beat_chess(void *vis_ptr, double dt) {
                                 chess->status_flash_timer = 2.0;
                             } else {
                                 // Start AI thinking for Black's move
+                                chess->time_thinking = 0;  // Reset timer for new thinking phase
                                 chess_start_thinking(&chess->thinking_state, &chess->game);
                             }
                             
@@ -1221,6 +1358,14 @@ void update_beat_chess(void *vis_ptr, double dt) {
         // Make the move
         ChessColor moving_color = chess->game.turn;
         chess_make_move(&chess->game, forced_move);
+        
+        // Track time and save move history (only in Player vs AI mode)
+        if (chess->player_vs_ai) {
+            double ai_time = chess->time_thinking;
+            chess->black_total_time += ai_time;
+            chess_save_move_history(chess, forced_move, ai_time);
+            chess->time_thinking = 0;  // Reset for next AI turn
+        }
         
         // Evaluate
         int eval_after = chess_evaluate_position(&chess->game);
@@ -1761,6 +1906,26 @@ void draw_chess_status(BeatChessVisualization *chess, cairo_t *cr, int width, in
     cairo_move_to(cr, (width - extents.width) / 2, 
                   chess->board_offset_y + chess->cell_size * 8 + 30);
     cairo_show_text(cr, move_text);
+    
+    // Time display (only in Player vs AI mode)
+    if (chess->player_vs_ai) {
+        char time_text[256];
+        
+        // Show current turn's elapsed time prominently
+        double current_time = (chess->game.turn == WHITE) ? chess->current_move_start_time : chess->time_thinking;
+        const char *current_player = (chess->game.turn == WHITE) ? "Your" : "AI";
+        
+        snprintf(time_text, sizeof(time_text), "%s turn: %.1fs | Total - White: %.1fs | Black: %.1fs",
+                current_player, current_time,
+                chess->white_total_time, chess->black_total_time);
+        
+        cairo_set_source_rgb(cr, 1.0, 1.0, 0.0);  // Bright yellow for visibility
+        cairo_set_font_size(cr, 14);  // Larger font
+        cairo_text_extents(cr, time_text, &extents);
+        cairo_move_to(cr, (width - extents.width) / 2, 
+                      chess->board_offset_y + chess->cell_size * 8 + 55);
+        cairo_show_text(cr, time_text);
+    }
 }
 
 void draw_chess_reset_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
@@ -1871,6 +2036,73 @@ void draw_chess_pvsa_button(BeatChessVisualization *chess, cairo_t *cr, int widt
     cairo_show_text(cr, button_text);
 }
 
+void draw_chess_undo_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
+    // Only show undo button in Player vs AI mode
+    if (!chess->player_vs_ai) return;
+    
+    // Button position and size - LEFT SIDE, below PvsA button
+    double button_width = 120;
+    double button_height = 40;
+    double button_x = 20;  // LEFT side, same as other buttons
+    double button_y = 120;  // Below PvsA button (70 + 40 + 10 spacing)
+    
+    // Store button position for hit detection
+    chess->undo_button_x = button_x;
+    chess->undo_button_y = button_y;
+    chess->undo_button_width = button_width;
+    chess->undo_button_height = button_height;
+    
+    // Disable button if can't undo
+    bool can_undo = chess_can_undo(chess);
+    
+    // Background
+    cairo_set_source_rgb(cr, can_undo ? 0.15 : 0.08, can_undo ? 0.15 : 0.08, can_undo ? 0.15 : 0.08);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_fill(cr);
+    
+    // Glow effect if hovered and enabled
+    if ((chess->undo_button_hovered || chess->undo_button_glow > 0) && can_undo) {
+        double glow_alpha = chess->undo_button_glow * 0.5;
+        if (chess->undo_button_hovered) glow_alpha = 0.4;
+        
+        cairo_set_source_rgba(cr, 1.0, 0.4, 0.2, glow_alpha);
+        cairo_rectangle(cr, button_x - 3, button_y - 3, button_width + 6, button_height + 6);
+        cairo_stroke(cr);
+    }
+    
+    // Border
+    if (can_undo) {
+        cairo_set_source_rgb(cr, chess->undo_button_hovered ? 1.0 : 0.6, 
+                             chess->undo_button_hovered ? 0.4 : 0.3, 
+                             chess->undo_button_hovered ? 0.2 : 0.2);
+    } else {
+        cairo_set_source_rgb(cr, 0.3, 0.3, 0.3);
+    }
+    cairo_set_line_width(cr, 2);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_stroke(cr);
+    
+    // Text
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, 14);
+    
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, "UNDO", &extents);
+    
+    double text_x = button_x + (button_width - extents.width) / 2;
+    double text_y = button_y + (button_height + extents.height) / 2;
+    
+    if (can_undo) {
+        cairo_set_source_rgb(cr, chess->undo_button_hovered ? 1.0 : 0.8, 
+                             chess->undo_button_hovered ? 0.6 : 0.4, 
+                             chess->undo_button_hovered ? 0.3 : 0.2);
+    } else {
+        cairo_set_source_rgb(cr, 0.4, 0.4, 0.4);
+    }
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, "UNDO");
+}
+
 void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     Visualizer *vis = (Visualizer*)vis_ptr;
     BeatChessVisualization *chess = &vis->beat_chess;
@@ -1895,6 +2127,7 @@ void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     // Draw buttons
     draw_chess_reset_button(chess, cr, width, height);
     draw_chess_pvsa_button(chess, cr, width, height);
+    draw_chess_undo_button(chess, cr, width, height);
 }
 
 void chess_cleanup_thinking_state(ChessThinkingState *ts) {
