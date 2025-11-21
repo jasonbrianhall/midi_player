@@ -740,17 +740,24 @@ void chess_save_move_history(BeatChessVisualization *chess, ChessMove move, doub
 bool chess_can_undo(BeatChessVisualization *chess) {
     // Can undo if:
     // 1. In Player vs AI mode
-    // 2. It's the player's turn (WHITE)
+    // 2. It's the player's turn (WHITE in normal mode, BLACK in flipped mode)
     // 3. There's at least one move in history (a move was just made by AI)
+    
+    ChessColor player_color = chess->board_flipped ? BLACK : WHITE;
+    
     return chess->player_vs_ai && 
-           chess->game.turn == WHITE && 
+           chess->game.turn == player_color && 
            chess->move_history_count > 0;
 }
 
 void chess_undo_last_move(BeatChessVisualization *chess) {
     if (!chess_can_undo(chess)) return;
     
-    // When player clicks undo, it's currently the player's (WHITE's) turn
+    // Determine actual player and AI colors based on board state
+    ChessColor player_color = chess->board_flipped ? BLACK : WHITE;
+    ChessColor ai_color = chess->board_flipped ? WHITE : BLACK;
+    
+    // When player clicks undo, it's currently the player's turn
     // This means: Player move -> AI move -> [NOW]
     // We want to undo the AI's move AND the player's move before it
     // So we go back 2 moves in history
@@ -771,9 +778,19 @@ void chess_undo_last_move(BeatChessVisualization *chess) {
             chess_init_board(&chess->game);
         }
         
-        // Subtract times from totals
-        chess->white_total_time -= player_move->time_elapsed;
-        chess->black_total_time -= ai_move->time_elapsed;
+        // Subtract times from totals (using correct colors)
+        if (player_color == WHITE) {
+            chess->white_total_time -= player_move->time_elapsed;
+        } else {
+            chess->black_total_time -= player_move->time_elapsed;
+        }
+        
+        if (ai_color == WHITE) {
+            chess->white_total_time -= ai_move->time_elapsed;
+        } else {
+            chess->black_total_time -= ai_move->time_elapsed;
+        }
+        
         if (chess->white_total_time < 0) chess->white_total_time = 0;
         if (chess->black_total_time < 0) chess->black_total_time = 0;
         
@@ -788,8 +805,15 @@ void chess_undo_last_move(BeatChessVisualization *chess) {
         // Only player's opening move - undo it
         chess_init_board(&chess->game);
         
-        chess->white_total_time -= chess->move_history[0].time_elapsed;
+        // Subtract time for player's move (using correct color)
+        if (player_color == WHITE) {
+            chess->white_total_time -= chess->move_history[0].time_elapsed;
+        } else {
+            chess->black_total_time -= chess->move_history[0].time_elapsed;
+        }
+        
         if (chess->white_total_time < 0) chess->white_total_time = 0;
+        if (chess->black_total_time < 0) chess->black_total_time = 0;
         
         chess->move_history_count = 0;
         
@@ -843,7 +867,7 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->is_animating = false;
     chess->animation_progress = 0;
     
-    strcpy(chess->status_text, "White to move");
+    strcpy(chess->status_text, "Game started - White to move");
     chess->status_flash_timer = 0;
     chess->status_flash_color[0] = 1.0;
     chess->status_flash_color[1] = 1.0;
@@ -886,6 +910,16 @@ void init_beat_chess_system(void *vis_ptr) {
     chess->undo_button_hovered = false;
     chess->undo_button_glow = 0;
     chess->undo_button_was_pressed = false;
+    chess->undo_button_x = 20;
+    chess->undo_button_y = 170;
+    chess->undo_button_width = 120;
+    chess->undo_button_height = 40;
+    
+    // Flip board button
+    chess->flip_button_hovered = false;
+    chess->flip_button_glow = 0;
+    chess->flip_button_was_pressed = false;
+    chess->board_flipped = false;  // Normal orientation by default
     
     // Move history
     chess->move_history_count = 0;
@@ -1051,33 +1085,121 @@ void update_beat_chess(void *vis_ptr, double dt) {
     // ===============================================
     
     // ===== CHECK UNDO BUTTON INTERACTION =====
-    // Detect if mouse is over button (for hover effects)
-    bool is_over_undo = (vis->mouse_x >= chess->undo_button_x && 
-                         vis->mouse_x <= chess->undo_button_x + chess->undo_button_width &&
-                         vis->mouse_y >= chess->undo_button_y && 
-                         vis->mouse_y <= chess->undo_button_y + chess->undo_button_height);
-    
-    chess->undo_button_hovered = is_over_undo && chess_can_undo(chess);
-    
-    // Detect click: button was pressed last frame AND released this frame
-    bool undo_was_pressed = chess->undo_button_was_pressed;
-    bool undo_is_pressed = vis->mouse_left_pressed;
-    bool undo_clicked = (undo_was_pressed && !undo_is_pressed && is_over_undo && chess_can_undo(chess));
-    
-    // Update for next frame
-    chess->undo_button_was_pressed = undo_is_pressed;
-    
-    // Handle the click if it happened
-    if (undo_clicked) {
-        chess_undo_last_move(chess);
+    // Only check undo in Player vs AI mode
+    if (chess->player_vs_ai) {
+        // Detect if mouse is over button (for hover effects)
+        bool is_over_undo = (vis->mouse_x >= chess->undo_button_x && 
+                             vis->mouse_x <= chess->undo_button_x + chess->undo_button_width &&
+                             vis->mouse_y >= chess->undo_button_y && 
+                             vis->mouse_y <= chess->undo_button_y + chess->undo_button_height);
+        
+        chess->undo_button_hovered = is_over_undo && chess_can_undo(chess);
+        
+        // Detect click: button was pressed last frame AND released this frame
+        bool undo_was_pressed = chess->undo_button_was_pressed;
+        bool undo_is_pressed = vis->mouse_left_pressed;
+        bool undo_clicked = (undo_was_pressed && !undo_is_pressed && is_over_undo && chess_can_undo(chess));
+        
+        // Update for next frame
+        chess->undo_button_was_pressed = undo_is_pressed;
+        
+        // Handle the click if it happened
+        if (undo_clicked) {
+            chess_undo_last_move(chess);
+        }
+    } else {
+        chess->undo_button_hovered = false;
+        chess->undo_button_was_pressed = false;
     }
     
-    // Decay glow effect
+    // ===== CHECK FLIP BOARD BUTTON INTERACTION =====
+    // Only check if in Player vs AI mode
+    if (chess->player_vs_ai) {
+        bool is_over_flip = (vis->mouse_x >= chess->flip_button_x && 
+                             vis->mouse_x <= chess->flip_button_x + chess->flip_button_width &&
+                             vis->mouse_y >= chess->flip_button_y && 
+                             vis->mouse_y <= chess->flip_button_y + chess->flip_button_height);
+        
+        chess->flip_button_hovered = is_over_flip;
+        
+        // Detect click: button was pressed last frame AND released this frame
+        bool flip_was_pressed = chess->flip_button_was_pressed;
+        bool flip_is_pressed = vis->mouse_left_pressed;
+        bool flip_clicked = (flip_was_pressed && !flip_is_pressed && is_over_flip);
+        
+        // Update for next frame
+        chess->flip_button_was_pressed = flip_is_pressed;
+        
+        // Handle the click if it happened
+        if (flip_clicked) {
+            chess->board_flipped = !chess->board_flipped;
+            chess->flip_button_glow = 1.0;
+            
+            // Reset the game when flipping
+            chess_init_board(&chess->game);
+            chess->status = CHESS_PLAYING;
+            chess->beats_since_game_over = 0;
+            chess->waiting_for_restart = false;
+            chess->move_count = 0;
+            chess->eval_bar_position = 0;
+            chess->eval_bar_target = 0;
+            chess->time_thinking = 0;
+            chess->last_move_glow = 0;
+            chess->animation_progress = 0;
+            chess->is_animating = false;
+            chess->last_from_row = -1;
+            chess->last_from_col = -1;
+            chess->last_to_row = -1;
+            chess->last_to_col = -1;
+            
+            // Reset timers
+            chess->white_total_time = 0.0;
+            chess->black_total_time = 0.0;
+            chess->current_move_start_time = 0.0;
+            chess->last_move_end_time = 0.0;
+            chess->time_since_last_move = 0.0;
+            
+            // Clear move history
+            chess->move_history_count = 0;
+            
+            // Clear selection
+            chess->has_selected_piece = false;
+            chess->selected_piece_row = -1;
+            chess->selected_piece_col = -1;
+            
+            // Update status text
+            if (chess->board_flipped) {
+                strcpy(chess->status_text, "Playing as BLACK - AI plays WHITE");
+                chess->status_flash_color[0] = 0.9;
+                chess->status_flash_color[1] = 0.9;
+                chess->status_flash_color[2] = 0.2;
+            } else {
+                strcpy(chess->status_text, "Playing as WHITE - AI plays BLACK");
+                chess->status_flash_color[0] = 0.2;
+                chess->status_flash_color[1] = 0.8;
+                chess->status_flash_color[2] = 1.0;
+            }
+            chess->status_flash_timer = 2.0;
+            
+            // Start thinking for new game
+            chess_start_thinking(&chess->thinking_state, &chess->game);
+        }
+        
+        // Decay glow effect
+        chess->flip_button_glow *= 0.95;
+    }
+    // =============================================
+    
+    // Decay glow effects
     chess->reset_button_glow *= 0.95;
     chess->pvsa_button_glow *= 0.95;
     chess->undo_button_glow *= 0.95;
     // =========================================
-    if (chess->player_vs_ai && chess->game.turn == WHITE) {
+    if (chess->player_vs_ai) {
+        // Determine which color the player is controlling based on board flip
+        ChessColor player_color = chess->board_flipped ? BLACK : WHITE;
+        
+        if (chess->game.turn == player_color) {
         // Get which square the mouse is over
         double cell = chess->cell_size;
         double ox = chess->board_offset_x;
@@ -1087,8 +1209,17 @@ void update_beat_chess(void *vis_ptr, double dt) {
         int mouse_row = -1, mouse_col = -1;
         if (vis->mouse_x >= ox && vis->mouse_x < ox + cell * 8 &&
             vis->mouse_y >= oy && vis->mouse_y < oy + cell * 8) {
-            mouse_row = (int)((vis->mouse_y - oy) / cell);
-            mouse_col = (int)((vis->mouse_x - ox) / cell);
+            int visual_row = (int)((vis->mouse_y - oy) / cell);
+            int visual_col = (int)((vis->mouse_x - ox) / cell);
+            
+            // Transform visual coordinates back to logical board coordinates if board is flipped
+            if (chess->board_flipped) {
+                mouse_row = BOARD_SIZE - 1 - visual_row;
+                mouse_col = BOARD_SIZE - 1 - visual_col;
+            } else {
+                mouse_row = visual_row;
+                mouse_col = visual_col;
+            }
         }
         
         // Detect single click (press then release)
@@ -1102,9 +1233,9 @@ void update_beat_chess(void *vis_ptr, double dt) {
         if (just_clicked && mouse_row >= 0 && mouse_col >= 0) {
             // Handle click based on whether we have a piece selected
             if (!chess->has_selected_piece) {
-                // First click: select a piece if it's white
+                // First click: select a piece if it's the player's color
                 ChessPiece piece = chess->game.board[mouse_row][mouse_col];
-                if (piece.type != EMPTY && piece.color == WHITE) {
+                if (piece.type != EMPTY && piece.color == player_color) {
                     chess->selected_piece_row = mouse_row;
                     chess->selected_piece_col = mouse_col;
                     chess->has_selected_piece = true;
@@ -1130,14 +1261,18 @@ void update_beat_chess(void *vis_ptr, double dt) {
                         ChessMove test_move = {from_row, from_col, to_row, to_col, 0};
                         chess_make_move(&temp_game, test_move);
                         
-                        if (!chess_is_in_check(&temp_game, WHITE)) {
+                        if (!chess_is_in_check(&temp_game, player_color)) {
                             // Valid move! Make it
                             chess_make_move(&chess->game, test_move);
                             
-                            // Track time and save move history
+                            // Track time for player's color and save move history
                             double time_on_move = chess->current_move_start_time;
-                            chess->white_total_time += time_on_move;
-                            chess->last_move_end_time = 0;  // Reset for AI's thinking
+                            if (player_color == WHITE) {
+                                chess->white_total_time += time_on_move;
+                            } else {
+                                chess->black_total_time += time_on_move;
+                            }
+                            chess->last_move_end_time = 0;  // Reset for next turn
                             
                             chess_save_move_history(chess, test_move, time_on_move);
                             
@@ -1155,9 +1290,16 @@ void update_beat_chess(void *vis_ptr, double dt) {
                             chess->animation_progress = 0;
                             chess->is_animating = true;
                             
-                            strcpy(chess->status_text, "Black thinking...");
+                            // Show whose turn it is now (AI's color)
+                            ChessColor ai_color = chess->board_flipped ? WHITE : BLACK;
+                            if (ai_color == WHITE) {
+                                strcpy(chess->status_text, "White (AI) thinking...");
+                            } else {
+                                strcpy(chess->status_text, "Black (AI) thinking...");
+                            }
                             chess->move_count++;
                             chess->time_since_last_move = 0;
+                            chess->current_move_start_time = 0;  // Reset timer for AI's thinking
                             
                             // Check game status
                             chess->status = chess_check_game_status(&chess->game);
@@ -1209,6 +1351,7 @@ void update_beat_chess(void *vis_ptr, double dt) {
                 }
             }
         }
+        }  // Close the if (chess->game.turn == player_color) block
     }
     // ===================================================
     
@@ -1296,8 +1439,11 @@ void update_beat_chess(void *vis_ptr, double dt) {
     if (chess->auto_play_enabled && has_move && 
         chess->time_thinking >= chess->min_think_time) {
         
-        // In Player vs AI mode: don't autoplay if it's WHITE's turn (player's turn)
-        if (chess->player_vs_ai && chess->game.turn == WHITE) {
+        // Determine which color the player is controlling
+        ChessColor player_color_local = chess->board_flipped ? BLACK : WHITE;
+        
+        // In Player vs AI mode: don't autoplay if it's the player's turn
+        if (chess->player_vs_ai && chess->game.turn == player_color_local) {
             should_auto_play = false;
         }
         // Force move after 4 seconds regardless of depth/evaluation
@@ -1323,10 +1469,14 @@ void update_beat_chess(void *vis_ptr, double dt) {
     // Detect beat OR auto-play trigger
     bool beat_detected = beat_chess_detect_beat(vis);
     
-    // In Player vs AI mode: only AI (BLACK) makes moves, WHITE is player
+    // Determine which color the player is controlling
+    ChessColor player_color = chess->board_flipped ? BLACK : WHITE;
+    ChessColor ai_color = chess->board_flipped ? WHITE : BLACK;
+    
+    // In Player vs AI mode: only AI makes moves when it's AI's turn, player controls their color
     // In AI vs AI mode: both sides make moves
     bool should_make_move = beat_detected || should_auto_play;
-    if (chess->player_vs_ai && chess->game.turn == WHITE) {
+    if (chess->player_vs_ai && chess->game.turn == player_color) {
         // Player's turn - don't auto-make move
         should_make_move = false;
     }
@@ -1368,7 +1518,12 @@ void update_beat_chess(void *vis_ptr, double dt) {
         // Track time and save move history (only in Player vs AI mode)
         if (chess->player_vs_ai) {
             double ai_time = chess->time_thinking;
-            chess->black_total_time += ai_time;
+            // Track time for whichever color the AI is playing
+            if (ai_color == WHITE) {
+                chess->white_total_time += ai_time;
+            } else {
+                chess->black_total_time += ai_time;
+            }
             chess_save_move_history(chess, forced_move, ai_time);
             chess->time_thinking = 0;  // Reset for next AI turn
         }
@@ -1664,6 +1819,10 @@ void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr) {
     // Draw board squares
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
+            // Apply board flip transformation if enabled
+            int draw_r = chess->board_flipped ? (BOARD_SIZE - 1 - r) : r;
+            int draw_c = chess->board_flipped ? (BOARD_SIZE - 1 - c) : c;
+            
             bool is_light = (r + c) % 2 == 0;
             
             if (is_light) {
@@ -1672,12 +1831,12 @@ void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr) {
                 cairo_set_source_rgb(cr, 0.4, 0.5, 0.4);
             }
             
-            cairo_rectangle(cr, ox + c * cell, oy + r * cell, cell, cell);
+            cairo_rectangle(cr, ox + draw_c * cell, oy + draw_r * cell, cell, cell);
             cairo_fill(cr);
         }
     }
     
-    // Draw coordinates
+    // Draw coordinates (flipped if needed)
     cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, cell * 0.2);
@@ -1685,16 +1844,31 @@ void draw_chess_board(BeatChessVisualization *chess, cairo_t *cr) {
     for (int i = 0; i < 8; i++) {
         char label[2];
         
-        // Files (a-h)
-        label[0] = 'a' + i;
-        label[1] = '\0';
-        cairo_move_to(cr, ox + i * cell + cell * 0.05, oy + 8 * cell - cell * 0.05);
-        cairo_show_text(cr, label);
-        
-        // Ranks (1-8)
-        label[0] = '8' - i;
-        cairo_move_to(cr, ox + cell * 0.05, oy + i * cell + cell * 0.25);
-        cairo_show_text(cr, label);
+        if (chess->board_flipped) {
+            // Flipped coordinates
+            // Files (h-a instead of a-h)
+            label[0] = 'h' - i;
+            label[1] = '\0';
+            cairo_move_to(cr, ox + i * cell + cell * 0.05, oy + 8 * cell - cell * 0.05);
+            cairo_show_text(cr, label);
+            
+            // Ranks (1-8 instead of 8-1)
+            label[0] = '1' + i;
+            cairo_move_to(cr, ox + cell * 0.05, oy + i * cell + cell * 0.25);
+            cairo_show_text(cr, label);
+        } else {
+            // Normal coordinates
+            // Files (a-h)
+            label[0] = 'a' + i;
+            label[1] = '\0';
+            cairo_move_to(cr, ox + i * cell + cell * 0.05, oy + 8 * cell - cell * 0.05);
+            cairo_show_text(cr, label);
+            
+            // Ranks (8-1)
+            label[0] = '8' - i;
+            cairo_move_to(cr, ox + cell * 0.05, oy + i * cell + cell * 0.25);
+            cairo_show_text(cr, label);
+        }
     }
 }
 
@@ -1707,19 +1881,25 @@ void draw_chess_last_move_highlight(BeatChessVisualization *chess, cairo_t *cr) 
     
     double alpha = chess->last_move_glow * 0.5;
     
+    // Transform coordinates if board is flipped
+    int from_row = chess->board_flipped ? (BOARD_SIZE - 1 - chess->last_from_row) : chess->last_from_row;
+    int from_col = chess->board_flipped ? (BOARD_SIZE - 1 - chess->last_from_col) : chess->last_from_col;
+    int to_row = chess->board_flipped ? (BOARD_SIZE - 1 - chess->last_to_row) : chess->last_to_row;
+    int to_col = chess->board_flipped ? (BOARD_SIZE - 1 - chess->last_to_col) : chess->last_to_col;
+    
     // Highlight from square
     cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, alpha);
     cairo_rectangle(cr, 
-                    ox + chess->last_from_col * cell, 
-                    oy + chess->last_from_row * cell, 
+                    ox + from_col * cell, 
+                    oy + from_row * cell, 
                     cell, cell);
     cairo_fill(cr);
     
     // Highlight to square
     cairo_set_source_rgba(cr, 1.0, 1.0, 0.0, alpha);
     cairo_rectangle(cr, 
-                    ox + chess->last_to_col * cell, 
-                    oy + chess->last_to_row * cell, 
+                    ox + to_col * cell, 
+                    oy + to_row * cell, 
                     cell, cell);
     cairo_fill(cr);
 }
@@ -1731,10 +1911,13 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
     
     // Draw selection highlight if a piece is selected
     if (chess->has_selected_piece && chess->selected_piece_row >= 0) {
+        int sel_r = chess->board_flipped ? (BOARD_SIZE - 1 - chess->selected_piece_row) : chess->selected_piece_row;
+        int sel_c = chess->board_flipped ? (BOARD_SIZE - 1 - chess->selected_piece_col) : chess->selected_piece_col;
+        
         cairo_set_source_rgba(cr, 0.0, 1.0, 1.0, 0.3);  // Cyan highlight
         cairo_rectangle(cr, 
-                       ox + chess->selected_piece_col * cell, 
-                       oy + chess->selected_piece_row * cell, 
+                       ox + sel_c * cell, 
+                       oy + sel_r * cell, 
                        cell, cell);
         cairo_fill(cr);
         
@@ -1742,8 +1925,8 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
         cairo_set_source_rgb(cr, 0.0, 1.0, 1.0);
         cairo_set_line_width(cr, 3);
         cairo_rectangle(cr, 
-                       ox + chess->selected_piece_col * cell, 
-                       oy + chess->selected_piece_row * cell, 
+                       ox + sel_c * cell, 
+                       oy + sel_r * cell, 
                        cell, cell);
         cairo_stroke(cr);
     }
@@ -1765,8 +1948,12 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
             }
             
             if (piece.type != EMPTY) {
-                double x = ox + c * cell;
-                double y = oy + r * cell;
+                // Apply board flip transformation
+                int draw_r = chess->board_flipped ? (BOARD_SIZE - 1 - r) : r;
+                int draw_c = chess->board_flipped ? (BOARD_SIZE - 1 - c) : c;
+                
+                double x = ox + draw_c * cell;
+                double y = oy + draw_r * cell;
                 
                 // Calculate dance offset based on music volume and position
                 double phase = (r * 0.5 + c * 0.3) * 3.14159;  // Different phase for each square
@@ -1794,14 +1981,20 @@ void draw_chess_pieces(BeatChessVisualization *chess, cairo_t *cr) {
         int tr = chess->animating_to_row;
         int tc = chess->animating_to_col;
         
+        // Apply board flip transformation
+        int draw_fr = chess->board_flipped ? (BOARD_SIZE - 1 - fr) : fr;
+        int draw_fc = chess->board_flipped ? (BOARD_SIZE - 1 - fc) : fc;
+        int draw_tr = chess->board_flipped ? (BOARD_SIZE - 1 - tr) : tr;
+        int draw_tc = chess->board_flipped ? (BOARD_SIZE - 1 - tc) : tc;
+        
         ChessPiece piece = chess->game.board[tr][tc];
         
         // Smooth interpolation
         double t = chess->animation_progress;
         t = t * t * (3.0 - 2.0 * t); // Smoothstep
         
-        double x = ox + (fc + t * (tc - fc)) * cell;
-        double y = oy + (fr + t * (tr - fr)) * cell;
+        double x = ox + (draw_fc + t * (draw_tc - draw_fc)) * cell;
+        double y = oy + (draw_fr + t * (draw_tr - draw_fr)) * cell;
         
         // Animating piece dances even more to the music
         double dance_amount = sin(chess->time_since_last_move * 15.0) * volume * cell * 0.3;
@@ -2042,8 +2235,8 @@ void draw_chess_pvsa_button(BeatChessVisualization *chess, cairo_t *cr, int widt
     cairo_show_text(cr, button_text);
 }
 
-void draw_chess_undo_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
-    // Only show undo button in Player vs AI mode
+void draw_chess_flip_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
+    // Only show flip button in Player vs AI mode
     if (!chess->player_vs_ai) return;
     
     // Button position and size - LEFT SIDE, below PvsA button
@@ -2051,6 +2244,65 @@ void draw_chess_undo_button(BeatChessVisualization *chess, cairo_t *cr, int widt
     double button_height = 40;
     double button_x = 20;  // LEFT side, same as other buttons
     double button_y = 120;  // Below PvsA button (70 + 40 + 10 spacing)
+    
+    // Store button position for hit detection
+    chess->flip_button_x = button_x;
+    chess->flip_button_y = button_y;
+    chess->flip_button_width = button_width;
+    chess->flip_button_height = button_height;
+    
+    // Background
+    cairo_set_source_rgb(cr, 0.15, 0.15, 0.15);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_fill(cr);
+    
+    // Glow effect if hovered
+    if (chess->flip_button_hovered || chess->flip_button_glow > 0) {
+        double glow_alpha = chess->flip_button_glow * 0.5;
+        if (chess->flip_button_hovered) glow_alpha = 0.4;
+        
+        cairo_set_source_rgba(cr, 0.2, 0.7, 1.0, glow_alpha);  // Blue glow
+        cairo_rectangle(cr, button_x - 3, button_y - 3, button_width + 6, button_height + 6);
+        cairo_stroke(cr);
+    }
+    
+    // Border - highlight if board is flipped
+    cairo_set_source_rgb(cr, chess->flip_button_hovered ? 0.3 : (chess->board_flipped ? 0.4 : 0.5), 
+                         chess->flip_button_hovered ? 0.9 : (chess->board_flipped ? 0.9 : 0.7), 
+                         chess->flip_button_hovered ? 1.0 : (chess->board_flipped ? 1.0 : 0.6));
+    cairo_set_line_width(cr, chess->board_flipped ? 3 : 2);
+    cairo_rectangle(cr, button_x, button_y, button_width, button_height);
+    cairo_stroke(cr);
+    
+    // Text
+    cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, 12);
+    
+    const char *button_text = "FLIP BOARD";
+    
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, button_text, &extents);
+    
+    double text_x = button_x + (button_width - extents.width) / 2;
+    double text_y = button_y + (button_height + extents.height) / 2;
+    
+    cairo_set_source_rgb(cr, chess->flip_button_hovered ? 0.3 : (chess->board_flipped ? 0.4 : 0.8), 
+                         chess->flip_button_hovered ? 0.9 : (chess->board_flipped ? 0.9 : 0.6), 
+                         chess->flip_button_hovered ? 1.0 : (chess->board_flipped ? 1.0 : 0.2));
+    cairo_move_to(cr, text_x, text_y);
+    cairo_show_text(cr, button_text);
+}
+
+
+void draw_chess_undo_button(BeatChessVisualization *chess, cairo_t *cr, int width, int height) {
+    // Only show undo button in Player vs AI mode
+    if (!chess->player_vs_ai) return;
+    
+    // Button position and size - LEFT SIDE, below FLIP button
+    double button_width = 120;
+    double button_height = 40;
+    double button_x = 20;  // LEFT side, same as other buttons
+    double button_y = 170;  // Below FLIP button (120 + 40 + 10 spacing)
     
     // Store button position for hit detection
     chess->undo_button_x = button_x;
@@ -2133,6 +2385,7 @@ void draw_beat_chess(void *vis_ptr, cairo_t *cr) {
     // Draw buttons
     draw_chess_reset_button(chess, cr, width, height);
     draw_chess_pvsa_button(chess, cr, width, height);
+    draw_chess_flip_button(chess, cr, width, height);
     draw_chess_undo_button(chess, cr, width, height);
 }
 

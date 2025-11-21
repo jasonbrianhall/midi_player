@@ -148,6 +148,14 @@ typedef struct {
     double current_move_start_time;  // When current move phase started (for display)
     double last_move_end_time;  // When the last move was completed (for accurate timing)
     
+    // Flip board button (for playing as Black)
+    double flip_button_x, flip_button_y;
+    double flip_button_width, flip_button_height;
+    bool flip_button_hovered;
+    double flip_button_glow;
+    bool flip_button_was_pressed;
+    bool board_flipped;  // true = board flipped (player plays Black), false = normal (player plays White)
+    
 } BeatChessVisualization;
 
 #endif // BEATCHESS_H
